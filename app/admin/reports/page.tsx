@@ -218,18 +218,20 @@ export default async function ReportsPage({
 					</div>
 					<div className="space-y-1 text-xs text-neutral-200">
 						{paymentMethodsWithStats.length > 0 ? (
-							paymentMethodsWithStats.map((row) => (
-								<div key={row.method} className="flex items-center justify-between gap-2">
-									<span>{row.method}</span>
-									<div className="flex items-center gap-3">
-										<span className="text-neutral-400">
-											{row.count} tx
-										</span>
-										<span className="text-neutral-400">{formatPercent(row.share)}</span>
-										<span>{formatCurrency(row.revenue)}</span>
+							paymentMethodsWithStats.map(
+								(row: { method: string; revenue: number; count: number; share: number }) => (
+									<div key={row.method} className="flex items-center justify-between gap-2">
+										<span>{row.method}</span>
+										<div className="flex items-center gap-3">
+											<span className="text-neutral-400">
+												{row.count} tx
+											</span>
+											<span className="text-neutral-400">{formatPercent(row.share)}</span>
+											<span>{formatCurrency(row.revenue)}</span>
+										</div>
 									</div>
-								</div>
-							))
+								),
+							)
 						) : (
 							<div className="text-neutral-500">No data.</div>
 						)}
