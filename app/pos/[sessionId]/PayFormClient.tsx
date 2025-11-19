@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { payOrderFormAction } from "./actions";
 
 type PayFormClientProps = {
@@ -18,6 +18,7 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [hasTypedOnKeypad, setHasTypedOnKeypad] = useState(false);
 	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "OTHER">("CASH");
+	const [validationError, setValidationError] = useState<string | null>(null);
 
 	function handleKeyPress(key: string) {
 		// Append digits or dot, keep the string simple and readable.
@@ -47,6 +48,42 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 		});
 	}
 
+	// Allow physical keyboard keys to drive the keypad when it is open.
+	useEffect(() => {
+		if (!open) return;
+
+		function onKeyDown(e: KeyboardEvent) {
+			const { key } = e;
+			if (key >= "0" && key <= "9") {
+				e.preventDefault();
+				handleKeyPress(key);
+				return;
+			}
+			if (key === ".") {
+				e.preventDefault();
+				handleKeyPress(".");
+				return;
+			}
+			if (key === "Backspace") {
+				e.preventDefault();
+				handleKeyPress("⌫");
+				return;
+			}
+			if (key === "Delete") {
+				e.preventDefault();
+				handleKeyPress("C");
+				return;
+			}
+			if (key === "Escape") {
+				e.preventDefault();
+				setOpen(false);
+			}
+		}
+
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, handleKeyPress]);
+
 	// Parse the current amount string into a number so we can show change.
 	const parsedAmount = useMemo(() => {
 		const cleaned = (amount || "").replace(/[^0-9.]/g, "");
@@ -65,9 +102,9 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 			<input type="hidden" name="sessionId" value={sessionId} />
 			<h2 className="mb-2 text-sm font-semibold text-neutral-50">Payment</h2>
 			<p className="mb-3 text-xs text-neutral-200">Confirm method and amount to close this table.</p>
-			{errorCode === "amount" && (
+			{(errorCode === "amount" || validationError) && (
 				<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-2 py-1 text-[11px] text-red-200">
-					Amount must be greater than zero.
+					{validationError || "Amount must be greater than zero."}
 				</div>
 			)}
 			<div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -121,6 +158,12 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 			<button
 				type="button"
 				onClick={() => {
+					// Do a simple client-side check: amount should cover the bill total.
+					if (parsedAmount + 0.0001 < suggestedAmount) {
+						setValidationError("Amount cannot be less than the bill total.");
+						return;
+					}
+					setValidationError(null);
 					// Close keypad (if open) and ask for final confirmation.
 					setOpen(false);
 					setConfirmOpen(true);
