@@ -196,15 +196,17 @@ export default async function ReportsPage({
 					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">By category</div>
 					<div className="space-y-1 text-xs text-neutral-200">
 						{categoriesWithShare.length > 0 ? (
-							categoriesWithShare.map((row) => (
-								<div key={row.category} className="flex items-center justify-between gap-2">
-									<span>{row.category}</span>
-									<div className="flex items-center gap-2">
-										<span className="text-neutral-400">{formatPercent(row.share)}</span>
-										<span>{formatCurrency(row.revenue)}</span>
+							categoriesWithShare.map(
+								(row: { category: string; revenue: number; share: number }) => (
+									<div key={row.category} className="flex items-center justify-between gap-2">
+										<span>{row.category}</span>
+										<div className="flex items-center gap-2">
+											<span className="text-neutral-400">{formatPercent(row.share)}</span>
+											<span>{formatCurrency(row.revenue)}</span>
+										</div>
 									</div>
-								</div>
-							))
+								),
+							)
 						) : (
 							<div className="text-neutral-500">No data.</div>
 						)}
