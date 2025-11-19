@@ -1,0 +1,146 @@
+export const dynamic = 'force-dynamic';
+
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createInventoryItem } from "./actions";
+import { InventoryEditDialog } from "./InventoryEditDialog";
+
+type InventoryItemRow = {
+	id: string;
+	name: string;
+	sku: string | null;
+	unit: string;
+	is_active: boolean;
+	quantity_on_hand: number;
+};
+
+export default async function InventoryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
+	const supabase = createSupabaseServerClient();
+
+	// Load inventory items and their current stock.
+	// We keep this simple and explicit: fetch items and stock in two queries
+	// and join them in memory. The stock view does not have a FK relationship
+	// in PostgREST, so attempting a join in a single select would fail.
+	const { data: itemRows } = await supabase
+		.from("inventory_items")
+		.select("id, name, sku, unit, is_active")
+		.order("name", { ascending: true });
+	const { data: stockRows } = await supabase
+		.from("inventory_item_stock")
+		.select("inventory_item_id, quantity_on_hand");
+
+	const stockMap = new Map<string, number>();
+	for (const row of stockRows ?? []) {
+		const id = (row as any).inventory_item_id as string;
+		const qty = Number((row as any).quantity_on_hand ?? 0);
+		if (!id) continue;
+		stockMap.set(id, Number.isFinite(qty) ? qty : 0);
+	}
+
+	const items: InventoryItemRow[] =
+		itemRows?.map((row: any) => ({
+			id: row.id as string,
+			name: row.name as string,
+			sku: (row.sku as string) ?? null,
+			unit: (row.unit as string) || "PCS",
+			is_active: !!row.is_active,
+			quantity_on_hand: stockMap.get(row.id as string) ?? 0,
+		})) ?? [];
+
+	const sp = await searchParams;
+	const ok = sp?.ok;
+	const errorCode = sp?.error as string | undefined;
+
+	return (
+		<div className="space-y-4">
+			<h1 className="text-2xl font-semibold">Inventory</h1>
+			{ok && (
+				<div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+					Saved successfully.
+				</div>
+			)}
+			{errorCode === "sku" && (
+				<div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+					An inventory item with this SKU already exists. Please use a different SKU or leave it blank.
+				</div>
+			)}
+			{errorCode === "delta" && (
+				<div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+					Quantity change must be a non-zero whole number. Please enter a positive or negative integer.
+				</div>
+			)}
+
+			{/* 
+				Quick add form for new inventory items.
+				We keep this minimal: name, optional SKU, and a simple unit string.
+			*/}
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
+				<h2 className="mb-3 text-base font-semibold">Add Inventory Item</h2>
+				<form action={createInventoryItem} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+					<input name="name" placeholder="Name" className="rounded border px-3 py-2 text-sm sm:col-span-2" required />
+					<input name="sku" placeholder="SKU (optional)" className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1" />
+					<select
+						name="unit"
+						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
+						defaultValue="PCS"
+					>
+						<option value="PCS">PCS</option>
+						<option value="BOTTLE">BOTTLE</option>
+						<option value="CAN">CAN</option>
+						<option value="ML">ML</option>
+						<option value="L">L</option>
+						<option value="GRAM">GRAM</option>
+						<option value="KG">KG</option>
+					</select>
+					<div className="sm:col-span-4">
+						<button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+							Add
+						</button>
+					</div>
+				</form>
+			</div>
+
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
+				<table className="w-full min-w-[720px] text-sm">
+					<thead className="text-left text-neutral-600">
+						<tr>
+							<th className="py-2">Name</th>
+							<th>SKU</th>
+							<th>Unit</th>
+							<th className="text-right">On hand</th>
+							<th>Status</th>
+							<th className="text-right">Edit</th>
+						</tr>
+					</thead>
+					<tbody>
+						{items.map((item) => (
+							<tr key={item.id} className="border-t">
+								<td className="py-2">{item.name}</td>
+								<td>{item.sku ?? "-"}</td>
+								<td>{item.unit}</td>
+								<td className="text-right font-mono">
+									{item.quantity_on_hand} {item.unit}
+								</td>
+								<td>{item.is_active ? "Active" : "Inactive"}</td>
+								<td className="text-right">
+									<InventoryEditDialog item={item} />
+								</td>
+							</tr>
+						))}
+						{items.length === 0 && (
+							<tr>
+								<td colSpan={6} className="py-4 text-center text-xs text-neutral-500">
+									No inventory items yet. Add one above to get started.
+								</td>
+							</tr>
+						)}
+					</tbody>
+				</table>
+				<p className="mt-3 text-xs text-neutral-500">
+					All changes are tracked in the inventory movements table so you always have a history of stock changes.
+				</p>
+			</div>
+		</div>
+	);
+}
+
+

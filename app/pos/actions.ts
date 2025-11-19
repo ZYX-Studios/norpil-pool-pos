@@ -1,0 +1,53 @@
+'use server'
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export async function openTableAction(poolTableId: string) {
+	const supabase = createSupabaseServerClient();
+
+	// Find an existing OPEN session for this table (idempotency safeguard)
+	const { data: existing, error: existingErr } = await supabase
+		.from("table_sessions")
+		.select("id, status")
+		.eq("pool_table_id", poolTableId)
+		.eq("status", "OPEN")
+		.limit(1)
+		.maybeSingle();
+
+	if (existingErr) {
+		throw existingErr;
+	}
+	if (existing?.id) {
+		redirect(`/pos/${existing.id}`);
+	}
+
+	// Create session
+	const { data: session, error: sessionErr } = await supabase
+		.from("table_sessions")
+		.insert({
+			pool_table_id: poolTableId,
+			status: "OPEN",
+		})
+		.select("id")
+		.single();
+
+	if (sessionErr) {
+		throw sessionErr;
+	}
+
+	// Create an OPEN order for this session
+	const { error: orderErr } = await supabase.from("orders").insert({
+		table_session_id: session.id,
+		status: "OPEN",
+	});
+	if (orderErr) {
+		throw orderErr;
+	}
+
+	revalidatePath("/pos");
+	redirect(`/pos/${session.id}`);
+}
+
+
