@@ -2,10 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 import { logoutAction } from "../auth/actions";
+import { PosSyncStatus } from "./PosSyncStatus";
 
 export default async function PosLayout({ children }: { children: React.ReactNode }) {
-	const { user, staff } = await getCurrentUserWithStaff();
-	if (!user) {
+	const { user, staff, authError } = await getCurrentUserWithStaff();
+
+	// If Supabase auth is reachable and there is no user, we treat this as a normal
+	// unauthenticated state and send the person to login.
+	if (!user && authError !== "supabase_unreachable") {
 		redirect("/auth/login");
 	}
 
@@ -23,8 +27,15 @@ export default async function PosLayout({ children }: { children: React.ReactNod
 					*/}
 					<div className="flex flex-wrap items-center gap-2 text-xs text-neutral-300">
 						<span className="hidden sm:inline text-neutral-400">
-							{staff?.name} · {staff?.role ?? "STAFF"}
+							{staff?.name ?? (authError === "supabase_unreachable" ? "Offline" : "Guest")} ·{" "}
+							{staff?.role ?? "STAFF"}
 						</span>
+						{/* 
+							Show a small connectivity + sync indicator for the POS.
+							This both triggers background syncs and reassures staff
+							that offline mode is working as expected.
+						*/}
+						<PosSyncStatus />
 						<Link
 							href="/admin"
 							className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-medium hover:bg-white/10 hover:text-white"

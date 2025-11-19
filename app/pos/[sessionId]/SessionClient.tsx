@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+	getProducts as getOfflineProducts,
+	saveProducts as saveOfflineProducts,
+} from "@/lib/offline/client";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
 
@@ -34,6 +38,8 @@ type SessionClientProps = {
 	hourlyRate: number;
 	orderId: string;
 	initialItems: SessionItem[];
+	// Products from the server are used as a starting point and as a seed
+	// for the offline cache. The live UI prefers the offline cache once ready.
 	products: SessionProduct[];
 	errorCode?: string;
 };
@@ -94,6 +100,7 @@ export function SessionClient({
 }: SessionClientProps) {
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
+	const [productList, setProductList] = useState<SessionProduct[]>(products);
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const [now, setNow] = useState(() => Date.now());
@@ -103,6 +110,53 @@ export function SessionClient({
 		return () => clearInterval(id);
 	}, []);
 
+	// Hydrate products from the offline cache when available and keep the
+	// cache in sync with the latest products passed from the server.
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			try {
+				// If we already have products cached from a recent sync, prefer those.
+				const offline = await getOfflineProducts();
+				if (!cancelled && offline.length > 0) {
+					setProductList(
+						offline.map((p) => ({
+							id: p.id,
+							name: p.name,
+							category: p.category as ItemCategory,
+							price: p.price,
+							taxRate: p.taxRate,
+							stock: typeof p.stock === "number" ? p.stock : undefined,
+						})),
+					);
+				}
+
+				// Always seed the offline cache with the latest server products
+				// so that, after a normal online session, this device can still
+				// open the POS when offline.
+				if (products.length > 0) {
+					await saveOfflineProducts(
+						products.map((p) => ({
+							id: p.id,
+							name: p.name,
+							category: p.category,
+							price: p.price,
+							taxRate: p.taxRate,
+							stock: typeof p.stock === "number" ? p.stock : null,
+						})),
+					);
+				}
+			} catch {
+				// If IndexedDB is unavailable (e.g. in private mode) we simply
+				// fall back to the in-memory server-provided products.
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [products]);
+
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
 	const billedHours = useMemo(() => computeBilledHours(openedAt, now), [openedAt, now]);
 	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
@@ -110,7 +164,7 @@ export function SessionClient({
 
 	// Optimistically add or increase an item in the cart.
 	function handleAddProduct(productId: string) {
-		const product = products.find((p) => p.id === productId);
+		const product = productList.find((p) => p.id === productId);
 		if (!product) return;
 
 		// Soft stock warning: if this product appears out of stock, we still
@@ -291,7 +345,7 @@ export function SessionClient({
 					</div>
 				</div>
 				<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-					{products
+					{productList
 						.filter((p) => p.category !== "TABLE_TIME")
 						.map((p) => (
 							<button

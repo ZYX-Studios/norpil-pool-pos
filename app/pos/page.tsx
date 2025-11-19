@@ -21,40 +21,68 @@ type OpenSession = {
 async function getData() {
 	const supabase = createSupabaseServerClient();
 
-	const [{ data: tables }, { data: sessions }] = await Promise.all([
-		supabase.from("pool_tables").select("id, name, is_active, hourly_rate").order("name", { ascending: true }),
-		supabase
-			.from("table_sessions")
-			.select("id, pool_table_id, opened_at, override_hourly_rate")
-			.eq("status", "OPEN"),
-	]);
+	try {
+		const [{ data: tables, error: tablesErr }, { data: sessions, error: sessionsErr }] = await Promise.all([
+			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").order("name", { ascending: true }),
+			supabase
+				.from("table_sessions")
+				.select("id, pool_table_id, opened_at, override_hourly_rate")
+				.eq("status", "OPEN"),
+		]);
 
-	// Fetch open orders for sessions to compute current items total
-	const sessionIds = (sessions ?? []).map((s) => s.id);
-	const { data: orders } =
-		sessionIds.length > 0
-			? await supabase
-					.from("orders")
-					.select("id, table_session_id, subtotal, tax_total, service_charge, discount_amount")
-					.in("table_session_id", sessionIds)
-					.eq("status", "OPEN")
-			: { data: [] as any[] };
+		if (tablesErr) throw tablesErr;
+		if (sessionsErr) throw sessionsErr;
 
-	const sessionIdToOrderTotal = new Map<string, number>();
-	for (const o of orders ?? []) {
-		const totalNow = Number(o.subtotal || 0) + Number(o.tax_total || 0) + Number(o.service_charge || 0) - Number(o.discount_amount || 0);
-		sessionIdToOrderTotal.set(o.table_session_id as string, Number(totalNow.toFixed(2)));
+		// Fetch open orders for sessions to compute current items total
+		const sessionIds = (sessions ?? []).map((s) => s.id);
+		const { data: orders, error: ordersErr } =
+			sessionIds.length > 0
+				? await supabase
+						.from("orders")
+						.select("id, table_session_id, subtotal, tax_total, service_charge, discount_amount")
+						.in("table_session_id", sessionIds)
+						.eq("status", "OPEN")
+				: { data: [] as any[], error: null as any };
+
+		if (ordersErr) throw ordersErr;
+
+		const sessionIdToOrderTotal = new Map<string, number>();
+		for (const o of orders ?? []) {
+			const totalNow =
+				Number(o.subtotal || 0) +
+				Number(o.tax_total || 0) +
+				Number(o.service_charge || 0) -
+				Number(o.discount_amount || 0);
+			sessionIdToOrderTotal.set(o.table_session_id as string, Number(totalNow.toFixed(2)));
+		}
+
+		return {
+			tables: (tables ?? []) as PoolTable[],
+			openSessions: (sessions ?? []) as OpenSession[],
+			sessionIdToOrderTotal,
+			errorCode: null as string | null,
+		};
+	} catch (error) {
+		// When Supabase is unreachable (e.g. device offline), we still render the
+		// POS shell with a friendly offline message instead of crashing.
+		console.error("Failed to load POS tables data", error);
+		return {
+			tables: [] as PoolTable[],
+			openSessions: [] as OpenSession[],
+			sessionIdToOrderTotal: new Map<string, number>(),
+			errorCode: "load_failed" as string | null,
+		};
 	}
-
-	return {
-		tables: (tables ?? []) as PoolTable[],
-		openSessions: (sessions ?? []) as OpenSession[],
-		sessionIdToOrderTotal,
-	};
 }
 
-export default async function PosHome() {
-	const { tables, openSessions, sessionIdToOrderTotal } = await getData();
+export default async function PosHome({
+	searchParams,
+}: {
+	searchParams: Promise<Record<string, string | string[]>>;
+}) {
+	const sp = await searchParams;
+	const queryError = (sp?.error as string | undefined) ?? null;
+	const { tables, openSessions, sessionIdToOrderTotal, errorCode } = await getData();
 	const tableIdToSession = new Map<string, OpenSession>();
 	for (const s of openSessions) {
 		tableIdToSession.set(s.pool_table_id, s);
@@ -68,6 +96,15 @@ export default async function PosHome() {
 					<p className="text-xs text-neutral-400">Open and manage live pool sessions seamlessly.</p>
 				</div>
 			</div>
+			{(errorCode || queryError) && (
+				<div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+					{errorCode === "load_failed"
+						? "Unable to load live table data. You might be offline or the server is unreachable."
+						: queryError === "open_table"
+							? "Could not open a new table session. Please check your internet connection and try again."
+							: "The POS could not reach the server. Some actions may be temporarily unavailable."}
+				</div>
+			)}
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{tables.map((t) => {
 					const session = tableIdToSession.get(t.id);

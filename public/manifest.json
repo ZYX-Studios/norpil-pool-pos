@@ -1,0 +1,26 @@
+{
+  "name": "Norpil Billiards POS",
+  "short_name": "Norpil POS",
+  "description": "Offline-capable point of sale for Norpil Billiards.",
+  "start_url": "/pos",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#22c55e",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/window.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/window.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
+
+

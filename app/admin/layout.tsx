@@ -4,8 +4,11 @@ import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 import { logoutAction } from "../auth/actions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-	const { user, staff } = await getCurrentUserWithStaff();
-	if (!user) {
+	const { user, staff, authError } = await getCurrentUserWithStaff();
+
+	// If auth is unreachable or the user is missing, force re-auth when online.
+	// Admin is intentionally kept online-only to keep permissions simple.
+	if (!user || authError === "supabase_unreachable") {
 		redirect("/auth/login");
 	}
 	if (staff?.role !== "ADMIN") {
