@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -51,6 +51,18 @@ function formatCurrency(n: number) {
 	}).format(n);
 }
 
+// Compute billed hours for table time using a fixed 5 minute grace window.
+// - No charge for the first 5 minutes.
+// - After that, hours increase in 60-minute blocks with the same grace per hour.
+function computeBilledHours(openedAt: string, nowMs: number, graceMinutes = 5) {
+	const openedMs = new Date(openedAt).getTime();
+	const elapsedMs = Math.max(0, nowMs - openedMs);
+	const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+	if (elapsedMinutes <= graceMinutes) return 0;
+	const extra = elapsedMinutes - graceMinutes;
+	return Math.ceil(extra / 60);
+}
+
 function computeTotals(items: SessionItem[]) {
 	let subtotal = 0;
 	let taxTotal = 0;
@@ -84,8 +96,17 @@ export function SessionClient({
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
+	const [now, setNow] = useState(() => Date.now());
+
+	useEffect(() => {
+		const id = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(id);
+	}, []);
 
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
+	const billedHours = useMemo(() => computeBilledHours(openedAt, now), [openedAt, now]);
+	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
+	const grandTotal = useMemo(() => round2(itemsTotal + tableFee), [itemsTotal, tableFee]);
 
 	// Optimistically add or increase an item in the cart.
 	function handleAddProduct(productId: string) {
@@ -219,6 +240,22 @@ export function SessionClient({
 							<div className="text-sm text-neutral-400">No items yet.</div>
 						)}
 					</div>
+					{billedHours > 0 && (
+						<div className="mt-3 border-t border-dashed border-white/15 pt-2 text-sm">
+							<div className="flex items-center justify-between">
+								<div>
+									<div className="font-medium text-neutral-50">Table time</div>
+									<div className="text-xs text-neutral-400">
+										{billedHours} hour{billedHours > 1 ? "s" : ""} × {formatCurrency(hourlyRate)}
+									</div>
+								</div>
+								<div className="w-24 text-right font-medium">
+									{formatCurrency(tableFee)}
+								</div>
+							</div>
+						</div>
+					)}
+
 					<div className="mt-4 border-t border-white/10 pt-3 text-sm">
 						<div className="flex justify-between text-neutral-300">
 							<span>Subtotal</span>
@@ -232,10 +269,18 @@ export function SessionClient({
 							<span>Items total</span>
 							<span>{formatCurrency(itemsTotal)}</span>
 						</div>
+						<div className="mt-1 flex justify-between text-sm text-neutral-200">
+							<span>Table time</span>
+							<span>{formatCurrency(tableFee)}</span>
+						</div>
+						<div className="mt-1 flex justify-between text-base font-semibold text-emerald-300">
+							<span>Grand total</span>
+							<span>{formatCurrency(grandTotal)}</span>
+						</div>
 					</div>
 				</div>
 
-				<PayFormClient sessionId={sessionId} suggestedAmount={itemsTotal} errorCode={errorCode} />
+				<PayFormClient sessionId={sessionId} suggestedAmount={grandTotal} errorCode={errorCode} />
 			</section>
 
 			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">

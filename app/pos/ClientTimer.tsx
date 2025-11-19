@@ -19,8 +19,14 @@ function TimerContent({ openedAt, hourlyRate, itemTotal }: { openedAt: string; h
 	}, []);
 
 	const elapsedMs = useMemo(() => now - new Date(openedAt).getTime(), [now, openedAt]);
-	const elapsedHours = Math.max(0, elapsedMs / (1000 * 60 * 60));
-	const tableFee = Number((elapsedHours * hourlyRate).toFixed(2));
+	const elapsedMinutes = Math.max(0, Math.floor(elapsedMs / (1000 * 60)));
+	const graceMinutes = 5;
+	let billedHours = 0;
+	if (elapsedMinutes > graceMinutes) {
+		const extra = elapsedMinutes - graceMinutes;
+		billedHours = Math.ceil(extra / 60);
+	}
+	const tableFee = Number((billedHours * hourlyRate).toFixed(2));
 	const estimatedTotal = Number((tableFee + itemTotal).toFixed(2));
 
 	const totalSeconds = Math.floor(elapsedMs / 1000);

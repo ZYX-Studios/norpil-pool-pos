@@ -129,10 +129,19 @@ export async function payOrderAction(
 	const { error: closeErr } = await supabase.from("table_sessions").update({ status: "CLOSED", closed_at: closedAt.toISOString() }).eq("id", sessionId);
 	if (closeErr) throw closeErr;
 
-	// Compute duration as integer minutes to satisfy INT quantity
 	const openedAt = new Date(session.opened_at as string);
 	const durationMs = Math.max(0, closedAt.getTime() - openedAt.getTime());
-	const qty = Math.max(0, Math.ceil(durationMs / (1000 * 60))); // integer minutes, rounded up
+	const elapsedMinutes = Math.max(0, Math.floor(durationMs / (1000 * 60)));
+	const GRACE_MINUTES = 5;
+
+	let billedHours = 0;
+	if (elapsedMinutes > GRACE_MINUTES) {
+		const extra = elapsedMinutes - GRACE_MINUTES;
+		billedHours = Math.ceil(extra / 60);
+	}
+
+	const billedMinutes = billedHours * 60;
+	const qty = billedMinutes; // we store quantity as integer minutes
 	const hourlyRate = Number(session.override_hourly_rate ?? tbl.hourly_rate);
 
 	// Ensure table time product exists
@@ -143,31 +152,33 @@ export async function payOrderAction(
 		.maybeSingle();
 	if (ttpErr || !tableTimeProduct) throw new Error("TABLE_TIME product not found. Please run seed migration.");
 
-	// Upsert TABLE_TIME line (replace any existing)
-	// Unit price is per minute
-	const perMinuteRate = Number((hourlyRate / 60).toFixed(2));
-	const lineTotal = Number((qty * perMinuteRate).toFixed(2));
-	const { data: existingLine } = await supabase
-		.from("order_items")
-		.select("id")
-		.eq("order_id", order.id)
-		.eq("product_id", tableTimeProduct.id)
-		.maybeSingle();
-	if (existingLine?.id) {
-		const { error: updErr } = await supabase
+	if (qty > 0) {
+		// Upsert TABLE_TIME line (replace any existing)
+		// Unit price is per minute
+		const perMinuteRate = Number((hourlyRate / 60).toFixed(2));
+		const lineTotal = Number((qty * perMinuteRate).toFixed(2));
+		const { data: existingLine } = await supabase
 			.from("order_items")
-			.update({ quantity: qty, unit_price: perMinuteRate, line_total: lineTotal })
-			.eq("id", existingLine.id);
-		if (updErr) throw updErr;
-	} else {
-		const { error: insErr } = await supabase.from("order_items").insert({
-			order_id: order.id,
-			product_id: tableTimeProduct.id,
-			quantity: qty,
-			unit_price: perMinuteRate,
-			line_total: lineTotal,
-		});
-		if (insErr) throw insErr;
+			.select("id")
+			.eq("order_id", order.id)
+			.eq("product_id", tableTimeProduct.id)
+			.maybeSingle();
+		if (existingLine?.id) {
+			const { error: updErr } = await supabase
+				.from("order_items")
+				.update({ quantity: qty, unit_price: perMinuteRate, line_total: lineTotal })
+				.eq("id", existingLine.id);
+			if (updErr) throw updErr;
+		} else {
+			const { error: insErr } = await supabase.from("order_items").insert({
+				order_id: order.id,
+				product_id: tableTimeProduct.id,
+				quantity: qty,
+				unit_price: perMinuteRate,
+				line_total: lineTotal,
+			});
+			if (insErr) throw insErr;
+		}
 	}
 
 	// Recalculate final totals (including TABLE_TIME)
