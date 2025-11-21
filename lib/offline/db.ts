@@ -61,6 +61,48 @@ interface PosOfflineDb extends DBSchema {
 			deviceId: string;
 		};
 	};
+	tables: {
+		key: string;
+		value: {
+			id: string;
+			name: string;
+			isActive: boolean;
+			hourlyRate: number;
+			updatedAt: string;
+		};
+	};
+	tableSessions: {
+		key: string;
+		value: {
+			id: string;
+			poolTableId: string;
+			openedAt: string;
+			overrideHourlyRate: number | null;
+			itemsTotal: number;
+			status: "OPEN" | "CLOSED";
+			updatedAt: string;
+		};
+	};
+	sessionSnapshots: {
+		key: string;
+		value: {
+			sessionId: string;
+			tableName: string;
+			openedAt: string;
+			hourlyRate: number;
+			orderId: string;
+			items: Array<{
+				productId: string;
+				name: string;
+				category: string;
+				unitPrice: number;
+				quantity: number;
+				lineTotal: number;
+				taxRate: number;
+			}>;
+			updatedAt: string;
+		};
+	};
 }
 
 let dbPromise: Promise<IDBPDatabase<PosOfflineDb>> | null = null;
@@ -79,16 +121,24 @@ export function getOfflineDb() {
 			throw new Error("IndexedDB is not available in this environment.");
 		}
 
-		dbPromise = openDB<PosOfflineDb>("norpil-pos-offline", 1, {
+		dbPromise = openDB<PosOfflineDb>("norpil-pos-offline", 3, {
 			upgrade(db, oldVersion) {
-				// We keep the initial version simple; future changes can add stores
-				// or indexes in a controlled way using new versions.
+				// Initial version with core offline stores.
 				if (oldVersion < 1) {
 					db.createObjectStore("offlineSettings");
 					db.createObjectStore("cachedProducts");
 					db.createObjectStore("cachedInventory");
 					db.createObjectStore("offlineSales");
 					db.createObjectStore("syncQueue");
+				}
+				// Version 2 adds cached tables + open sessions snapshot for /pos.
+				if (oldVersion < 2) {
+					db.createObjectStore("tables");
+					db.createObjectStore("tableSessions");
+				}
+				// Version 3 adds per-session order snapshots for /pos/[sessionId].
+				if (oldVersion < 3) {
+					db.createObjectStore("sessionSnapshots");
 				}
 			},
 		});
@@ -106,5 +156,6 @@ export function createLocalId(prefix: string) {
 	const rand = Math.random().toString(36).slice(2, 8);
 	return `${prefix}_${now}_${rand}`;
 }
+
 
 

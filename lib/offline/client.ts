@@ -13,7 +13,7 @@ export type OfflineProduct = {
 	stock: number | null;
 };
 
-export type SyncOperationType = "sale_created";
+export type SyncOperationType = "sale_created" | "order_item_set_quantity";
 
 /**
  * Shape of a queued sale operation.
@@ -28,10 +28,52 @@ export interface SaleCreatedPayload {
 	capturedAt: string;
 }
 
+export interface OrderItemSetQuantityPayload {
+	orderId: string;
+	productId: string;
+	nextQty: number;
+}
+
 export interface SyncOperationPayloads {
 	// In the first version, we only support pushing completed sales.
 	sale_created: SaleCreatedPayload;
+	order_item_set_quantity: OrderItemSetQuantityPayload;
 }
+
+export type OfflineTable = {
+	id: string;
+	name: string;
+	isActive: boolean;
+	hourlyRate: number;
+};
+
+export type OfflineTableSession = {
+	id: string;
+	poolTableId: string;
+	openedAt: string;
+	overrideHourlyRate: number | null;
+	itemsTotal: number;
+	status: "OPEN" | "CLOSED";
+};
+
+export type OfflineSessionItem = {
+	productId: string;
+	name: string;
+	category: string;
+	unitPrice: number;
+	quantity: number;
+	lineTotal: number;
+	taxRate: number;
+};
+
+export type OfflineSessionSnapshot = {
+	sessionId: string;
+	tableName: string;
+	openedAt: string;
+	hourlyRate: number;
+	orderId: string;
+	items: OfflineSessionItem[];
+};
 
 export type SyncQueueItem<T extends SyncOperationType = SyncOperationType> = {
 	id: string;
@@ -136,6 +178,122 @@ export async function getProducts(): Promise<OfflineProduct[]> {
 }
 
 /**
+ * Cache the current tables + open sessions snapshot used by the /pos home screen.
+ * This allows us to show the last known state when the device is offline.
+ */
+export async function saveTablesSnapshot(args: {
+	tables: OfflineTable[];
+	sessions: OfflineTableSession[];
+}): Promise<void> {
+	const db = await getOfflineDb();
+	const now = new Date().toISOString();
+
+	const tablesTx = db.transaction("tables", "readwrite");
+	await tablesTx.store.clear();
+	for (const t of args.tables) {
+		await tablesTx.store.put(
+			{
+				id: t.id,
+				name: t.name,
+				isActive: t.isActive,
+				hourlyRate: t.hourlyRate,
+				updatedAt: now,
+			},
+			t.id,
+		);
+	}
+	await tablesTx.done;
+
+	const sessionsTx = db.transaction("tableSessions", "readwrite");
+	await sessionsTx.store.clear();
+	for (const s of args.sessions) {
+		await sessionsTx.store.put(
+			{
+				id: s.id,
+				poolTableId: s.poolTableId,
+				openedAt: s.openedAt,
+				overrideHourlyRate: s.overrideHourlyRate,
+				itemsTotal: s.itemsTotal,
+				status: s.status,
+				updatedAt: now,
+			},
+			s.id,
+		);
+	}
+	await sessionsTx.done;
+}
+
+export async function getTablesSnapshot(): Promise<{
+	tables: OfflineTable[];
+	sessions: OfflineTableSession[];
+}> {
+	const db = await getOfflineDb();
+
+	const [tablesRaw, sessionsRaw] = await Promise.all([
+		db.getAll("tables"),
+		db.getAll("tableSessions"),
+	]);
+
+	const tables: OfflineTable[] = tablesRaw.map((t) => ({
+		id: t.id,
+		name: t.name,
+		isActive: t.isActive,
+		hourlyRate: t.hourlyRate,
+	}));
+
+	const sessions: OfflineTableSession[] = sessionsRaw.map((s) => ({
+		id: s.id,
+		poolTableId: s.poolTableId,
+		openedAt: s.openedAt,
+		overrideHourlyRate: s.overrideHourlyRate,
+		itemsTotal: s.itemsTotal,
+		status: s.status,
+	}));
+
+	return { tables, sessions };
+}
+
+/**
+ * Store a per-session order snapshot so that /pos/[sessionId] can render
+ * recent data even when the server is unreachable.
+ */
+export async function saveSessionSnapshot(snapshot: OfflineSessionSnapshot): Promise<void> {
+	const db = await getOfflineDb();
+	const tx = db.transaction("sessionSnapshots", "readwrite");
+	const now = new Date().toISOString();
+
+	await tx.store.put(
+		{
+			sessionId: snapshot.sessionId,
+			tableName: snapshot.tableName,
+			openedAt: snapshot.openedAt,
+			hourlyRate: snapshot.hourlyRate,
+			orderId: snapshot.orderId,
+			items: snapshot.items,
+			updatedAt: now,
+		},
+		snapshot.sessionId,
+	);
+
+	await tx.done;
+}
+
+export async function getSessionSnapshot(sessionId: string): Promise<OfflineSessionSnapshot | null> {
+	const db = await getOfflineDb();
+	const row = await db.get("sessionSnapshots", sessionId);
+	if (!row) return null;
+
+	return {
+		sessionId: row.sessionId,
+		tableName: row.tableName,
+		openedAt: row.openedAt,
+		hourlyRate: row.hourlyRate,
+		orderId: row.orderId,
+		items: row.items,
+	};
+}
+
+/**
  * Enqueue a sync operation for later replay when the device is online.
  * Returns the local operation id so the caller can track it if needed.
  */
@@ -174,12 +332,29 @@ export async function queueSaleCreated(payload: SaleCreatedPayload): Promise<str
 	return enqueueOperation("sale_created", payload);
 }
 
+export async function queueOrderItemSetQuantity(payload: OrderItemSetQuantityPayload): Promise<string> {
+	return enqueueOperation("order_item_set_quantity", payload);
+}
+
 export async function getPendingOperations(): Promise<SyncQueueItem[]> {
 	const db = await getOfflineDb();
 	const all = await db.getAll("syncQueue");
 	return all
 		.filter((item) => item.status === "pending")
 		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Return all operations that have permanently failed to sync.
+ * - We keep this separate from the "pending" queue so the UI can surface
+ *   a gentle warning without blocking normal sync behaviour.
+ */
+export async function getFailedOperations(): Promise<SyncQueueItem[]> {
+	const db = await getOfflineDb();
+	const all = await db.getAll("syncQueue");
+	return all
+		.filter((item) => item.status === "failed")
+		.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 }
 
 export async function markOperationSynced(id: string): Promise<void> {

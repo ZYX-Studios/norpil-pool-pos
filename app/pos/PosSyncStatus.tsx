@@ -28,7 +28,7 @@ export function PosSyncStatus() {
 }
 
 function PosSyncStatusInner() {
-	const { isOnline, status, lastFullSyncAt, errorMessage, syncNow } = useSyncManager();
+	const { isOnline, status, lastFullSyncAt, errorMessage, failedCount, syncNow } = useSyncManager();
 
 	const isSyncing = status === "syncing";
 	const isError = status === "error";
@@ -52,6 +52,11 @@ function PosSyncStatusInner() {
 			}`}
 		>
 			<span>{label}</span>
+			{failedCount > 0 && (
+				<span className="ml-2 text-[10px] font-semibold text-amber-200">
+					{failedCount} change{failedCount > 1 ? "s" : ""} not synced
+				</span>
+			)}
 			{lastFullSyncAt && !isError && (
 				<span className="ml-2 text-[10px] opacity-75">
 					Synced {new Date(lastFullSyncAt).toLocaleTimeString()}

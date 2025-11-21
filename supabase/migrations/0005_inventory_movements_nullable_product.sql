@@ -8,3 +8,4 @@ alter table inventory_movements
 	alter column product_id drop not null;
 
 
+

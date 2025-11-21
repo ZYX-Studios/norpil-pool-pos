@@ -2,23 +2,36 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { payOrderFormAction } from "./actions";
+import { queueSaleCreated } from "@/lib/offline/client";
 
 type PayFormClientProps = {
 	sessionId: string;
 	suggestedAmount: number;
 	errorCode?: string;
+	// Optional callback used by the session client to mark that an offline
+	// payment has been queued. This lets the cart freeze further edits locally.
+	onOfflineQueued?: () => void;
 };
 
 // Simple client-side payment form with a tablet-friendly keypad.
 // The keypad appears in a modal when the amount field is focused.
 // This keeps typing easy on touch devices while still allowing manual input.
-export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayFormClientProps) {
+export function PayFormClient({
+	sessionId,
+	suggestedAmount,
+	errorCode,
+	onOfflineQueued,
+}: PayFormClientProps) {
 	const [amount, setAmount] = useState(() => Number(suggestedAmount).toFixed(2));
 	const [open, setOpen] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [hasTypedOnKeypad, setHasTypedOnKeypad] = useState(false);
 	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "OTHER">("CASH");
 	const [validationError, setValidationError] = useState<string | null>(null);
+	const [isOnline, setIsOnline] = useState(
+		typeof navigator !== "undefined" ? navigator.onLine : true,
+	);
+	const [offlineInfo, setOfflineInfo] = useState<string | null>(null);
 
 	function handleKeyPress(key: string) {
 		// Append digits or dot, keep the string simple and readable.
@@ -84,6 +97,27 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [open, handleKeyPress]);
 
+	// Track basic connectivity so we can prevent submitting while offline.
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		function handleOnline() {
+			setIsOnline(true);
+		}
+
+		function handleOffline() {
+			setIsOnline(false);
+		}
+
+		window.addEventListener("online", handleOnline);
+		window.addEventListener("offline", handleOffline);
+
+		return () => {
+			window.removeEventListener("online", handleOnline);
+			window.removeEventListener("offline", handleOffline);
+		};
+	}, []);
+
 	// Parse the current amount string into a number so we can show change.
 	const parsedAmount = useMemo(() => {
 		const cleaned = (amount || "").replace(/[^0-9.]/g, "");
@@ -102,6 +136,11 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 			<input type="hidden" name="sessionId" value={sessionId} />
 			<h2 className="mb-2 text-sm font-semibold text-neutral-50">Payment</h2>
 			<p className="mb-3 text-xs text-neutral-200">Confirm method and amount to close this table.</p>
+			{offlineInfo && (
+				<div className="mb-3 rounded border border-amber-400/60 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
+					{offlineInfo}
+				</div>
+			)}
 			{(errorCode === "amount" || validationError) && (
 				<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-2 py-1 text-[11px] text-red-200">
 					{validationError || "Amount must be greater than zero."}
@@ -286,8 +325,38 @@ export function PayFormClient({ sessionId, suggestedAmount, errorCode }: PayForm
 								Cancel
 							</button>
 							<button
-								type="submit"
-								className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-medium text-neutral-900 hover:bg-emerald-400"
+								type={isOnline ? "submit" : "button"}
+								onClick={
+									isOnline
+										? undefined
+										: async () => {
+												// When offline we queue a sale_created operation instead of
+												// calling the server action. This lets the POS close the
+												// table locally and sync the payment when back online.
+												if (parsedAmount + 0.0001 < suggestedAmount) {
+													setValidationError("Amount cannot be less than the bill total.");
+													return;
+												}
+												setValidationError(null);
+												setConfirmOpen(false);
+												await queueSaleCreated({
+													sessionId,
+													method,
+													tenderedAmount: parsedAmount,
+													suggestedAmount,
+													capturedAt: new Date().toISOString(),
+												});
+												setOfflineInfo(
+													"Payment queued while offline. The session will be finalized on the server once the connection is restored.",
+												);
+												// Let the parent know that a closing payment has been queued
+												// so it can lock the cart UI to avoid double-charging.
+												if (onOfflineQueued) {
+													onOfflineQueued();
+												}
+											}
+								}
+								className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-medium text-neutral-900 hover:bg-emerald-400 disabled:cursor-not-allowed"
 							>
 								Confirm &amp; pay
 							</button>

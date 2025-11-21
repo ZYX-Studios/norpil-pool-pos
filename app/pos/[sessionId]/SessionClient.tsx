@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
 	getProducts as getOfflineProducts,
 	saveProducts as saveOfflineProducts,
+	queueOrderItemSetQuantity,
+	saveSessionSnapshot,
 } from "@/lib/offline/client";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
@@ -104,6 +107,14 @@ export function SessionClient({
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const [now, setNow] = useState(() => Date.now());
+	const [isOnline, setIsOnline] = useState(
+		typeof navigator !== "undefined" ? navigator.onLine : true,
+	);
+	const [hasQueuedOps, setHasQueuedOps] = useState(false);
+	// When an offline payment is queued for this session, we treat the cart as
+	// logically closed on this device. This prevents accidental extra edits
+	// while we wait for the server to process the queued sale.
+	const [isOfflineClosingQueued, setIsOfflineClosingQueued] = useState(false);
 
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), 1000);
@@ -157,6 +168,60 @@ export function SessionClient({
 		};
 	}, [products]);
 
+	// Track basic online/offline status for this session so we can explain that
+	// cart changes may be queued for later sync.
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		function handleOnline() {
+			setIsOnline(true);
+		}
+
+		function handleOffline() {
+			setIsOnline(false);
+		}
+
+		window.addEventListener("online", handleOnline);
+		window.addEventListener("offline", handleOffline);
+
+		return () => {
+			window.removeEventListener("online", handleOnline);
+			window.removeEventListener("offline", handleOffline);
+		};
+	}, []);
+
+	// Persist a lightweight session snapshot so that, if the device goes offline,
+	// we can still show recent data for this table session.
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			try {
+				await saveSessionSnapshot({
+					sessionId,
+					tableName,
+					openedAt,
+					hourlyRate,
+					orderId,
+					items: items.map((i) => ({
+						productId: i.productId,
+						name: i.name,
+						category: i.category,
+						unitPrice: i.unitPrice,
+						quantity: i.quantity,
+						lineTotal: i.lineTotal,
+						taxRate: i.taxRate,
+					})),
+				});
+			} catch {
+				// If IndexedDB is not available we silently ignore; the live session
+				// view still works as normal.
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [sessionId, tableName, openedAt, hourlyRate, orderId, items]);
+
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
 	const billedHours = useMemo(() => computeBilledHours(openedAt, now), [openedAt, now]);
 	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
@@ -164,8 +229,18 @@ export function SessionClient({
 
 	// Optimistically add or increase an item in the cart.
 	function handleAddProduct(productId: string) {
+		// If a closing payment has already been queued while offline, we freeze
+		// further cart edits to avoid double-charging once sync completes.
+		if (isOfflineClosingQueued) {
+			return;
+		}
 		const product = productList.find((p) => p.id === productId);
 		if (!product) return;
+
+		// Determine the target quantity after this operation so we can use it both
+		// for the optimistic UI and any queued offline sync operation.
+		const existingLine = items.find((i) => i.productId === productId);
+		const targetQty = existingLine ? existingLine.quantity + 1 : 1;
 
 		// Soft stock warning: if this product appears out of stock, we still
 		// allow adding it but show a gentle warning to the staff.
@@ -176,10 +251,9 @@ export function SessionClient({
 		setItems((prev) => {
 			const existing = prev.find((i) => i.productId === productId);
 			if (existing) {
-				const nextQty = existing.quantity + 1;
 				return prev.map((i) =>
 					i.productId === productId
-						? { ...i, quantity: nextQty, lineTotal: round2(nextQty * i.unitPrice) }
+						? { ...i, quantity: targetQty, lineTotal: round2(targetQty * i.unitPrice) }
 						: i,
 				);
 			}
@@ -193,8 +267,8 @@ export function SessionClient({
 					name: product.name,
 					category: product.category,
 					unitPrice: product.price,
-					quantity: 1,
-					lineTotal: round2(product.price),
+						quantity: targetQty,
+						lineTotal: round2(product.price * targetQty),
 					taxRate: product.taxRate,
 				},
 			];
@@ -202,12 +276,15 @@ export function SessionClient({
 
 		// Persist in the background. UI stays snappy even if the network is slow.
 		startTransition(() => {
-			void syncAddItem(orderId, productId, supabase);
+			void syncAddItem(orderId, productId, targetQty, supabase, () => setHasQueuedOps(true));
 		});
 	}
 
 	// Optimistically update quantity (or remove) for an item.
 	function handleChangeQuantity(productId: string, nextQty: number) {
+		if (isOfflineClosingQueued) {
+			return;
+		}
 		setItems((prev) => {
 			const existing = prev.find((i) => i.productId === productId);
 			if (!existing) return prev;
@@ -222,7 +299,7 @@ export function SessionClient({
 		});
 
 		startTransition(() => {
-			void syncUpdateQuantity(orderId, productId, nextQty, supabase);
+			void syncUpdateQuantity(orderId, productId, nextQty, supabase, () => setHasQueuedOps(true));
 		});
 	}
 
@@ -230,12 +307,20 @@ export function SessionClient({
 		<div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 sm:p-6 lg:grid-cols-12">
 			<section className="space-y-4 lg:col-span-4">
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-3 flex items-center justify-between">
-						<div>
-							<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-								Table
+					<div className="mb-3 flex items-center justify-between gap-2">
+						<div className="flex items-center gap-3">
+							<Link
+								href="/pos"
+								className="rounded-full border border-white/15 bg-black/40 px-2.5 py-1 text-[11px] font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
+							>
+								← Back to tables
+							</Link>
+							<div>
+								<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+									Table
+								</div>
+								<div className="text-lg font-semibold text-neutral-50">{tableName}</div>
 							</div>
-							<div className="text-lg font-semibold text-neutral-50">{tableName}</div>
 						</div>
 						<div className="text-right text-xs text-neutral-400">
 							<div>Rate</div>
@@ -250,9 +335,23 @@ export function SessionClient({
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur">
 					<div className="mb-2 flex items-center justify-between">
 						<h2 className="text-sm font-semibold text-neutral-50">Cart</h2>
-						{isPending && (
-							<span className="text-[10px] text-neutral-400">Syncing…</span>
-						)}
+						<div className="flex items-center gap-2">
+							{isPending && (
+								<span className="text-[10px] text-neutral-400">Syncing…</span>
+							)}
+							{(!isOnline || hasQueuedOps) && (
+								<span className="text-[10px] text-amber-300">
+									{isOnline
+										? "Offline changes will sync automatically."
+										: "Offline – cart changes are queued and will sync when back online."}
+								</span>
+							)}
+							{isOfflineClosingQueued && (
+								<span className="text-[10px] text-emerald-300">
+									Offline payment queued – cart edits are paused until the server confirms closure.
+								</span>
+							)}
+						</div>
 					</div>
 					{stockWarning && (
 						<div className="mb-2 rounded border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
@@ -334,7 +433,12 @@ export function SessionClient({
 					</div>
 				</div>
 
-				<PayFormClient sessionId={sessionId} suggestedAmount={grandTotal} errorCode={errorCode} />
+				<PayFormClient
+					sessionId={sessionId}
+					suggestedAmount={grandTotal}
+					errorCode={errorCode}
+					onOfflineQueued={() => setIsOfflineClosingQueued(true)}
+				/>
 			</section>
 
 			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
@@ -383,69 +487,100 @@ export function SessionClient({
 }
 
 // Persist add-item change using Supabase from the browser.
-async function syncAddItem(orderId: string, productId: string, supabase: ReturnType<typeof createSupabaseBrowserClient>) {
-	// Find existing line for this order + product.
-	const { data: existing } = await supabase
-		.from("order_items")
-		.select("id, quantity, unit_price")
-		.eq("order_id", orderId)
-		.eq("product_id", productId)
-		.maybeSingle();
-
-	if (existing?.id) {
-		const nextQty = (existing.quantity as number) + 1;
-		const lineTotal = round2(nextQty * Number(existing.unit_price));
-		await supabase
+// On failure (e.g. offline), we enqueue an offline operation so the change
+// can be replayed when the device reconnects.
+async function syncAddItem(
+	orderId: string,
+	productId: string,
+	targetQty: number,
+	supabase: ReturnType<typeof createSupabaseBrowserClient>,
+	onQueued?: () => void,
+) {
+	try {
+		// Find existing line for this order + product.
+		const { data: existing } = await supabase
 			.from("order_items")
-			.update({ quantity: nextQty, line_total: lineTotal })
-			.eq("id", existing.id);
-	} else {
-		// Load product price for a safe server-side write.
-		const { data: product } = await supabase
-			.from("products")
-			.select("price")
-			.eq("id", productId)
+			.select("id, quantity, unit_price")
+			.eq("order_id", orderId)
+			.eq("product_id", productId)
 			.maybeSingle();
-		const unitPrice = Number(product?.price ?? 0);
-		const lineTotal = round2(unitPrice * 1);
-		await supabase.from("order_items").insert({
-			order_id: orderId,
-			product_id: productId,
-			quantity: 1,
-			unit_price: unitPrice,
-			line_total: lineTotal,
+
+		if (existing?.id) {
+			const nextQty = (existing.quantity as number) + 1;
+			const lineTotal = round2(nextQty * Number(existing.unit_price));
+			await supabase
+				.from("order_items")
+				.update({ quantity: nextQty, line_total: lineTotal })
+				.eq("id", existing.id);
+		} else {
+			// Load product price for a safe server-side write.
+			const { data: product } = await supabase
+				.from("products")
+				.select("price")
+				.eq("id", productId)
+				.maybeSingle();
+			const unitPrice = Number(product?.price ?? 0);
+			const lineTotal = round2(unitPrice * 1);
+			await supabase.from("order_items").insert({
+				order_id: orderId,
+				product_id: productId,
+				quantity: 1,
+				unit_price: unitPrice,
+				line_total: lineTotal,
+			});
+		}
+	} catch (error) {
+		console.error("Failed to sync add item, queueing offline op", error);
+		await queueOrderItemSetQuantity({
+			orderId,
+			productId,
+			nextQty: targetQty,
 		});
+		if (onQueued) onQueued();
 	}
 }
 
 // Persist quantity change (or delete) using Supabase from the browser.
+// On failure (e.g. offline), we enqueue an offline operation so the change
+// can be replayed later.
 async function syncUpdateQuantity(
 	orderId: string,
 	productId: string,
 	nextQty: number,
 	supabase: ReturnType<typeof createSupabaseBrowserClient>,
+	onQueued?: () => void,
 ) {
-	const { data: line } = await supabase
-		.from("order_items")
-		.select("id, unit_price")
-		.eq("order_id", orderId)
-		.eq("product_id", productId)
-		.maybeSingle();
+	try {
+		const { data: line } = await supabase
+			.from("order_items")
+			.select("id, unit_price")
+			.eq("order_id", orderId)
+			.eq("product_id", productId)
+			.maybeSingle();
 
-	if (!line?.id) {
-		return;
+		if (!line?.id) {
+			return;
+		}
+
+		if (nextQty <= 0) {
+			await supabase.from("order_items").delete().eq("id", line.id);
+			return;
+		}
+
+		const lineTotal = round2(nextQty * Number(line.unit_price));
+		await supabase
+			.from("order_items")
+			.update({ quantity: nextQty, line_total: lineTotal })
+			.eq("id", line.id);
+	} catch (error) {
+		console.error("Failed to sync quantity change, queueing offline op", error);
+		await queueOrderItemSetQuantity({
+			orderId,
+			productId,
+			nextQty,
+		});
+		if (onQueued) onQueued();
 	}
-
-	if (nextQty <= 0) {
-		await supabase.from("order_items").delete().eq("id", line.id);
-		return;
-	}
-
-	const lineTotal = round2(nextQty * Number(line.unit_price));
-	await supabase
-		.from("order_items")
-		.update({ quantity: nextQty, line_total: lineTotal })
-		.eq("id", line.id);
 }
 
 

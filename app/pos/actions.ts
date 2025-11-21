@@ -50,6 +50,14 @@ export async function openTableAction(poolTableId: string) {
 		revalidatePath("/pos");
 		redirect(`/pos/${session.id}`);
 	} catch (error) {
+		// If this is a Next.js redirect error, rethrow so navigation works.
+		// Redirects are implemented as throws with a special digest; treating
+		// them as real failures would break the normal "redirect to session"
+		// flow when opening a table online.
+		if (error && typeof error === "object" && "digest" in error && typeof (error as any).digest === "string") {
+			throw error;
+		}
+
 		// When offline or when Supabase is unreachable, we land here instead of
 		// crashing the server action. We redirect back to the POS home with a
 		// simple error code so the UI can show a friendly message.

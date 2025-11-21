@@ -10,3 +10,4 @@ set tendered_amount = amount
 where tendered_amount is null;
 
 
+

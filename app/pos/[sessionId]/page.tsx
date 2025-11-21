@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SessionClient } from "./SessionClient";
+import { SessionOfflineFallback } from "./SessionOfflineFallback";
 
 export default async function SessionPage({
 	params,
@@ -108,18 +109,10 @@ export default async function SessionPage({
 			/>
 		);
 	} catch (error) {
-		// When the device is offline or Supabase is unreachable, we show a friendly
-		// message instead of a 404 "Page not found" so staff understand what happened.
+		// When the device is offline or Supabase is unreachable, we render a
+		// client-side fallback that attempts to load a cached snapshot of the
+		// session from this device instead of showing a hard 404.
 		console.error("Failed to load POS session page", error);
-
-		return (
-			<div className="mx-auto max-w-3xl space-y-3 p-4 text-sm text-neutral-100">
-				<h1 className="text-lg font-semibold text-neutral-50">Session unavailable</h1>
-				<p className="text-xs text-neutral-300">
-					This table session could not be loaded. You might be offline or the server is unreachable.
-					Please check your connection and try again.
-				</p>
-			</div>
-		);
+		return <SessionOfflineFallback sessionId={sessionId} />;
 	}
 }

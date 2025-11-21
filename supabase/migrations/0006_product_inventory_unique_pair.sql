@@ -5,3 +5,4 @@ alter table product_inventory_recipes
 	add constraint product_inventory_unique_pair unique (product_id, inventory_item_id);
 
 
+
