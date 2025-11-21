@@ -1,4 +1,5 @@
 import { formatCurrency } from "../format";
+import { Card } from "@/app/components/ui/Card";
 
 interface OperationsSectionProps {
 	byTable: any[];
@@ -6,15 +7,35 @@ interface OperationsSectionProps {
 }
 
 /**
- * Operational view: table performance and transaction-level feed.
+ * Operations view.
  *
  * Answers:
- * - Which tables are generating the most revenue and sessions?
- * - What individual payments happened in the selected period?
+ * - Which tables generate the most revenue?
+ * - Detailed transaction log for auditing.
  */
 export function OperationsSection({ byTable, transactions }: OperationsSectionProps) {
-	const tables = byTable ?? [];
-	const tx = transactions ?? [];
+	const tableRevenue = (byTable ?? []).map((row: any) => ({
+		name: (row.table_name as string) ?? "Unknown",
+		revenue: Number(row.revenue ?? 0),
+	}));
+
+	const txList = (transactions ?? []).map((t: any) => {
+		const order = t.orders;
+		const tableSession = order?.table_sessions;
+		const poolTable = tableSession?.pool_tables;
+		const tableName = poolTable?.name ?? "Unknown Table";
+
+		return {
+			id: t.id,
+			time: new Date(t.paid_at).toLocaleTimeString(undefined, {
+				hour: "2-digit",
+				minute: "2-digit",
+			}),
+			method: t.method,
+			amount: Number(t.amount ?? 0),
+			tableName,
+		};
+	});
 
 	return (
 		<div className="space-y-3">
@@ -23,98 +44,76 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 					Operations
 				</h2>
 				<p className="mt-1 text-[0.7rem] text-neutral-500">
-					Table performance and transaction-level detail for audits and coaching.
+					Table performance and transaction audit log.
 				</p>
 			</div>
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+				<Card className="lg:col-span-1">
+					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+						Revenue by table
+					</div>
+					<div className="space-y-1 text-xs text-neutral-200">
+						{tableRevenue.length > 0 ? (
+							tableRevenue.map((row) => (
+								<div
+									key={row.name}
+									className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-white/5"
+								>
+									<span>{row.name}</span>
+									<span className="font-medium">{formatCurrency(row.revenue)}</span>
+								</div>
+							))
+						) : (
+							<div className="text-neutral-500">No table data.</div>
+						)}
+					</div>
+				</Card>
 
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-					Table performance
-				</div>
-				<div className="max-h-56 overflow-auto">
-					<table className="w-full text-xs text-neutral-200">
-						<thead className="text-left text-neutral-400">
-							<tr>
-								<th className="py-1">Table</th>
-								<th className="text-right">Sessions</th>
-								<th className="text-right">Revenue</th>
-							</tr>
-						</thead>
-						<tbody>
-							{tables.length > 0 ? (
-								tables.map((row: any) => (
-									<tr key={row.table_name}>
-										<td className="py-1">{row.table_name}</td>
-										<td className="text-right">{row.session_count}</td>
-										<td className="text-right">
-											{formatCurrency(Number(row.revenue ?? 0))}
-										</td>
-									</tr>
-								))
-							) : (
+				<Card className="lg:col-span-2">
+					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+						Recent transactions
+					</div>
+					<div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
+						<table className="w-full text-left text-xs">
+							<thead className="sticky top-0 bg-[#0a0a0a] text-neutral-400">
 								<tr>
-									<td colSpan={3} className="py-3 text-center text-neutral-500">
-										No table data in this range.
-									</td>
+									<th className="pb-2 font-medium">Time</th>
+									<th className="pb-2 font-medium">Table</th>
+									<th className="pb-2 font-medium">Method</th>
+									<th className="pb-2 text-right font-medium">Amount</th>
 								</tr>
-							)}
-						</tbody>
-					</table>
-				</div>
-			</div>
-
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-					Transactions
-				</div>
-				<div className="max-h-72 overflow-auto">
-					<table className="w-full text-xs text-neutral-200">
-						<thead className="text-left text-neutral-400">
-							<tr>
-								<th className="py-1">When</th>
-								<th>Table</th>
-								<th>Method</th>
-								<th className="text-right">Amount</th>
-							</tr>
-						</thead>
-						<tbody>
-							{tx.length > 0 ? (
-								tx.map((row: any) => {
-									const order = row.orders;
-									const session = order?.table_sessions;
-									const table = session?.pool_tables;
-									const tableName = table?.name ?? "Unknown";
-									const paidAt = row.paid_at ? new Date(row.paid_at as string) : null;
-									const timeStr = paidAt
-										? `${paidAt.toLocaleDateString()} ${paidAt.toLocaleTimeString([], {
-												hour: "2-digit",
-												minute: "2-digit",
-										  })}`
-										: "-";
-									return (
-										<tr key={row.id}>
-											<td className="py-1">{timeStr}</td>
-											<td>{tableName}</td>
-											<td>{row.method}</td>
-											<td className="text-right">
-												{formatCurrency(Number(row.amount))}
+							</thead>
+							<tbody className="divide-y divide-white/5 text-neutral-300">
+								{txList.length > 0 ? (
+									txList.map((tx) => (
+										<tr key={tx.id} className="group hover:bg-white/5">
+											<td className="py-2 text-neutral-500 group-hover:text-neutral-300">
+												{tx.time}
+											</td>
+											<td className="py-2">{tx.tableName}</td>
+											<td className="py-2">
+												<span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-neutral-400">
+													{tx.method}
+												</span>
+											</td>
+											<td className="py-2 text-right font-medium text-neutral-50">
+												{formatCurrency(tx.amount)}
 											</td>
 										</tr>
-									);
-								})
-							) : (
-								<tr>
-									<td colSpan={4} className="py-3 text-center text-neutral-500">
-										No transactions in this range.
-									</td>
-								</tr>
-							)}
-						</tbody>
-					</table>
-				</div>
+									))
+								) : (
+									<tr>
+										<td colSpan={4} className="py-4 text-center text-neutral-500">
+											No transactions found.
+										</td>
+									</tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+				</Card>
 			</div>
 		</div>
 	);
 }
-
 

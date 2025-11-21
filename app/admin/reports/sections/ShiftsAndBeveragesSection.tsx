@@ -1,4 +1,16 @@
+"use client";
+
 import { formatCurrency, formatPercent } from "../format";
+import { Card } from "@/app/components/ui/Card";
+import {
+	Bar,
+	BarChart,
+	Cell,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
 
 interface ShiftsAndBeveragesSectionProps {
 	byShift: any[];
@@ -31,8 +43,8 @@ export function ShiftsAndBeveragesSection({
 		const share = totalDrinkRevenue > 0 ? (revenue / totalDrinkRevenue) * 100 : 0;
 		const margin = Number(row.margin ?? 0);
 		const marginPct = revenue > 0 ? (margin / revenue) * 100 : 0;
-		const label = row.is_alcoholic ? "Alcoholic beverages" : "Non‑alcoholic beverages";
-		return { label, revenue, share, marginPct };
+		const label = row.is_alcoholic ? "Alcoholic" : "Non‑alcoholic";
+		return { name: label, revenue, share, marginPct };
 	});
 
 	return (
@@ -46,57 +58,95 @@ export function ShiftsAndBeveragesSection({
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-						By shift (10:00–18:00 vs night)
+				<Card>
+					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+						By shift
 					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
-						{shiftsWithRevenue.length > 0 ? (
-							shiftsWithRevenue.map((row) => (
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={shiftsWithRevenue} layout="vertical">
+								<XAxis type="number" hide />
+								<YAxis
+									dataKey="name"
+									type="category"
+									stroke="#a3a3a3"
+									fontSize={11}
+									tickLine={false}
+									axisLine={false}
+									width={80}
+								/>
+								<Tooltip
+									cursor={{ fill: "rgba(255,255,255,0.05)" }}
+									contentStyle={{
+										backgroundColor: "#171717",
+										borderColor: "#262626",
+										color: "#f5f5f5",
+										fontSize: "12px",
+									}}
+									formatter={(value: number) => formatCurrency(value)}
+								/>
+								<Bar dataKey="revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} />
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+				</Card>
+
+				<Card>
+					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+						Beverages: Alcoholic vs Non‑alcoholic
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart data={drinkTypesWithShare}>
+								<XAxis
+									dataKey="name"
+									stroke="#a3a3a3"
+									fontSize={11}
+									tickLine={false}
+									axisLine={false}
+								/>
+								<YAxis hide />
+								<Tooltip
+									cursor={{ fill: "rgba(255,255,255,0.05)" }}
+									contentStyle={{
+										backgroundColor: "#171717",
+										borderColor: "#262626",
+										color: "#f5f5f5",
+										fontSize: "12px",
+									}}
+									formatter={(value: number) => formatCurrency(value)}
+								/>
+								<Bar dataKey="revenue" fill="#34d399" radius={[4, 4, 0, 0]} barSize={40}>
+									{drinkTypesWithShare.map((entry, index) => (
+										<Cell
+											key={`cell-${index}`}
+											fill={entry.name === "Alcoholic" ? "#10b981" : "#6ee7b7"}
+										/>
+									))}
+								</Bar>
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+					<div className="mt-2 flex justify-center gap-4 text-xs text-neutral-400">
+						{drinkTypesWithShare.map((item) => (
+							<div key={item.name} className="flex items-center gap-1">
 								<div
-									key={row.name}
-									className="flex items-center justify-between gap-2"
-								>
-									<span>{row.name}</span>
-									<span>{formatCurrency(row.revenue)}</span>
-								</div>
-							))
-						) : (
-							<div className="text-neutral-500">No shift data.</div>
-						)}
+									className="h-2 w-2 rounded-full"
+									style={{
+										backgroundColor: item.name === "Alcoholic" ? "#10b981" : "#6ee7b7",
+									}}
+								/>
+								<span>
+									{item.name} ({formatPercent(item.share)})
+								</span>
+							</div>
+						))}
 					</div>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-						Beverages: alcoholic vs non‑alcoholic
-					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
-						{drinkTypesWithShare.length > 0 ? (
-							drinkTypesWithShare.map((row) => (
-								<div
-									key={row.label}
-									className="flex items-center justify-between gap-2"
-								>
-									<span>{row.label}</span>
-									<div className="flex items-center gap-2">
-										<span className="text-neutral-400">
-											{formatPercent(row.share)}
-										</span>
-										<span className="text-neutral-500">
-											{formatPercent(row.marginPct)} margin
-										</span>
-										<span>{formatCurrency(row.revenue)}</span>
-									</div>
-								</div>
-							))
-						) : (
-							<div className="text-neutral-500">No beverage data.</div>
-						)}
-					</div>
-				</div>
+				</Card>
 			</div>
 		</div>
 	);
 }
+
 
 

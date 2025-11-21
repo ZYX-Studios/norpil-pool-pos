@@ -1,4 +1,5 @@
 import { formatCurrency, formatPercent } from "../format";
+import { StatCard } from "@/app/components/ui/StatCard";
 
 interface OverviewSectionProps {
 	totalRevenue: number;
@@ -36,59 +37,18 @@ export function OverviewSection({
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Gross sales
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{formatCurrency(totalRevenue)}
-					</div>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Total transactions
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{totalTransactions}
-					</div>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Average ticket
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{formatCurrency(averageTicket)}
-					</div>
-				</div>
+				<StatCard label="Gross sales" value={formatCurrency(totalRevenue)} />
+				<StatCard label="Total transactions" value={totalTransactions} />
+				<StatCard label="Average ticket" value={formatCurrency(averageTicket)} />
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Total expenses
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{formatCurrency(totalExpenses)}
-					</div>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Net profit
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{formatCurrency(netProfit)}
-					</div>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="text-xs uppercase tracking-[0.18em] text-neutral-400">
-						Net margin
-					</div>
-					<div className="mt-2 text-2xl font-semibold text-neutral-50">
-						{formatPercent(netMargin)}
-					</div>
-				</div>
+				<StatCard label="Total expenses" value={formatCurrency(totalExpenses)} />
+				<StatCard label="Net profit" value={formatCurrency(netProfit)} />
+				<StatCard label="Net margin" value={formatPercent(netMargin)} />
 			</div>
 		</div>
 	);
 }
+
 
 

@@ -1,5 +1,15 @@
+"use client";
+
 import { createExpense } from "../actions";
-import { formatCurrency } from "../format";
+import { formatCurrency, formatPercent } from "../format";
+import { Card } from "@/app/components/ui/Card";
+import {
+	Cell,
+	Pie,
+	PieChart,
+	ResponsiveContainer,
+	Tooltip,
+} from "recharts";
 
 interface ExpensesSectionProps {
 	startDate: string;
@@ -11,17 +21,37 @@ interface ExpensesSectionProps {
  *
  * Answers:
  * - What operating expenses were recorded in this period?
- * - How are they distributed across categories (rent, utilities, manpower, etc.)?
+ * - How are they distributed across categories?
  */
 export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 	const expenseArray = expenses ?? [];
 	const expensesByCategory = new Map<string, number>();
+	let totalExpenses = 0;
+
 	for (const row of expenseArray) {
 		const amount = Number(row.amount ?? 0);
 		const cat = row.category as string;
 		if (!cat) continue;
 		expensesByCategory.set(cat, (expensesByCategory.get(cat) ?? 0) + amount);
+		totalExpenses += amount;
 	}
+
+	const chartData = Array.from(expensesByCategory.entries()).map(([name, value]) => ({
+		name,
+		value,
+		share: totalExpenses > 0 ? (value / totalExpenses) * 100 : 0,
+	}));
+
+	// Colors for expenses - warm/neutral palette
+	const COLORS = [
+		"#f87171", // red-400
+		"#fb923c", // orange-400
+		"#fbbf24", // amber-400
+		"#a3a3a3", // neutral-400
+		"#60a5fa", // blue-400
+		"#c084fc", // purple-400
+		"#f472b6", // pink-400
+	];
 
 	return (
 		<div className="space-y-3">
@@ -34,7 +64,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur lg:col-span-1">
+				<Card className="lg:col-span-1">
 					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Add expense
 					</div>
@@ -45,7 +75,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 								type="date"
 								name="expense_date"
 								defaultValue={startDate}
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							/>
 						</div>
@@ -53,7 +83,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 							<label className="block text-neutral-300">Category</label>
 							<select
 								name="category"
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							>
 								<option value="">Select category</option>
@@ -79,7 +109,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 								name="amount"
 								min="0"
 								step="0.01"
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							/>
 						</div>
@@ -88,34 +118,95 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 							<textarea
 								name="note"
 								rows={2}
-								className="w-full resize-none rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
-								placeholder="Short description (e.g. January rent, new stock, marketing campaign)..."
+								className="w-full resize-none rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+								placeholder="Short description..."
 							/>
 						</div>
 						<button
 							type="submit"
-							className="mt-1 w-full rounded-full bg-neutral-50 px-4 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
+							className="mt-1 w-full rounded-full bg-neutral-50 px-4 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200 transition-colors"
 						>
 							Save expense
 						</button>
 					</form>
-				</div>
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur lg:col-span-2">
+				</Card>
+
+				<Card className="lg:col-span-2">
 					<div className="mb-3 flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-						<span>Expenses in range</span>
-						<span className="text-[0.6rem] uppercase text-neutral-500">
-							By category
-						</span>
+						<span>Expenses breakdown</span>
 					</div>
-					<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-						<div className="space-y-1 text-xs text-neutral-200">
+					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+						<div className="h-48 w-full">
+							<ResponsiveContainer width="100%" height="100%">
+								<PieChart>
+									<Pie
+										data={chartData}
+										cx="50%"
+										cy="50%"
+										innerRadius={40}
+										outerRadius={70}
+										paddingAngle={2}
+										dataKey="value"
+									>
+										{chartData.map((entry, index) => (
+											<Cell
+												key={`cell-${index}`}
+												fill={COLORS[index % COLORS.length]}
+												stroke="rgba(0,0,0,0.2)"
+											/>
+										))}
+									</Pie>
+									<Tooltip
+										contentStyle={{
+											backgroundColor: "#171717",
+											borderColor: "#262626",
+											color: "#f5f5f5",
+											fontSize: "12px",
+										}}
+										formatter={(value: number) => formatCurrency(value)}
+									/>
+								</PieChart>
+							</ResponsiveContainer>
+						</div>
+						<div className="space-y-2">
+							{chartData.length > 0 ? (
+								chartData.map((row, index) => (
+									<div key={row.name} className="flex items-center justify-between text-xs">
+										<div className="flex items-center gap-2">
+											<div
+												className="h-2 w-2 rounded-full"
+												style={{ backgroundColor: COLORS[index % COLORS.length] }}
+											/>
+											<span className="text-neutral-300">{row.name}</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-neutral-500">
+												{formatPercent(row.share)}
+											</span>
+											<span className="text-neutral-200">
+												{formatCurrency(row.value)}
+											</span>
+										</div>
+									</div>
+								))
+							) : (
+								<div className="text-neutral-500">No expenses recorded.</div>
+							)}
+						</div>
+					</div>
+
+					<div className="mt-6 border-t border-white/5 pt-4">
+						<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+							Recent entries
+						</div>
+						<div className="max-h-40 overflow-y-auto space-y-1 text-xs text-neutral-200 pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
 							{expenseArray.length > 0 ? (
 								expenseArray.map((row: any) => (
 									<div
 										key={row.id}
-										className="flex items-center justify-between gap-2"
+										className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-white/5"
 									>
-										<span className="text-neutral-400">
+										<span className="text-neutral-400 w-20">
 											{new Date(row.expense_date as string).toLocaleDateString()}
 										</span>
 										<span className="flex-1 truncate px-2">
@@ -129,30 +220,12 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 								<div className="text-neutral-500">No expenses in this range.</div>
 							)}
 						</div>
-						<div className="space-y-1 text-xs text-neutral-200">
-							{Array.from(expensesByCategory.entries()).length > 0 ? (
-								Array.from(expensesByCategory.entries()).map(
-									([cat, amount]) => (
-										<div
-											key={cat}
-											className="flex items-center justify-between gap-2"
-										>
-											<span>{cat}</span>
-											<span>{formatCurrency(amount)}</span>
-										</div>
-									),
-								)
-							) : (
-								<div className="text-neutral-500">
-									No category breakdown available.
-								</div>
-							)}
-						</div>
 					</div>
-				</div>
+				</Card>
 			</div>
 		</div>
 	);
 }
+
 
 

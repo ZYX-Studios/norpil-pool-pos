@@ -1,4 +1,18 @@
+"use client";
+
 import { formatCategoryLabel, formatCurrency, formatPercent } from "../format";
+import { Card } from "@/app/components/ui/Card";
+import {
+	Area,
+	AreaChart,
+	Cell,
+	Pie,
+	PieChart,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
 
 interface SalesAndMarginsSectionProps {
 	totalRevenue: number;
@@ -14,13 +28,11 @@ interface SalesAndMarginsSectionProps {
  * Answers:
  * - Which days in the range are strongest?
  * - Which categories drive revenue and margin?
- * - How is revenue split by payment method?
  */
 export function SalesAndMarginsSection({
 	totalRevenue,
 	daily,
 	byCategory,
-	byMethod,
 	categoryMargins,
 }: SalesAndMarginsSectionProps) {
 	// Helper lookups for category-level margin %.
@@ -39,28 +51,21 @@ export function SalesAndMarginsSection({
 		const catKey = row.category as string;
 		const marginPct = marginByCategory.get(catKey) ?? 0;
 		return {
-			category: catKey,
-			revenue,
+			name: formatCategoryLabel(catKey),
+			value: revenue,
 			share,
 			marginPct,
 		};
 	});
 
-	// Payment method stats.
-	const paymentCounts = new Map<string, number>();
-	for (const row of byMethod ?? []) {
-		const method = row.method as string | null;
-		if (!method) continue;
-		const existing = paymentCounts.get(method) ?? 0;
-		paymentCounts.set(method, existing + (row.count ?? 0));
-	}
-	const paymentMethodsWithStats = (byMethod ?? []).map((row: any) => {
-		const method = row.method as string;
-		const revenue = Number(row.revenue ?? 0);
-		const share = totalRevenue > 0 ? (revenue / totalRevenue) * 100 : 0;
-		const count = paymentCounts.get(method) ?? 0;
-		return { method, revenue, share, count };
-	});
+	// Prepare data for the area chart
+	const dailyData = (daily ?? []).map((row: any) => ({
+		date: new Date(row.day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+		revenue: Number(row.revenue ?? 0),
+	}));
+
+	// Colors for the pie chart - neutral/emerald palette
+	const COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
 
 	return (
 		<div className="space-y-3">
@@ -69,108 +74,123 @@ export function SalesAndMarginsSection({
 					Sales &amp; margins
 				</h2>
 				<p className="mt-1 text-[0.7rem] text-neutral-500">
-					See how categories and payment methods contribute to revenue and profit.
+					See how categories contribute to revenue and profit.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 				{/* Revenue trend across the date range */}
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+				<Card className="md:col-span-2">
+					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Revenue trend
 					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
-						{(daily ?? []).length > 0 ? (
-							(daily as any[]).map((row) => {
-								const day = row.day as string;
-								const amount = Number(row.revenue ?? 0);
-								const max =
-									Math.max(
-										...((daily as any[]).map((d) => Number(d.revenue ?? 0)) ?? [1]),
-									) || 1;
-								const widthPercent = (amount / max) * 100;
-								return (
-									<div key={day} className="flex items-center gap-2">
-										<span className="w-20 text-neutral-400">
-											{new Date(day).toLocaleDateString()}
-										</span>
-										<div className="flex-1 rounded-full bg-white/10">
-											<div
-												className="h-2 rounded-full bg-emerald-400"
-												style={{ width: `${widthPercent}%` }}
-											/>
-										</div>
-										<span className="w-20 text-right">
-											{formatCurrency(amount)}
-										</span>
-									</div>
-								);
-							})
-						) : (
-							<div className="text-neutral-500">No data.</div>
-						)}
+					<div className="h-64 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<AreaChart data={dailyData}>
+								<defs>
+									<linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+										<stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+										<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+									</linearGradient>
+								</defs>
+								<XAxis
+									dataKey="date"
+									stroke="#525252"
+									fontSize={10}
+									tickLine={false}
+									axisLine={false}
+								/>
+								<YAxis
+									stroke="#525252"
+									fontSize={10}
+									tickLine={false}
+									axisLine={false}
+									tickFormatter={(value) => `$${value}`}
+								/>
+								<Tooltip
+									contentStyle={{
+										backgroundColor: "#171717",
+										borderColor: "#262626",
+										color: "#f5f5f5",
+										fontSize: "12px",
+									}}
+									itemStyle={{ color: "#10b981" }}
+									formatter={(value: number) => [formatCurrency(value), "Revenue"]}
+								/>
+								<Area
+									type="monotone"
+									dataKey="revenue"
+									stroke="#10b981"
+									fillOpacity={1}
+									fill="url(#colorRevenue)"
+								/>
+							</AreaChart>
+						</ResponsiveContainer>
 					</div>
-				</div>
+				</Card>
 
 				{/* Category mix with margin percentage */}
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+				<Card>
+					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
 						By category
 					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
-						{categoriesWithShare.length > 0 ? (
-							categoriesWithShare.map((row) => (
-								<div
-									key={row.category}
-									className="flex items-center justify-between gap-2"
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<PieChart>
+								<Pie
+									data={categoriesWithShare}
+									cx="50%"
+									cy="50%"
+									innerRadius={40}
+									outerRadius={70}
+									paddingAngle={2}
+									dataKey="value"
 								>
-									<span>{formatCategoryLabel(row.category)}</span>
-									<div className="flex items-center gap-2">
-										<span className="text-neutral-400">
-											{formatPercent(row.share)}
-										</span>
-										<span className="text-neutral-500">
-											{formatPercent(row.marginPct)} margin
-										</span>
-										<span>{formatCurrency(row.revenue)}</span>
-									</div>
+									{categoriesWithShare.map((entry, index) => (
+										<Cell
+											key={`cell-${index}`}
+											fill={COLORS[index % COLORS.length]}
+											stroke="rgba(0,0,0,0.2)"
+										/>
+									))}
+								</Pie>
+								<Tooltip
+									contentStyle={{
+										backgroundColor: "#171717",
+										borderColor: "#262626",
+										color: "#f5f5f5",
+										fontSize: "12px",
+									}}
+									formatter={(value: number) => formatCurrency(value)}
+								/>
+							</PieChart>
+						</ResponsiveContainer>
+					</div>
+					<div className="mt-4 space-y-2">
+						{categoriesWithShare.map((row, index) => (
+							<div key={row.name} className="flex items-center justify-between text-xs">
+								<div className="flex items-center gap-2">
+									<div
+										className="h-2 w-2 rounded-full"
+										style={{ backgroundColor: COLORS[index % COLORS.length] }}
+									/>
+									<span className="text-neutral-300">{row.name}</span>
 								</div>
-							))
-						) : (
-							<div className="text-neutral-500">No data.</div>
-						)}
-					</div>
-				</div>
-
-				{/* Payment method split */}
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-					<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-						By payment method
-					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
-						{paymentMethodsWithStats.length > 0 ? (
-							paymentMethodsWithStats.map((row) => (
-								<div
-									key={row.method}
-									className="flex items-center justify-between gap-2"
-								>
-									<span>{row.method}</span>
-									<div className="flex items-center gap-3">
-										<span className="text-neutral-400">{row.count} tx</span>
-										<span className="text-neutral-400">
-											{formatPercent(row.share)}
-										</span>
-										<span>{formatCurrency(row.revenue)}</span>
-									</div>
+								<div className="flex items-center gap-2">
+									<span className="text-neutral-500">
+										{formatPercent(row.marginPct)} margin
+									</span>
+									<span className="text-neutral-200">
+										{formatCurrency(row.value)}
+									</span>
 								</div>
-							))
-						) : (
-							<div className="text-neutral-500">No data.</div>
-						)}
+							</div>
+						))}
 					</div>
-				</div>
+				</Card>
 			</div>
 		</div>
 	);
 }
+
 
 

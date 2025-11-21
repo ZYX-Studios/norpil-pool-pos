@@ -7,6 +7,8 @@ import { ShiftsAndBeveragesSection } from "./sections/ShiftsAndBeveragesSection"
 import { MonthlyOverviewSection } from "./sections/MonthlyOverviewSection";
 import { OperationsSection } from "./sections/OperationsSection";
 import { ExpensesSection } from "./sections/ExpensesSection";
+import { Tabs } from "@/app/components/ui/Tabs";
+import { DateRangePicker } from "@/app/components/ui/DateRangePicker";
 
 type View = "summary" | "daily" | "monthly" | "expenses";
 
@@ -25,14 +27,6 @@ function parseView(raw: unknown): View {
 	return "summary";
 }
 
-function buildViewHref(view: View, start: string, end: string) {
-	const params = new URLSearchParams();
-	params.set("view", view);
-	params.set("start", start);
-	params.set("end", end);
-	return `?${params.toString()}`;
-}
-
 export default async function ReportsPage({
 	searchParams,
 }: {
@@ -45,8 +39,7 @@ export default async function ReportsPage({
 	const end = (sp?.end as string) ?? todayEnd;
 	const view = parseView(sp?.view);
 
-	// Human-friendly label for the selected period so the UI always
-	// reminds you which dates the metrics are based on.
+	// Human-friendly label for the selected period
 	const startLabel = new Date(start).toLocaleDateString(undefined, {
 		year: "numeric",
 		month: "short",
@@ -75,7 +68,7 @@ export default async function ReportsPage({
 	const netProfit = totalRevenue - totalExpenses;
 	const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-	const tabs: { id: View; label: string }[] = [
+	const tabs = [
 		{ id: "summary", label: "Summary" },
 		{ id: "daily", label: "Daily detail" },
 		{ id: "monthly", label: "Monthly" },
@@ -83,8 +76,8 @@ export default async function ReportsPage({
 	];
 
 	return (
-		<div className="space-y-6">
-			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+		<div className="space-y-6 animate-in fade-in duration-500">
+			<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 				<div>
 					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">
 						Reports &amp; Analytics
@@ -92,66 +85,16 @@ export default async function ReportsPage({
 					<p className="text-xs text-neutral-400">
 						Daily and monthly performance for the selected date range.
 					</p>
-					<p className="text-[0.7rem] text-neutral-500">Period: {rangeLabel}</p>
+					<p className="text-[0.7rem] text-neutral-500 mt-1">Period: {rangeLabel}</p>
 				</div>
+				<DateRangePicker defaultStart={start} defaultEnd={end} />
 			</div>
 
-			{/* View tabs – keep everything server-rendered and share the same date range */}
-			<nav className="flex flex-wrap gap-2 text-xs">
-				{tabs.map((tab) => {
-					const href = buildViewHref(tab.id, start, end);
-					const isActive = view === tab.id;
-					return (
-						<a
-							key={tab.id}
-							href={href}
-							className={[
-								"rounded-full border px-3 py-1",
-								isActive
-									? "border-white/60 bg-white text-neutral-900"
-									: "border-white/10 bg-white/5 text-neutral-300 hover:border-white/30",
-							].join(" ")}
-						>
-							{tab.label}
-						</a>
-					);
-				})}
-			</nav>
-
-			{/* Period selector – reuses the same view + dates in query params */}
-			<form className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<div className="flex flex-wrap items-end gap-3">
-					<input type="hidden" name="view" value={view} />
-					<div>
-						<label className="mb-1 block text-xs text-neutral-300">Start date</label>
-						<input
-							type="date"
-							name="start"
-							defaultValue={start}
-							className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
-						/>
-					</div>
-					<div>
-						<label className="mb-1 block text-xs text-neutral-300">End date</label>
-						<input
-							type="date"
-							name="end"
-							defaultValue={end}
-							className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50"
-						/>
-					</div>
-					<button
-						type="submit"
-						className="rounded-full bg-neutral-50 px-4 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
-					>
-						Apply
-					</button>
-				</div>
-			</form>
+			<Tabs tabs={tabs} currentView={view} baseUrl="/admin/reports" />
 
 			{/* View-specific content */}
 			{view === "summary" && (
-				<>
+				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
 					<OverviewSection
 						totalRevenue={totalRevenue}
 						totalTransactions={totalTransactions}
@@ -165,11 +108,11 @@ export default async function ReportsPage({
 						drinkMargins={data.drinkMargins ?? []}
 					/>
 					<MonthlyOverviewSection monthly={data.monthly ?? []} />
-				</>
+				</div>
 			)}
 
 			{view === "daily" && (
-				<>
+				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
 					<OverviewSection
 						totalRevenue={totalRevenue}
 						totalTransactions={totalTransactions}
@@ -190,15 +133,17 @@ export default async function ReportsPage({
 						drinkMargins={data.drinkMargins ?? []}
 					/>
 					<OperationsSection byTable={data.byTable ?? []} transactions={data.tx ?? []} />
-				</>
+				</div>
 			)}
 
 			{view === "monthly" && (
-				<MonthlyOverviewSection monthly={data.monthly ?? []} />
+				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+					<MonthlyOverviewSection monthly={data.monthly ?? []} />
+				</div>
 			)}
 
 			{view === "expenses" && (
-				<>
+				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
 					<OverviewSection
 						totalRevenue={totalRevenue}
 						totalTransactions={totalTransactions}
@@ -208,10 +153,11 @@ export default async function ReportsPage({
 						netMargin={netMargin}
 					/>
 					<ExpensesSection startDate={start} expenses={data.expenses ?? []} />
-				</>
+				</div>
 			)}
 		</div>
 	);
 }
+
 
 
