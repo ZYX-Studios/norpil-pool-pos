@@ -12,6 +12,9 @@ type InventoryEditDialogProps = {
 		unit: string;
 		is_active: boolean;
 		quantity_on_hand: number;
+		// Per-unit cost used for reporting margins. This is stored in
+		// inventory_items.unit_cost and is kept simple: numeric with 2 decimals.
+		unit_cost: number;
 	};
 };
 
@@ -71,6 +74,18 @@ export function InventoryEditDialog({ item }: InventoryEditDialogProps) {
 												defaultValue={item.name}
 												className="w-full rounded-md border border-white/15 bg-black/60 px-2.5 py-1.5 text-xs text-neutral-50"
 												required
+											/>
+										</div>
+										<div>
+											<label className="mb-0.5 block text-[11px] text-neutral-400">Unit cost</label>
+											<input
+												name="unit_cost"
+												type="number"
+												step="0.01"
+												min="0"
+												defaultValue={item.unit_cost.toFixed(2)}
+												placeholder="0.00"
+												className="w-full rounded-md border border-white/15 bg-black/60 px-2.5 py-1.5 text-xs text-neutral-50"
 											/>
 										</div>
 										<div>

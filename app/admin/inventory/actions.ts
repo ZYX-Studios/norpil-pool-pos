@@ -8,6 +8,18 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 type MovementType = "INITIAL" | "PURCHASE" | "SALE" | "ADJUSTMENT";
 type InventoryUnit = "PCS" | "BOTTLE" | "CAN" | "ML" | "L" | "GRAM" | "KG";
 
+// Helper to parse a decimal number from a form field.
+// We clamp to 2 decimal places because inventory_items.unit_cost is numeric(10,2)
+// in the database. This keeps form handling predictable and safe.
+function parseNumber(input: FormDataEntryValue | null, fallback = 0): number {
+	if (input == null) return fallback;
+	const raw = String(input).trim();
+	if (!raw) return fallback;
+	const n = Number(raw);
+	if (!Number.isFinite(n)) return fallback;
+	return Number(n.toFixed(2));
+}
+
 function parseIntQuantity(input: FormDataEntryValue | null): number {
 	if (input == null) return 0;
 	const raw = String(input).trim();
@@ -36,6 +48,7 @@ export async function createInventoryItem(formData: FormData) {
 	const unitRaw = String(formData.get("unit") || "PCS").trim().toUpperCase() || "PCS";
 	const allowedUnits: InventoryUnit[] = ["PCS", "BOTTLE", "CAN", "ML", "L", "GRAM", "KG"];
 	const unit: InventoryUnit = (allowedUnits.includes(unitRaw as InventoryUnit) ? unitRaw : "PCS") as InventoryUnit;
+	const unitCost = Math.max(parseNumber(formData.get("unit_cost"), 0), 0);
 
 	if (!name) {
 		throw new Error("Name is required");
@@ -53,6 +66,9 @@ export async function createInventoryItem(formData: FormData) {
 		name,
 		sku: sku || null,
 		unit,
+		// We always persist a non-negative cost so reporting functions
+		// can safely treat unit_cost as a simple numeric(10,2) value.
+		unit_cost: unitCost,
 		is_active: true,
 	});
 	if (error) {
@@ -80,6 +96,7 @@ export async function updateInventoryItem(formData: FormData) {
 	const unit: InventoryUnit = (allowedUnits.includes(unitRaw as InventoryUnit) ? unitRaw : "PCS") as InventoryUnit;
 	const isActiveRaw = String(formData.get("is_active") || "true");
 	const isActive = isActiveRaw === "true";
+	const unitCost = Math.max(parseNumber(formData.get("unit_cost"), 0), 0);
 
 	if (!id) throw new Error("Missing id");
 	if (!name) throw new Error("Name is required");
@@ -94,7 +111,7 @@ export async function updateInventoryItem(formData: FormData) {
 
 	const { error } = await supabase
 		.from("inventory_items")
-		.update({ name, sku: sku || null, unit, is_active: isActive })
+		.update({ name, sku: sku || null, unit, is_active: isActive, unit_cost: unitCost })
 		.eq("id", id);
 	if (error) throw error;
 
@@ -122,6 +139,7 @@ export async function adjustInventoryItem(formData: FormData) {
 		throw new Error("Invalid movement type");
 	}
 
+	// 1) Always record the stock movement so on-hand quantities stay correct.
 	const { error } = await supabase.from("inventory_movements").insert({
 		inventory_item_id: inventoryItemId,
 		movement_type: movementType,
@@ -129,6 +147,38 @@ export async function adjustInventoryItem(formData: FormData) {
 		note,
 	});
 	if (error) throw error;
+
+	// 2) If this is a PURCHASE with a positive quantity, also record an expense.
+	// We keep this simple and cash-based:
+	// - Use the current inventory_items.unit_cost as the per-unit price.
+	// - Multiply by the purchased quantity to get the expense amount.
+	// - Save it under the INVENTORY expense category so it flows into reports.
+	if (movementType === "PURCHASE" && delta > 0) {
+		const { data: item, error: itemError } = await supabase
+			.from("inventory_items")
+			.select("name, unit_cost")
+			.eq("id", inventoryItemId)
+			.maybeSingle();
+
+		if (!itemError && item) {
+			const unitCost = Number((item as any).unit_cost ?? 0);
+			const purchaseAmount = Number.isFinite(unitCost) ? Number((unitCost * delta).toFixed(2)) : 0;
+
+			if (purchaseAmount > 0) {
+				// Use today's date for the expense so it lines up with when stock was added.
+				const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+				const baseNote = `Inventory purchase - ${String((item as any).name ?? "").trim() || "Unknown item"}`;
+				const combinedNote = note ? `${baseNote} / ${note}` : baseNote;
+
+				await supabase.from("expenses").insert({
+					expense_date: today,
+					category: "INVENTORY",
+					amount: purchaseAmount,
+					note: combinedNote,
+				});
+			}
+		}
+	}
 
 	revalidatePath("/admin/inventory");
 	redirect("/admin/inventory?ok=1");

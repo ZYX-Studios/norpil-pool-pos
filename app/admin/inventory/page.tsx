@@ -11,6 +11,9 @@ type InventoryItemRow = {
 	unit: string;
 	is_active: boolean;
 	quantity_on_hand: number;
+	// Simple per-unit cost used for COGS and margin reporting.
+	// This is stored directly on inventory_items.unit_cost in the database.
+	unit_cost: number;
 };
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
@@ -22,7 +25,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 	// in PostgREST, so attempting a join in a single select would fail.
 	const { data: itemRows } = await supabase
 		.from("inventory_items")
-		.select("id, name, sku, unit, is_active")
+		// We now also load unit_cost so the UI can show and edit per-unit costs.
+		// This keeps the cost model aligned with the reporting SQL functions
+		// that calculate margins from inventory_items.unit_cost.
+		.select("id, name, sku, unit, is_active, unit_cost")
 		.order("name", { ascending: true });
 	const { data: stockRows } = await supabase
 		.from("inventory_item_stock")
@@ -37,14 +43,22 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 	}
 
 	const items: InventoryItemRow[] =
-		itemRows?.map((row: any) => ({
-			id: row.id as string,
-			name: row.name as string,
-			sku: (row.sku as string) ?? null,
-			unit: (row.unit as string) || "PCS",
-			is_active: !!row.is_active,
-			quantity_on_hand: stockMap.get(row.id as string) ?? 0,
-		})) ?? [];
+		itemRows?.map((row: any) => {
+			// Normalise quantity and cost so the rest of the UI can stay dumb.
+			const quantityOnHand = stockMap.get(row.id as string) ?? 0;
+			const rawCost = Number((row as any).unit_cost ?? 0);
+			const unitCost = Number.isFinite(rawCost) ? Number(rawCost.toFixed(2)) : 0;
+
+			return {
+				id: row.id as string,
+				name: row.name as string,
+				sku: (row.sku as string) ?? null,
+				unit: (row.unit as string) || "PCS",
+				is_active: !!row.is_active,
+				quantity_on_hand: quantityOnHand,
+				unit_cost: unitCost,
+			};
+		}) ?? [];
 
 	const sp = await searchParams;
 	const ok = sp?.ok;
@@ -69,15 +83,25 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 				</div>
 			)}
 
-			{/* 
+			{/*
 				Quick add form for new inventory items.
-				We keep this minimal: name, optional SKU, and a simple unit string.
+				We keep this minimal: name, optional SKU, a simple unit string,
+				and an optional unit cost so margins can use real COGS early on.
 			*/}
 			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
 				<h2 className="mb-3 text-base font-semibold">Add Inventory Item</h2>
-				<form action={createInventoryItem} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-					<input name="name" placeholder="Name" className="rounded border px-3 py-2 text-sm sm:col-span-2" required />
-					<input name="sku" placeholder="SKU (optional)" className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1" />
+				<form action={createInventoryItem} className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+					<input
+						name="name"
+						placeholder="Name"
+						className="rounded border px-3 py-2 text-sm sm:col-span-2"
+						required
+					/>
+					<input
+						name="sku"
+						placeholder="SKU (optional)"
+						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
+					/>
 					<select
 						name="unit"
 						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
@@ -91,7 +115,15 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 						<option value="GRAM">GRAM</option>
 						<option value="KG">KG</option>
 					</select>
-					<div className="sm:col-span-4">
+					<input
+						name="unit_cost"
+						type="number"
+						step="0.01"
+						min="0"
+						placeholder="Unit cost"
+						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50"
+					/>
+					<div className="sm:col-span-5">
 						<button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800">
 							Add
 						</button>
@@ -106,8 +138,11 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 							<th className="py-2">Name</th>
 							<th>SKU</th>
 							<th>Unit</th>
+							<th className="text-right">Unit cost</th>
 							<th className="text-right">On hand</th>
-							<th>Status</th>
+							{/* Add a bit of extra space after stock value so the status column reads clearly. */}
+							<th className="text-right pr-4">Stock value</th>
+							<th className="pl-2">Status</th>
 							<th className="text-right">Edit</th>
 						</tr>
 					</thead>
@@ -117,10 +152,14 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 								<td className="py-2">{item.name}</td>
 								<td>{item.sku ?? "-"}</td>
 								<td>{item.unit}</td>
+								<td className="text-right font-mono">{item.unit_cost.toFixed(2)}</td>
 								<td className="text-right font-mono">
 									{item.quantity_on_hand} {item.unit}
 								</td>
-								<td>{item.is_active ? "Active" : "Inactive"}</td>
+								<td className="text-right font-mono pr-4">
+									{(item.quantity_on_hand * item.unit_cost).toFixed(2)}
+								</td>
+								<td className="pl-2">{item.is_active ? "Active" : "Inactive"}</td>
 								<td className="text-right">
 									<InventoryEditDialog item={item} />
 								</td>
@@ -128,7 +167,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 						))}
 						{items.length === 0 && (
 							<tr>
-								<td colSpan={6} className="py-4 text-center text-xs text-neutral-500">
+								<td colSpan={8} className="py-4 text-center text-xs text-neutral-500">
 									No inventory items yet. Add one above to get started.
 								</td>
 							</tr>
