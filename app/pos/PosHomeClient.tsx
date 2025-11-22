@@ -190,11 +190,13 @@ export function PosHomeClient({
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 				<div>
 					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">Tables</h1>
-					<p className="text-xs text-neutral-400">Open and manage live pool sessions seamlessly.</p>
+					<p className="text-sm text-neutral-400">
+						Open and manage live pool sessions with large, touch-friendly tiles.
+					</p>
 				</div>
 			</div>
 			{errorCode && (
-				<div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+				<div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
 					{errorCode === "load_failed"
 						? "Unable to load live table data. You might be offline or the server is unreachable."
 						: errorCode === "cached_snapshot"
@@ -202,73 +204,101 @@ export function PosHomeClient({
 							: "The POS could not reach the server. Some actions may be temporarily unavailable."}
 				</div>
 			)}
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			{/* 
+				Grid tuned for tablets:
+				- 1 column on phones.
+				- 2 columns on tablets (gives big tap targets).
+				- 3 columns only on larger desktop screens.
+			*/}
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
 				{tables.map((t) => {
 					const session = tableIdToSession.get(t.id);
 					const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
 					return (
-						<div
-							key={t.id}
-							className={`group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 ${session ? "ring-1 ring-emerald-500/40" : ""}`}
-						>
-							<div className="mb-3 flex items-center justify-between">
-								<div className="text-sm font-medium text-neutral-50 sm:text-base">{t.name}</div>
-								<span
-									className={`rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide ${session ? "bg-emerald-500/20 text-emerald-300" : "bg-neutral-700/60 text-neutral-200"}`}
-								>
-									{session ? "IN USE" : "FREE"}
-								</span>
-							</div>
+						<div key={t.id}>
+							{/* 
+								Make the entire tile a tap target.
+								- For occupied tables we navigate directly to the session.
+								- For free tables we either call the server action or the offline helper.
+								- Using a large button with min-height keeps taps easy on tablets.
+							*/}
 							{session ? (
-								<div className="space-y-3">
-									<ClientTimer
-										openedAt={session.opened_at}
-										hourlyRate={Number(session.override_hourly_rate ?? t.hourly_rate)}
-										itemTotal={orderItemsTotal}
-									/>
-									<div className="flex items-center justify-between text-xs text-neutral-400">
-										<span>Items total updates in real time.</span>
-										<span className="font-mono text-[11px] opacity-70">₱{orderItemsTotal.toFixed(2)}</span>
+								<button
+									type="button"
+									onClick={() => router.push(`/pos/${session.id}`)}
+									className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
+								>
+									<div className="mb-3 flex items-center justify-between gap-2">
+										<div className="text-base font-semibold text-neutral-50 sm:text-lg">
+											{t.name}
+										</div>
+										<span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-300">
+											IN USE
+										</span>
 									</div>
-									<div className="pt-1">
-										<Link
-											className="inline-flex items-center rounded-full bg-neutral-50 px-3 py-1.5 text-xs font-medium text-neutral-900 transition group-hover:bg-emerald-400 group-hover:text-neutral-950"
-											href={`/pos/${session.id}`}
-										>
-											View session
-										</Link>
+									<div className="space-y-3">
+										<ClientTimer
+											openedAt={session.opened_at}
+											hourlyRate={Number(session.override_hourly_rate ?? t.hourly_rate)}
+											itemTotal={orderItemsTotal}
+										/>
+										<div className="flex items-center justify-between text-xs sm:text-sm text-neutral-300">
+											<span>Items total updates in real time.</span>
+											<span className="font-mono text-xs sm:text-sm opacity-80">
+												₱{orderItemsTotal.toFixed(2)}
+											</span>
+										</div>
 									</div>
-								</div>
+								</button>
+							) : isOnline ? (
+								<form action={openTableAction.bind(null, t.id)}>
+									<button
+										type="submit"
+										className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
+									>
+										<div className="mb-3 flex items-center justify-between gap-2">
+											<div className="text-base font-semibold text-neutral-50 sm:text-lg">
+												{t.name}
+											</div>
+											<span className="rounded-full bg-neutral-700/70 px-3 py-1 text-[11px] font-semibold tracking-wide text-neutral-100">
+												FREE
+											</span>
+										</div>
+										<div className="mt-1 flex items-center justify-between text-xs sm:text-sm text-neutral-300">
+											<span>Tap to open this table.</span>
+											<span className="font-mono text-xs sm:text-sm opacity-80">
+												₱{t.hourly_rate.toFixed(2)}/hr
+											</span>
+										</div>
+									</button>
+								</form>
 							) : (
-								<>
-									{isOnline ? (
-										<form action={openTableAction.bind(null, t.id)}>
-											<button
-												type="submit"
-												className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400"
-											>
-												Open table
-											</button>
-										</form>
-									) : (
-										<button
-											type="button"
-											onClick={() => {
-												void openTableOffline(t, {
-													currentTables: tables,
-													currentSessions: openSessions,
-													currentSessionTotals: sessionTotals,
-													setSessions: setOpenSessions,
-													setSessionTotals,
-													router,
-												});
-											}}
-											className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400"
-										>
-											Open table
-										</button>
-									)}
-								</>
+								<button
+									type="button"
+									onClick={() => {
+										void openTableOffline(t, {
+											currentTables: tables,
+											currentSessions: openSessions,
+											currentSessionTotals: sessionTotals,
+											setSessions: setOpenSessions,
+											setSessionTotals,
+											router,
+										});
+									}}
+									className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
+								>
+									<div className="mb-3 flex items-center justify-between gap-2">
+										<div className="text-base font-semibold text-neutral-50 sm:text-lg">
+											{t.name}
+										</div>
+										<span className="rounded-full bg-neutral-700/70 px-3 py-1 text-[11px] font-semibold tracking-wide text-neutral-100">
+											FREE (OFFLINE)
+										</span>
+									</div>
+									<div className="mt-1 text-xs sm:text-sm text-neutral-300">
+										Tap to open this table using offline mode. It will sync when back online.
+									</div>
+								</button>
 							)}
 						</div>
 					);

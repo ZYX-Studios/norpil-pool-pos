@@ -104,6 +104,8 @@ export function SessionClient({
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
 	const [productList, setProductList] = useState<SessionProduct[]>(products);
+	// Simple category filter for the products grid so staff can quickly narrow the menu on tablets.
+	const [activeCategory, setActiveCategory] = useState<ItemCategory | "ALL">("ALL");
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const [now, setNow] = useState(() => new Date(openedAt).getTime());
@@ -225,6 +227,17 @@ export function SessionClient({
 	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
 	const grandTotal = useMemo(() => round2(itemsTotal + tableFee), [itemsTotal, tableFee]);
 
+	// Compute visible products based on the current category filter.
+	const visibleProducts = useMemo(
+		() =>
+			productList.filter((p) => {
+				if (p.category === "TABLE_TIME") return false;
+				if (activeCategory === "ALL") return true;
+				return p.category === activeCategory;
+			}),
+		[productList, activeCategory],
+	);
+
 	// Optimistically add or increase an item in the cart.
 	function handleAddProduct(productId: string) {
 		// If a closing payment has already been queued while offline, we freeze
@@ -304,12 +317,12 @@ export function SessionClient({
 	return (
 		<div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 sm:p-6 lg:grid-cols-12">
 			<section className="space-y-4 lg:col-span-4">
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
+				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 shadow-sm shadow-black/40 backdrop-blur">
 					<div className="mb-3 flex items-center justify-between gap-2">
 						<div className="flex items-center gap-3">
 							<Link
 								href="/pos"
-								className="rounded-full border border-white/15 bg-black/40 px-2.5 py-1 text-[11px] font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
+								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
 							>
 								← Back to tables
 							</Link>
@@ -317,12 +330,14 @@ export function SessionClient({
 								<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
 									Table
 								</div>
-								<div className="text-lg font-semibold text-neutral-50">{tableName}</div>
+								<div className="text-lg sm:text-xl font-semibold text-neutral-50">
+									{tableName}
+								</div>
 							</div>
 						</div>
-						<div className="text-right text-xs text-neutral-400">
+						<div className="text-right text-xs sm:text-sm text-neutral-400">
 							<div>Rate</div>
-							<div className="font-mono text-sm text-neutral-100">
+							<div className="font-mono text-sm sm:text-base text-neutral-100">
 								₱{hourlyRate.toFixed(2)}/hr
 							</div>
 						</div>
@@ -330,65 +345,72 @@ export function SessionClient({
 					<ClientTimer openedAt={openedAt} hourlyRate={hourlyRate} itemTotal={itemsTotal} />
 				</div>
 
-				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur">
+				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur">
 					<div className="mb-2 flex items-center justify-between">
 						<h2 className="text-sm font-semibold text-neutral-50">Cart</h2>
 						<div className="flex items-center gap-2">
 							{isPending && (
-								<span className="text-[10px] text-neutral-400">Syncing…</span>
+								<span className="text-[11px] text-neutral-400">Syncing…</span>
 							)}
 							{(!isOnline || hasQueuedOps) && (
-								<span className="text-[10px] text-amber-300">
+								<span className="text-[11px] text-amber-300">
 									{isOnline
 										? "Offline changes will sync automatically."
 										: "Offline – cart changes are queued and will sync when back online."}
 								</span>
 							)}
 							{isOfflineClosingQueued && (
-								<span className="text-[10px] text-emerald-300">
+								<span className="text-[11px] text-emerald-300">
 									Offline payment queued – cart edits are paused until the server confirms closure.
 								</span>
 							)}
 						</div>
 					</div>
 					{stockWarning && (
-						<div className="mb-2 rounded border border-amber-400/50 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
+						<div className="mb-2 rounded border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
 							{stockWarning}
 						</div>
 					)}
-					<div className="space-y-3">
+					<div className="space-y-3 sm:space-y-4">
 						{items.filter((i) => i.category !== "TABLE_TIME").map((i) => (
-							<div key={i.id} className="flex items-center justify-between">
+							<div
+								key={i.id}
+								className="flex items-center justify-between gap-3 rounded-xl px-1 py-2 sm:px-2 sm:py-3"
+							>
 								<div>
-									<div className="font-medium">{i.name}</div>
-									<div className="text-xs text-neutral-500">
+									<div className="text-sm sm:text-base font-medium">{i.name}</div>
+									<div className="text-xs sm:text-sm text-neutral-500">
 										{formatCurrency(i.unitPrice)} × {i.quantity}
 									</div>
 								</div>
-								<div className="flex items-center gap-2">
+								<div className="flex items-center gap-3">
 									<button
 										type="button"
 										onClick={() => handleChangeQuantity(i.productId, i.quantity - 1)}
-										className="rounded border px-2 py-1 text-sm hover:bg-neutral-50"
+										className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-900 text-base font-semibold text-neutral-50 shadow-sm shadow-black/40 transition hover:bg-neutral-50 hover:text-neutral-900 active:scale-95"
 									>
 										-
 									</button>
-									<div className="w-10 text-center text-sm">{i.quantity}</div>
+									<div className="w-8 text-center text-sm sm:text-base font-medium">
+										{i.quantity}
+									</div>
 									<button
 										type="button"
 										onClick={() => handleChangeQuantity(i.productId, i.quantity + 1)}
-										className="rounded border px-2 py-1 text-sm hover:bg-neutral-50"
+										className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-900 text-base font-semibold text-neutral-50 shadow-sm shadow-black/40 transition hover:bg-neutral-50 hover:text-neutral-900 active:scale-95"
 									>
 										+
 									</button>
 								</div>
-								<div className="w-20 text-right font-medium">
+								<div className="w-20 text-right text-sm sm:text-base font-semibold">
 									{formatCurrency(i.lineTotal)}
 								</div>
 							</div>
 						))}
 						{items.filter((i) => i.category !== "TABLE_TIME").length === 0 && (
-							<div className="text-sm text-neutral-400">No items yet.</div>
+							<div className="text-sm sm:text-base text-neutral-400">
+								No items yet. Tap a product on the right to add it.
+							</div>
 						)}
 					</div>
 					{billedHours > 0 && (
@@ -439,32 +461,66 @@ export function SessionClient({
 				/>
 			</section>
 
-			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
-				<div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
+				<div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 					<div>
-						<h2 className="text-sm font-semibold text-neutral-50">Products</h2>
-						<p className="text-xs text-neutral-400">Tap to add to this table’s order.</p>
+						<h2 className="text-sm sm:text-base font-semibold text-neutral-50">Products</h2>
+						<p className="text-xs sm:text-sm text-neutral-400">
+							Tap any item to add it to this table’s order.
+						</p>
+					</div>
+					{/* 
+						Simple category filter:
+						- Large pill buttons that are easy to tap on tablets.
+						- Lets staff quickly switch between Food / Drinks / Other.
+					*/}
+					<div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+						{[
+							{ id: "ALL" as const, label: "All" },
+							{ id: "FOOD" as const, label: "Food" },
+							{ id: "DRINK" as const, label: "Drinks" },
+							{ id: "OTHER" as const, label: "Other" },
+						].map((cat) => {
+							const isActive = activeCategory === cat.id;
+							return (
+								<button
+									key={cat.id}
+									type="button"
+									onClick={() => setActiveCategory(cat.id)}
+									className={`rounded-full border px-3 py-1.5 font-medium transition ${
+										isActive
+											? "border-white/80 bg-white text-neutral-900"
+											: "border-white/15 bg-white/5 text-neutral-200 hover:border-white/40 hover:text-white"
+									}`}
+								>
+									{cat.label}
+								</button>
+							);
+						})}
 					</div>
 				</div>
-				<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-					{productList
-						.filter((p) => p.category !== "TABLE_TIME")
-						.map((p) => (
+				{/* 
+					Product grid tuned for touch:
+					- 2 columns on phones and most tablets.
+					- 3–4 columns only on larger desktop screens so each tile stays large.
+				*/}
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+					{visibleProducts.map((p) => (
 							<button
 								key={p.id}
 								type="button"
 								onClick={() => handleAddProduct(p.id)}
-								className="flex w-full flex-col items-start rounded-2xl border border-white/10 bg-black/30 p-3 text-left shadow-sm shadow-black/40 transition hover:border-emerald-400/60 hover:bg-black/60"
+								className="flex w-full min-h-[96px] flex-col items-start rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4 text-left shadow-sm shadow-black/40 transition hover:border-emerald-400/60 hover:bg-black/60 active:scale-[0.99]"
 							>
-								<div className="text-sm font-medium text-neutral-50">{p.name}</div>
-								<div className="text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+								<div className="text-sm sm:text-base font-medium text-neutral-50">{p.name}</div>
+								<div className="text-[10px] sm:text-xs uppercase tracking-[0.16em] text-neutral-500">
 									{p.category}
 								</div>
-								<div className="mt-2 flex w-full items-baseline justify-between gap-2 text-sm text-neutral-100">
+								<div className="mt-2 flex w-full items-baseline justify-between gap-2 text-sm sm:text-base text-neutral-100">
 									<span>{formatCurrency(p.price)}</span>
 									{typeof p.stock === "number" && (
 										<span
-											className={`text-[10px] font-medium ${p.stock <= 0
+											className={`text-[10px] sm:text-xs font-medium ${p.stock <= 0
 												? "text-red-300"
 												: p.stock <= 5
 													? "text-amber-300"
