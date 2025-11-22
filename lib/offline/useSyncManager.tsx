@@ -17,8 +17,10 @@ import {
 	type SyncOperationType,
 	type OrderItemSetQuantityPayload,
 	type SaleCreatedPayload,
+	type SessionOpenedPayload,
 } from "./client";
 import { closeSessionAndRecordPayment } from "@/lib/payments/closeSession";
+import { getServerIdForLocal, saveIdMapping } from "./client";
 
 export type SyncStatus = "idle" | "syncing" | "error";
 
@@ -42,9 +44,7 @@ export type SyncState = {
  */
 export function useSyncManager(): SyncState {
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-	const [isOnline, setIsOnline] = useState(
-		typeof navigator !== "undefined" ? navigator.onLine : true,
-	);
+	const [isOnline, setIsOnline] = useState(true);
 	const [status, setStatus] = useState<SyncStatus>("idle");
 	const [lastFullSyncAt, setLastFullSyncAtState] = useState<string | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -118,11 +118,12 @@ export function useSyncManager(): SyncState {
 			// Ensure we have a device id for tracking and future server-side diagnostics.
 			await getOrCreateDeviceId();
 
+			// Upstream: replay any queued operations (e.g. offline cart changes).
+			// We do this FIRST so that we do not overwrite local changes with stale server data.
+			await syncUpOperations(supabase);
+
 			// Downstream: refresh products from Supabase into the local cache.
 			await syncDownProducts(supabase);
-
-			// Upstream: replay any queued operations (e.g. offline cart changes).
-			await syncUpOperations(supabase);
 
 			const now = new Date().toISOString();
 			await setLastFullSyncAt(now);
@@ -240,22 +241,59 @@ async function syncDownProducts(supabase: ReturnType<typeof createSupabaseBrowse
 /**
  * Replay queued offline operations (such as cart edits) to Supabase.
  * We process operations in creation order to preserve intent.
+ *
+ * IMPROVEMENT: We now track failed local IDs to skip dependent operations.
  */
 async function syncUpOperations(supabase: ReturnType<typeof createSupabaseBrowserClient>) {
 	const ops = await getPendingOperations();
 	if (ops.length === 0) return;
 
+	// Keep track of local IDs that failed to sync or map, so we can skip
+	// dependent operations (e.g. don't add items to a session that failed to open).
+	const failedLocalIds = new Set<string>();
+
 	for (const op of ops as SyncQueueItem[]) {
+		// Check dependencies
+		if (hasFailedDependency(op, failedLocalIds)) {
+			await markOperationFailed(op.id, "Skipped due to failed dependency.");
+			continue;
+		}
+
 		try {
 			switch (op.type as SyncOperationType) {
-				case "order_item_set_quantity":
-					await applyOrderItemSetQuantity(op.payload as OrderItemSetQuantityPayload, supabase);
+				case "session_opened": {
+					const payload = op.payload as SessionOpenedPayload;
+					try {
+						await applySessionOpened(payload, supabase);
+						await markOperationSynced(op.id);
+					} catch (err) {
+						// If session open fails, we must block all future ops for this session/order
+						failedLocalIds.add(payload.localSessionId);
+						failedLocalIds.add(payload.localOrderId);
+						throw err;
+					}
+					break;
+				}
+				case "order_item_set_quantity": {
+					const payload = op.payload as OrderItemSetQuantityPayload;
+					// If the order ID is local and in our failed set, we skip.
+					// (This is also caught by hasFailedDependency, but good to be explicit)
+					if (failedLocalIds.has(payload.orderId)) {
+						throw new Error(`Skipped because order ${payload.orderId} failed to sync.`);
+					}
+					await applyOrderItemSetQuantity(payload, supabase);
 					await markOperationSynced(op.id);
 					break;
-				case "sale_created":
-					await applySaleCreated(op.payload as SaleCreatedPayload, supabase);
+				}
+				case "sale_created": {
+					const payload = op.payload as SaleCreatedPayload;
+					if (failedLocalIds.has(payload.sessionId)) {
+						throw new Error(`Skipped because session ${payload.sessionId} failed to sync.`);
+					}
+					await applySaleCreated(payload, supabase);
 					await markOperationSynced(op.id);
 					break;
+				}
 				default:
 					await markOperationFailed(op.id, `Unsupported operation type: ${op.type}`);
 					break;
@@ -268,6 +306,24 @@ async function syncUpOperations(supabase: ReturnType<typeof createSupabaseBrowse
 }
 
 /**
+ * Helper to check if an operation depends on a local ID that has already failed.
+ */
+function hasFailedDependency(op: SyncQueueItem, failedIds: Set<string>): boolean {
+	if (failedIds.size === 0) return false;
+
+	if (op.type === "order_item_set_quantity") {
+		const p = op.payload as OrderItemSetQuantityPayload;
+		return failedIds.has(p.orderId);
+	}
+	if (op.type === "sale_created") {
+		const p = op.payload as SaleCreatedPayload;
+		return failedIds.has(p.sessionId);
+	}
+	// session_opened defines the IDs, so it doesn't depend on others (usually).
+	return false;
+}
+
+/**
  * Apply a single "set quantity" operation for an order item.
  * - If the line does not exist and nextQty > 0, we insert it using the product price.
  * - If the line exists and nextQty > 0, we update quantity and line_total.
@@ -277,7 +333,18 @@ async function applyOrderItemSetQuantity(
 	payload: OrderItemSetQuantityPayload,
 	supabase: ReturnType<typeof createSupabaseBrowserClient>,
 ) {
-	const { orderId, productId, nextQty } = payload;
+	let { orderId, productId, nextQty } = payload;
+
+	// If this operation was recorded against a local-only order id created
+	// while offline, translate it to the real server id using the mapping
+	// created when the associated session_opened operation was synced.
+	if (orderId.startsWith("order_")) {
+		const mapped = await getServerIdForLocal(orderId, "order");
+		if (!mapped) {
+			throw new Error(`No server order mapping found for local order id ${orderId}`);
+		}
+		orderId = mapped;
+	}
 
 	// Look for an existing line on this order for the product.
 	const { data: line, error: lineErr } = await supabase
@@ -350,11 +417,86 @@ async function applySaleCreated(
 	payload: SaleCreatedPayload,
 	supabase: ReturnType<typeof createSupabaseBrowserClient>,
 ) {
-	const { sessionId, method, tenderedAmount } = payload;
+	let { sessionId, method, tenderedAmount } = payload;
+
+	// Translate local-only session ids (created while offline) into their
+	// corresponding server ids before delegating to the shared helper.
+	if (sessionId.startsWith("session_")) {
+		const mapped = await getServerIdForLocal(sessionId, "table_session");
+		if (!mapped) {
+			throw new Error(`No server session mapping found for local session id ${sessionId}`);
+		}
+		sessionId = mapped;
+	}
 	await closeSessionAndRecordPayment(supabase as any, {
 		sessionId,
 		method,
 		tenderedAmount,
+	});
+}
+
+/**
+ * Apply a queued "session opened" operation by creating a real table_session
+ * and an initial OPEN order in Supabase, then recording how the local ids map
+ * to the new server ids. This lets later queued operations that reference the
+ * local ids be safely translated during sync.
+ *
+ * Idempotency: before inserting anything we check whether a mapping already
+ * exists for the local session id. If it does, we treat this operation as
+ * already applied and return early so replays are safe.
+ */
+async function applySessionOpened(
+	payload: SessionOpenedPayload,
+	supabase: ReturnType<typeof createSupabaseBrowserClient>,
+) {
+	const { localSessionId, localOrderId, poolTableId, openedAt, overrideHourlyRate } = payload;
+
+	// If we already know the server id for this local session, there is
+	// nothing left to do. This makes the operation safe to replay.
+	const existingServerSessionId = await getServerIdForLocal(localSessionId, "table_session");
+	if (existingServerSessionId) {
+		return;
+	}
+
+	// Create the real table session on the server.
+	const { data: session, error: sessionErr } = await supabase
+		.from("table_sessions")
+		.insert({
+			pool_table_id: poolTableId,
+			status: "OPEN",
+			opened_at: openedAt,
+			override_hourly_rate: overrideHourlyRate,
+		})
+		.select("id")
+		.single();
+	if (sessionErr || !session?.id) {
+		throw sessionErr ?? new Error("Failed to create table session during sync.");
+	}
+
+	// Create the initial OPEN order for this session.
+	const { data: order, error: orderErr } = await supabase
+		.from("orders")
+		.insert({
+			table_session_id: session.id,
+			status: "OPEN",
+		})
+		.select("id")
+		.single();
+	if (orderErr || !order?.id) {
+		throw orderErr ?? new Error("Failed to create order for table session during sync.");
+	}
+
+	// Remember how the local ids map to the server ids so future operations
+	// that reference the local ids can be translated correctly.
+	await saveIdMapping({
+		localId: localSessionId,
+		kind: "table_session",
+		serverId: session.id as string,
+	});
+	await saveIdMapping({
+		localId: localOrderId,
+		kind: "order",
+		serverId: order.id as string,
 	});
 }
 

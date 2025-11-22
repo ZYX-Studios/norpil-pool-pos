@@ -5,6 +5,7 @@ import { OverviewSection } from "./sections/OverviewSection";
 import { SalesAndMarginsSection } from "./sections/SalesAndMarginsSection";
 import { ShiftsAndBeveragesSection } from "./sections/ShiftsAndBeveragesSection";
 import { MonthlyOverviewSection } from "./sections/MonthlyOverviewSection";
+import { MonthlyDetailSection } from "./sections/MonthlyDetailSection";
 import { OperationsSection } from "./sections/OperationsSection";
 import { ExpensesSection } from "./sections/ExpensesSection";
 import { Tabs } from "@/app/components/ui/Tabs";
@@ -21,6 +22,17 @@ function getTodayRange() {
 	return { start: today, end: today };
 }
 
+function getMonthRange() {
+	const now = new Date();
+	const yyyy = now.getFullYear();
+	const mm = String(now.getMonth() + 1).padStart(2, "0");
+	const start = `${yyyy}-${mm}-01`;
+	// Get last day of month
+	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+	const end = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
+	return { start, end };
+}
+
 function parseView(raw: unknown): View {
 	const v = typeof raw === "string" ? raw : "";
 	if (v === "daily" || v === "monthly" || v === "expenses") return v;
@@ -33,11 +45,21 @@ export default async function ReportsPage({
 	searchParams: Promise<Record<string, string | string[]>>;
 }) {
 	const { start: todayStart, end: todayEnd } = getTodayRange();
+	const { start: monthStart, end: monthEnd } = getMonthRange();
 	const sp = await searchParams;
-
-	const start = (sp?.start as string) ?? todayStart;
-	const end = (sp?.end as string) ?? todayEnd;
 	const view = parseView(sp?.view);
+
+	// Determine default range based on view
+	// If monthly view and no explicit range, default to whole month
+	let defaultStart = todayStart;
+	let defaultEnd = todayEnd;
+	if (view === "monthly" && !sp?.start && !sp?.end) {
+		defaultStart = monthStart;
+		defaultEnd = monthEnd;
+	}
+
+	const start = (sp?.start as string) ?? defaultStart;
+	const end = (sp?.end as string) ?? defaultEnd;
 
 	// Human-friendly label for the selected period
 	const startLabel = new Date(start).toLocaleDateString(undefined, {
@@ -138,7 +160,10 @@ export default async function ReportsPage({
 
 			{view === "monthly" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-					<MonthlyOverviewSection monthly={data.monthly ?? []} />
+					<MonthlyDetailSection
+						dailyRevenue={data.daily ?? []}
+						expenses={data.expenses ?? []}
+					/>
 				</div>
 			)}
 
@@ -158,6 +183,7 @@ export default async function ReportsPage({
 		</div>
 	);
 }
+
 
 
 

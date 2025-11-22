@@ -13,7 +13,7 @@ export type OfflineProduct = {
 	stock: number | null;
 };
 
-export type SyncOperationType = "sale_created" | "order_item_set_quantity";
+export type SyncOperationType = "sale_created" | "order_item_set_quantity" | "session_opened";
 
 /**
  * Shape of a queued sale operation.
@@ -34,10 +34,19 @@ export interface OrderItemSetQuantityPayload {
 	nextQty: number;
 }
 
+export interface SessionOpenedPayload {
+	localSessionId: string;
+	localOrderId: string;
+	poolTableId: string;
+	openedAt: string;
+	overrideHourlyRate: number | null;
+}
+
 export interface SyncOperationPayloads {
 	// In the first version, we only support pushing completed sales.
 	sale_created: SaleCreatedPayload;
 	order_item_set_quantity: OrderItemSetQuantityPayload;
+	session_opened: SessionOpenedPayload;
 }
 
 export type OfflineTable = {
@@ -336,12 +345,16 @@ export async function queueOrderItemSetQuantity(payload: OrderItemSetQuantityPay
 	return enqueueOperation("order_item_set_quantity", payload);
 }
 
+export async function queueSessionOpened(payload: SessionOpenedPayload): Promise<string> {
+	return enqueueOperation("session_opened", payload);
+}
+
 export async function getPendingOperations(): Promise<SyncQueueItem[]> {
 	const db = await getOfflineDb();
 	const all = await db.getAll("syncQueue");
 	return all
 		.filter((item) => item.status === "pending")
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt)) as SyncQueueItem[];
 }
 
 /**
@@ -354,7 +367,7 @@ export async function getFailedOperations(): Promise<SyncQueueItem[]> {
 	const all = await db.getAll("syncQueue");
 	return all
 		.filter((item) => item.status === "failed")
-		.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+		.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)) as SyncQueueItem[];
 }
 
 export async function markOperationSynced(id: string): Promise<void> {
@@ -395,6 +408,45 @@ export async function markOperationFailed(id: string, errorMessage: string): Pro
 		id,
 	);
 	await tx.done;
+}
+
+/**
+ * Store a mapping between a local-only id (created while offline) and the
+ * real server id once sync has created the record in Supabase. This allows
+ * queued operations that reference local ids to be safely translated before
+ * they are applied upstream.
+ */
+export async function saveIdMapping(args: {
+	localId: string;
+	kind: "table_session" | "order";
+	serverId: string;
+}): Promise<void> {
+	const db = await getOfflineDb();
+	const tx = db.transaction("idMappings", "readwrite");
+	const now = new Date().toISOString();
+	await tx.store.put(
+		{
+			localId: args.localId,
+			kind: args.kind,
+			serverId: args.serverId,
+			createdAt: now,
+		},
+		`${args.kind}:${args.localId}`,
+	);
+	await tx.done;
+}
+
+/**
+ * Look up the server id that corresponds to a local-only id created while
+ * offline. Returns null if there is no known mapping yet.
+ */
+export async function getServerIdForLocal(
+	localId: string,
+	kind: "table_session" | "order",
+): Promise<string | null> {
+	const db = await getOfflineDb();
+	const row = await db.get("idMappings", `${kind}:${localId}`);
+	return row?.serverId ?? null;
 }
 
 

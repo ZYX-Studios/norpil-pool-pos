@@ -64,8 +64,8 @@ export function SalesAndMarginsSection({
 		revenue: Number(row.revenue ?? 0),
 	}));
 
-	// Colors for the pie chart - neutral/emerald palette
-	const COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
+	// Colors for the pie chart - vibrant palette
+	const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
 
 	return (
 		<div className="space-y-3">
@@ -108,10 +108,12 @@ export function SalesAndMarginsSection({
 								/>
 								<Tooltip
 									contentStyle={{
-										backgroundColor: "#171717",
-										borderColor: "#262626",
-										color: "#f5f5f5",
+										backgroundColor: "#000000",
+										borderColor: "#333333",
+										color: "#ffffff",
 										fontSize: "12px",
+										borderRadius: "4px",
+										boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
 									}}
 									itemStyle={{ color: "#10b981" }}
 									formatter={(value: number) => [formatCurrency(value), "Revenue"]}
@@ -155,11 +157,14 @@ export function SalesAndMarginsSection({
 								</Pie>
 								<Tooltip
 									contentStyle={{
-										backgroundColor: "#171717",
-										borderColor: "#262626",
-										color: "#f5f5f5",
+										backgroundColor: "#000000",
+										borderColor: "#333333",
+										color: "#ffffff",
 										fontSize: "12px",
+										borderRadius: "4px",
+										boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
 									}}
+									itemStyle={{ color: "#e5e5e5" }}
 									formatter={(value: number) => formatCurrency(value)}
 								/>
 							</PieChart>
@@ -191,6 +196,7 @@ export function SalesAndMarginsSection({
 		</div>
 	);
 }
+
 
 
 

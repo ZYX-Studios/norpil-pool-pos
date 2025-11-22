@@ -12,7 +12,7 @@ export function ClientTimer(props: { openedAt: string; hourlyRate: number; itemT
 }
 
 function TimerContent({ openedAt, hourlyRate, itemTotal }: { openedAt: string; hourlyRate: number; itemTotal: number }) {
-	const [now, setNow] = useState(() => Date.now());
+	const [now, setNow] = useState(() => new Date(openedAt).getTime());
 	useEffect(() => {
 		const id = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(id);
@@ -38,7 +38,7 @@ function TimerContent({ openedAt, hourlyRate, itemTotal }: { openedAt: string; h
 		<div className="flex items-center justify-between gap-4">
 			<div>
 				<div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Elapsed</div>
-				<div className="font-mono text-lg text-neutral-50">
+				<div className="font-mono text-lg text-neutral-50" suppressHydrationWarning>
 					{hours.toString().padStart(2, "0")}:{minutes.toString().padStart(2, "0")}:
 					{seconds.toString().padStart(2, "0")}
 				</div>
@@ -53,7 +53,7 @@ function TimerContent({ openedAt, hourlyRate, itemTotal }: { openedAt: string; h
 }
 
 function formatCurrency(n: number) {
-	return new Intl.NumberFormat(undefined, { style: "currency", currency: "PHP", currencyDisplay: "narrowSymbol" }).format(n);
+	return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", currencyDisplay: "narrowSymbol" }).format(n);
 }
 
 

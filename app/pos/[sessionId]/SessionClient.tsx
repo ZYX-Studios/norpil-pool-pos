@@ -53,7 +53,7 @@ function round2(n: number) {
 }
 
 function formatCurrency(n: number) {
-	return new Intl.NumberFormat(undefined, {
+	return new Intl.NumberFormat("en-PH", {
 		style: "currency",
 		currency: "PHP",
 		currencyDisplay: "narrowSymbol",
@@ -106,10 +106,8 @@ export function SessionClient({
 	const [productList, setProductList] = useState<SessionProduct[]>(products);
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
-	const [now, setNow] = useState(() => Date.now());
-	const [isOnline, setIsOnline] = useState(
-		typeof navigator !== "undefined" ? navigator.onLine : true,
-	);
+	const [now, setNow] = useState(() => new Date(openedAt).getTime());
+	const [isOnline, setIsOnline] = useState(true);
 	const [hasQueuedOps, setHasQueuedOps] = useState(false);
 	// When an offline payment is queued for this session, we treat the cart as
 	// logically closed on this device. This prevents accidental extra edits
@@ -267,8 +265,8 @@ export function SessionClient({
 					name: product.name,
 					category: product.category,
 					unitPrice: product.price,
-						quantity: targetQty,
-						lineTotal: round2(product.price * targetQty),
+					quantity: targetQty,
+					lineTotal: round2(product.price * targetQty),
 					taxRate: product.taxRate,
 				},
 			];
@@ -466,13 +464,12 @@ export function SessionClient({
 									<span>{formatCurrency(p.price)}</span>
 									{typeof p.stock === "number" && (
 										<span
-											className={`text-[10px] font-medium ${
-												p.stock <= 0
-													? "text-red-300"
-													: p.stock <= 5
-														? "text-amber-300"
-														: "text-neutral-400"
-											}`}
+											className={`text-[10px] font-medium ${p.stock <= 0
+												? "text-red-300"
+												: p.stock <= 5
+													? "text-amber-300"
+													: "text-neutral-400"
+												}`}
 										>
 											{p.stock <= 0 ? "OUT" : p.stock <= 5 ? `Low · ${p.stock}` : `${p.stock}`}
 										</span>

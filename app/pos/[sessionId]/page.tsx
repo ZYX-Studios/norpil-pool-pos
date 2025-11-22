@@ -16,6 +16,14 @@ export default async function SessionPage({
 	const sp = await searchParams;
 	const errorCode = sp?.error as string | undefined;
 
+	// If the session ID looks like a local-only ID (created while offline),
+	// we skip the server query entirely to avoid Postgres "invalid uuid" errors.
+	// Instead, we immediately render the offline fallback which loads the
+	// session from IndexedDB.
+	if (sessionId.startsWith("session_")) {
+		return <SessionOfflineFallback sessionId={sessionId} />;
+	}
+
 	try {
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
@@ -26,7 +34,10 @@ export default async function SessionPage({
 		if (sessionErr) {
 			throw sessionErr;
 		}
-		if (!session) return notFound();
+
+		if (!session) {
+			return notFound();
+		}
 
 		// Load open order
 		const { data: order, error: orderErr } = await supabase
@@ -112,7 +123,22 @@ export default async function SessionPage({
 		// When the device is offline or Supabase is unreachable, we render a
 		// client-side fallback that attempts to load a cached snapshot of the
 		// session from this device instead of showing a hard 404.
-		console.error("Failed to load POS session page", error);
+		// Network / connectivity failures are expected in this path. For those
+		// we silently fall back to the offline snapshot without logging an
+		// error, and only log unexpected problems.
+		let message: string;
+		if (error instanceof Error && error.message) {
+			message = error.message;
+		} else if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+			message = (error as any).message as string;
+		} else {
+			message = String(error);
+		}
+		const lower = message.toLowerCase();
+		const isNetworkError = lower.includes("failed to fetch") || lower.includes("fetch failed");
+		if (!isNetworkError) {
+			console.error("Failed to load POS session page", error);
+		}
 		return <SessionOfflineFallback sessionId={sessionId} />;
 	}
 }

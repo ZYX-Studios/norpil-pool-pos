@@ -39,10 +39,10 @@ async function getData() {
 		const { data: orders, error: ordersErr } =
 			sessionIds.length > 0
 				? await supabase
-						.from("orders")
-						.select("id, table_session_id, subtotal, tax_total, service_charge, discount_amount")
-						.in("table_session_id", sessionIds)
-						.eq("status", "OPEN")
+					.from("orders")
+					.select("id, table_session_id, subtotal, tax_total, service_charge, discount_amount")
+					.in("table_session_id", sessionIds)
+					.eq("status", "OPEN")
 				: { data: [] as any[], error: null as any };
 
 		if (ordersErr) throw ordersErr;
@@ -67,10 +67,22 @@ async function getData() {
 		};
 	} catch (error) {
 		// When Supabase is unreachable (e.g. device offline), we still render the
-		// POS shell with a friendly offline message instead of crashing.
-		// When Supabase is unreachable (e.g. device offline), we still render the
 		// POS shell and let the client component fall back to a cached snapshot.
-		console.error("Failed to load POS tables data", error);
+		// Network failures are normal in that scenario, so we only log unexpected
+		// errors to keep the console clean during offline use.
+		let message: string;
+		if (error instanceof Error && error.message) {
+			message = error.message;
+		} else if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
+			message = (error as any).message as string;
+		} else {
+			message = String(error);
+		}
+		const lower = message.toLowerCase();
+		const isNetworkError = lower.includes("failed to fetch") || lower.includes("fetch failed");
+		if (!isNetworkError) {
+			console.error("Failed to load POS tables data", error);
+		}
 		return {
 			tables: [] as PoolTable[],
 			openSessions: [] as OpenSession[],

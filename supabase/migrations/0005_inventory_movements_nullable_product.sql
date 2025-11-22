@@ -10,3 +10,4 @@ alter table inventory_movements
 
 
 
+

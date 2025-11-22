@@ -28,9 +28,7 @@ export function PayFormClient({
 	const [hasTypedOnKeypad, setHasTypedOnKeypad] = useState(false);
 	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "OTHER">("CASH");
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const [isOnline, setIsOnline] = useState(
-		typeof navigator !== "undefined" ? navigator.onLine : true,
-	);
+	const [isOnline, setIsOnline] = useState(true);
 	const [offlineInfo, setOfflineInfo] = useState<string | null>(null);
 
 	function handleKeyPress(key: string) {
@@ -330,31 +328,31 @@ export function PayFormClient({
 									isOnline
 										? undefined
 										: async () => {
-												// When offline we queue a sale_created operation instead of
-												// calling the server action. This lets the POS close the
-												// table locally and sync the payment when back online.
-												if (parsedAmount + 0.0001 < suggestedAmount) {
-													setValidationError("Amount cannot be less than the bill total.");
-													return;
-												}
-												setValidationError(null);
-												setConfirmOpen(false);
-												await queueSaleCreated({
-													sessionId,
-													method,
-													tenderedAmount: parsedAmount,
-													suggestedAmount,
-													capturedAt: new Date().toISOString(),
-												});
-												setOfflineInfo(
-													"Payment queued while offline. The session will be finalized on the server once the connection is restored.",
-												);
-												// Let the parent know that a closing payment has been queued
-												// so it can lock the cart UI to avoid double-charging.
-												if (onOfflineQueued) {
-													onOfflineQueued();
-												}
+											// When offline we queue a sale_created operation instead of
+											// calling the server action. This lets the POS close the
+											// table locally and sync the payment when back online.
+											if (parsedAmount + 0.0001 < suggestedAmount) {
+												setValidationError("Amount cannot be less than the bill total.");
+												return;
 											}
+											setValidationError(null);
+											setConfirmOpen(false);
+											await queueSaleCreated({
+												sessionId,
+												method,
+												tenderedAmount: parsedAmount,
+												suggestedAmount,
+												capturedAt: new Date().toISOString(),
+											});
+											setOfflineInfo(
+												"Payment queued while offline. The session will be finalized on the server once the connection is restored.",
+											);
+											// Let the parent know that a closing payment has been queued
+											// so it can lock the cart UI to avoid double-charging.
+											if (onOfflineQueued) {
+												onOfflineQueued();
+											}
+										}
 								}
 								className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-medium text-neutral-900 hover:bg-emerald-400 disabled:cursor-not-allowed"
 							>
@@ -369,7 +367,7 @@ export function PayFormClient({
 }
 
 function formatCurrency(n: number) {
-	return new Intl.NumberFormat(undefined, {
+	return new Intl.NumberFormat("en-PH", {
 		style: "currency",
 		currency: "PHP",
 		currencyDisplay: "narrowSymbol",

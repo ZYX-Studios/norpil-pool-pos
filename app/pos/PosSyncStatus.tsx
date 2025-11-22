@@ -41,15 +41,14 @@ function PosSyncStatusInner() {
 		<button
 			type="button"
 			onClick={() => syncNow()}
-			className={`rounded-full border px-3 py-1 text-[11px] font-medium ${
-				isError
+			className={`rounded-full border px-3 py-1 text-[11px] font-medium ${isError
 					? "border-red-400/60 bg-red-500/10 text-red-200"
 					: isSyncing
 						? "border-emerald-400/60 bg-emerald-500/20 text-emerald-100"
 						: isOnline
 							? "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
 							: "border-amber-400/50 bg-amber-500/10 text-amber-100"
-			}`}
+				}`}
 		>
 			<span>{label}</span>
 			{failedCount > 0 && (
@@ -58,7 +57,7 @@ function PosSyncStatusInner() {
 				</span>
 			)}
 			{lastFullSyncAt && !isError && (
-				<span className="ml-2 text-[10px] opacity-75">
+				<span className="ml-2 text-[10px] opacity-75" suppressHydrationWarning>
 					Synced {new Date(lastFullSyncAt).toLocaleTimeString()}
 				</span>
 			)}

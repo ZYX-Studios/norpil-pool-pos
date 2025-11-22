@@ -82,11 +82,14 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 								/>
 								<Tooltip
 									contentStyle={{
-										backgroundColor: "#171717",
-										borderColor: "#262626",
-										color: "#f5f5f5",
+										backgroundColor: "#000000",
+										borderColor: "#333333",
+										color: "#ffffff",
 										fontSize: "12px",
+										borderRadius: "4px",
+										boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
 									}}
+									itemStyle={{ color: "#e5e5e5" }}
 									formatter={(value: number) => formatCurrency(value)}
 								/>
 								<Bar
@@ -150,10 +153,10 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 												</td>
 												<td
 													className={`py-2 text-right ${marginPct >= 20
-															? "text-emerald-400"
-															: marginPct > 0
-																? "text-amber-400"
-																: "text-red-400"
+														? "text-emerald-400"
+														: marginPct > 0
+															? "text-amber-400"
+															: "text-red-400"
 														}`}
 												>
 													{formatPercent(marginPct)}
@@ -176,6 +179,7 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 		</div>
 	);
 }
+
 
 
 

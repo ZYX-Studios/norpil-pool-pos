@@ -103,6 +103,15 @@ interface PosOfflineDb extends DBSchema {
 			updatedAt: string;
 		};
 	};
+	idMappings: {
+		key: string;
+		value: {
+			localId: string;
+			kind: "table_session" | "order";
+			serverId: string;
+			createdAt: string;
+		};
+	};
 }
 
 let dbPromise: Promise<IDBPDatabase<PosOfflineDb>> | null = null;
@@ -121,7 +130,7 @@ export function getOfflineDb() {
 			throw new Error("IndexedDB is not available in this environment.");
 		}
 
-		dbPromise = openDB<PosOfflineDb>("norpil-pos-offline", 3, {
+		dbPromise = openDB<PosOfflineDb>("norpil-pos-offline", 4, {
 			upgrade(db, oldVersion) {
 				// Initial version with core offline stores.
 				if (oldVersion < 1) {
@@ -139,6 +148,13 @@ export function getOfflineDb() {
 				// Version 3 adds per-session order snapshots for /pos/[sessionId].
 				if (oldVersion < 3) {
 					db.createObjectStore("sessionSnapshots");
+				}
+				// Version 4 adds a small idMappings store so we can remember how
+				// local-only ids (created while offline) map to real server ids
+				// once sync has run. This keeps the schema simple while allowing
+				// the sync layer to translate operations reliably.
+				if (oldVersion < 4) {
+					db.createObjectStore("idMappings");
 				}
 			},
 		});

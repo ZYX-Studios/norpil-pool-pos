@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { ClientTimer } from "../ClientTimer";
-import { getSessionSnapshot, type OfflineSessionSnapshot } from "@/lib/offline/client";
+import {
+	getSessionSnapshot,
+	getProducts as getOfflineProducts,
+	type OfflineSessionSnapshot,
+	type OfflineProduct,
+} from "@/lib/offline/client";
+import { SessionClient } from "./SessionClient";
 
 type SessionOfflineFallbackProps = {
 	sessionId: string;
@@ -17,19 +23,33 @@ type SessionOfflineFallbackProps = {
  */
 export function SessionOfflineFallback({ sessionId }: SessionOfflineFallbackProps) {
 	const [snapshot, setSnapshot] = useState<OfflineSessionSnapshot | null>(null);
+	const [offlineProducts, setOfflineProducts] = useState<OfflineProduct[] | null>(null);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			try {
+				// Load the last known session snapshot from IndexedDB.
 				const snap = await getSessionSnapshot(sessionId);
+				// In parallel, try to hydrate cached products so we can offer a
+				// fully interactive offline experience (add items, queue ops).
+				let products: OfflineProduct[] | null = null;
+				try {
+					products = await getOfflineProducts();
+				} catch {
+					// If we cannot read the products cache (e.g. private mode)
+					// we will still show a read-only snapshot below.
+					products = null;
+				}
 				if (!cancelled) {
 					setSnapshot(snap);
+					setOfflineProducts(products);
 				}
 			} catch {
 				if (!cancelled) {
 					setSnapshot(null);
+					setOfflineProducts(null);
 				}
 			} finally {
 				if (!cancelled) {
@@ -51,6 +71,8 @@ export function SessionOfflineFallback({ sessionId }: SessionOfflineFallbackProp
 		);
 	}
 
+	// If we have no cached session at all, we fall back to a simple read-only
+	// explanation. This usually means the table was never opened on this device.
 	if (!snapshot) {
 		return (
 			<div className="mx-auto max-w-3xl space-y-3 p-4 text-sm text-neutral-100">
@@ -63,10 +85,55 @@ export function SessionOfflineFallback({ sessionId }: SessionOfflineFallbackProp
 		);
 	}
 
-	const { tableName, openedAt, hourlyRate, items } = snapshot;
+	const { tableName, openedAt, hourlyRate, items, orderId } = snapshot;
 	const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
 	const taxTotal = items.reduce((sum, i) => sum + i.lineTotal * i.taxRate, 0);
 	const itemsTotal = subtotal + taxTotal;
+
+	// If we have both a session snapshot and cached products, we can bootstrap
+	// the full interactive SessionClient purely from offline data. This lets
+	// staff continue adding items and even queueing payments during a cold
+	// offline start, which is standard POS behaviour.
+	if (offlineProducts && offlineProducts.length > 0) {
+		const sessionProducts = offlineProducts.map((p) => ({
+			id: p.id,
+			name: p.name,
+			// Offline cache stores category as a string; we pass it through to
+			// the SessionClient which already understands the allowed values.
+			category: p.category as any,
+			price: p.price,
+			taxRate: p.taxRate,
+			stock: typeof p.stock === "number" ? p.stock : undefined,
+		}));
+
+		const initialItems = items.map((i, index) => ({
+			// We only need a stable React key here; the server-side id is not
+			// required for queued offline operations which use orderId+productId.
+			id: `${i.productId}-${index}`,
+			productId: i.productId,
+			name: i.name,
+			category: i.category as any,
+			unitPrice: i.unitPrice,
+			quantity: i.quantity,
+			lineTotal: i.lineTotal,
+			taxRate: i.taxRate,
+		}));
+
+		return (
+			<SessionClient
+				sessionId={snapshot.sessionId}
+				tableName={tableName}
+				openedAt={openedAt}
+				hourlyRate={hourlyRate}
+				orderId={orderId}
+				initialItems={initialItems}
+				products={sessionProducts}
+				// We pass a friendly error code so the payment form and cart
+				// can still surface that we are running from an offline seed.
+				errorCode="offline_snapshot"
+			/>
+		);
+	}
 
 	return (
 		<div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 sm:p-6 lg:grid-cols-12">
@@ -144,7 +211,7 @@ export function SessionOfflineFallback({ sessionId }: SessionOfflineFallbackProp
 }
 
 function formatCurrency(n: number) {
-	return new Intl.NumberFormat(undefined, {
+	return new Intl.NumberFormat("en-PH", {
 		style: "currency",
 		currency: "PHP",
 		currencyDisplay: "narrowSymbol",

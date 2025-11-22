@@ -1,15 +1,19 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClientTimer } from "./ClientTimer";
 import { openTableAction } from "./actions";
 import {
 	getTablesSnapshot,
 	saveTablesSnapshot,
+	queueSessionOpened,
+	saveSessionSnapshot,
 	type OfflineTable,
 	type OfflineTableSession,
 } from "@/lib/offline/client";
+import { createLocalId } from "@/lib/offline/db";
 
 type PoolTable = {
 	id: string;
@@ -36,6 +40,8 @@ type PosHomeClientProps = {
  * Client-side wrapper for the POS tables page.
  * - When online and initial data is present, we render it and cache a snapshot.
  * - When offline (or initial load fails), we fall back to the last cached snapshot.
+ * - When fully offline, staff can still open new sessions using local ids and
+ *   queued sync operations; these are turned into real sessions later.
  */
 export function PosHomeClient({
 	initialTables,
@@ -43,6 +49,7 @@ export function PosHomeClient({
 	initialSessionTotals,
 	initialErrorCode,
 }: PosHomeClientProps) {
+	const router = useRouter();
 	const [tables, setTables] = useState<PoolTable[]>(initialTables);
 	const [openSessions, setOpenSessions] = useState<OpenSession[]>(initialSessions);
 	const [sessionTotals, setSessionTotals] = useState<Map<string, number>>(() => {
@@ -53,12 +60,14 @@ export function PosHomeClient({
 		return map;
 	});
 	const [errorCode, setErrorCode] = useState<string | null>(initialErrorCode);
-	const [isOnline, setIsOnline] = useState(
-		typeof navigator !== "undefined" ? navigator.onLine : true,
-	);
+	const [isOnline, setIsOnline] = useState(true);
 
 	// On mount, decide whether to use server data or fall back to cached snapshot.
-	// Track basic online/offline status so we can disable actions that must hit the server.
+	// Track basic online/offline status so we can choose between server actions
+	// and purely local offline behaviour. If the initial server load already
+	// failed with a network error (load_failed / open_table), we also treat the
+	// POS as effectively offline so that actions like "Open table" use the
+	// offline path instead of repeatedly calling the server action.
 	useEffect(() => {
 		if (typeof window === "undefined") return;
 
@@ -78,6 +87,16 @@ export function PosHomeClient({
 			window.removeEventListener("offline", handleOffline);
 		};
 	}, []);
+
+	// If the initial render already knows that the server could not be reached,
+	// treat the device as offline for the purposes of POS actions. This covers
+	// cases where the browser still reports navigator.onLine = true but the
+	// Supabase backend is unreachable (e.g. internet gateway down).
+	useEffect(() => {
+		if (initialErrorCode === "load_failed" || initialErrorCode === "open_table") {
+			setIsOnline(false);
+		}
+	}, [initialErrorCode]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -190,16 +209,12 @@ export function PosHomeClient({
 					return (
 						<div
 							key={t.id}
-							className={`group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 ${
-								session ? "ring-1 ring-emerald-500/40" : ""
-							}`}
+							className={`group rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 ${session ? "ring-1 ring-emerald-500/40" : ""}`}
 						>
 							<div className="mb-3 flex items-center justify-between">
 								<div className="text-sm font-medium text-neutral-50 sm:text-base">{t.name}</div>
 								<span
-									className={`rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide ${
-										session ? "bg-emerald-500/20 text-emerald-300" : "bg-neutral-700/60 text-neutral-200"
-									}`}
+									className={`rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide ${session ? "bg-emerald-500/20 text-emerald-300" : "bg-neutral-700/60 text-neutral-200"}`}
 								>
 									{session ? "IN USE" : "FREE"}
 								</span>
@@ -225,15 +240,35 @@ export function PosHomeClient({
 									</div>
 								</div>
 							) : (
-								<form action={openTableAction.bind(null, t.id)}>
-									<button
-										type="submit"
-										disabled={!isOnline}
-										className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-300"
-									>
-										{isOnline ? "Open table" : "Open table (online only)"}
-									</button>
-								</form>
+								<>
+									{isOnline ? (
+										<form action={openTableAction.bind(null, t.id)}>
+											<button
+												type="submit"
+												className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400"
+											>
+												Open table
+											</button>
+										</form>
+									) : (
+										<button
+											type="button"
+											onClick={() => {
+												void openTableOffline(t, {
+													currentTables: tables,
+													currentSessions: openSessions,
+													currentSessionTotals: sessionTotals,
+													setSessions: setOpenSessions,
+													setSessionTotals,
+													router,
+												});
+											}}
+											className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400"
+										>
+											Open table
+										</button>
+									)}
+								</>
 							)}
 						</div>
 					);
@@ -243,4 +278,110 @@ export function PosHomeClient({
 	);
 }
 
+// Also export as default so it can be imported either way from Server Components.
+export default PosHomeClient;
 
+/**
+ * Open a new table session purely offline.
+ * - Creates local-only ids for the table_session and its order.
+ * - Updates local React state so the POS home immediately shows the session.
+ * - Writes snapshots to IndexedDB so cold-start offline reloads still work.
+ * - Queues a session_opened operation so the server session/order are created
+ *   the next time sync runs.
+ */
+async function openTableOffline(
+	table: PoolTable,
+	ctx: {
+		currentTables: PoolTable[];
+		currentSessions: OpenSession[];
+		currentSessionTotals: Map<string, number>;
+		setSessions: React.Dispatch<React.SetStateAction<OpenSession[]>>;
+		setSessionTotals: React.Dispatch<React.SetStateAction<Map<string, number>>>;
+		router: ReturnType<typeof useRouter>;
+	},
+) {
+	// If this table already has an open session in local state, just reuse it.
+	const existing = ctx.currentSessions.find((s) => s.pool_table_id === table.id);
+	if (existing) {
+		ctx.router.push(`/pos/${existing.id}`);
+		return;
+	}
+
+	const localSessionId = createLocalId("session");
+	const localOrderId = createLocalId("order");
+	const openedAt = new Date().toISOString();
+
+	const newSession: OpenSession = {
+		id: localSessionId,
+		pool_table_id: table.id,
+		opened_at: openedAt,
+		override_hourly_rate: null,
+	};
+
+	// Update in-memory state so the UI reflects the new session immediately.
+	ctx.setSessions((prev) => [...prev, newSession]);
+	ctx.setSessionTotals((prev) => {
+		const next = new Map(prev);
+		next.set(localSessionId, 0);
+		return next;
+	});
+
+	try {
+		// Persist a fresh tables + sessions snapshot that includes this new
+		// local-only session so /pos can cold-start offline later.
+		const offlineTables: OfflineTable[] = ctx.currentTables.map((t) => ({
+			id: t.id,
+			name: t.name,
+			isActive: t.is_active,
+			hourlyRate: t.hourly_rate,
+		}));
+
+		const allSessions: OpenSession[] = [...ctx.currentSessions, newSession];
+		const offlineSessions: OfflineTableSession[] = allSessions.map((s) => ({
+			id: s.id,
+			poolTableId: s.pool_table_id,
+			openedAt: s.opened_at,
+			overrideHourlyRate: s.override_hourly_rate,
+			itemsTotal: ctx.currentSessionTotals.get(s.id) ?? 0,
+			status: "OPEN",
+		}));
+
+		await saveTablesSnapshot({
+			tables: offlineTables,
+			sessions: offlineSessions,
+		});
+
+		// Seed an initial, empty session snapshot so that /pos/[sessionId]
+		// can immediately boot the full SessionClient from IndexedDB even
+		// on a cold-start while offline.
+		await saveSessionSnapshot({
+			sessionId: localSessionId,
+			tableName: table.name,
+			openedAt,
+			hourlyRate: table.hourly_rate,
+			orderId: localOrderId,
+			items: [],
+		});
+
+		// Queue the logical "session opened" operation so that, once the
+		// device is back online, sync can create the real session + order
+		// in Supabase and remember how these local ids map to server ids.
+		await queueSessionOpened({
+			localSessionId,
+			localOrderId,
+			poolTableId: table.id,
+			openedAt,
+			overrideHourlyRate: null,
+		});
+	} catch {
+		// If IndexedDB is unavailable (e.g. private mode), we still keep the
+		// in-memory session so the operator can continue using the POS until
+		// the page is reloaded.
+	}
+
+	// Navigate to the new session using the local id. The session page will
+	// attempt to load it from Supabase, and when it does not exist yet it
+	// will fall back to the client-side offline bootstrap which reads the
+	// snapshot we just saved and runs the full SessionClient from there.
+	ctx.router.push(`/pos/${localSessionId}`);
+}
