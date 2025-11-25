@@ -57,25 +57,23 @@ export function RevenueAnalysis({ data }: RevenueAnalysisProps) {
                 <div className="bg-white border border-neutral-200 rounded-lg p-6">
                     <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-6">Revenue by Category</h3>
                     <div className="h-64">
-                        <div className="flex justify-center">
-                            <PieChart width={300} height={250}>
+                        <div className="flex justify-center items-center">
+                            <PieChart width={350} height={280}>
                                 <Pie
                                     data={categoryData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={categoryData.length > 1 ? 5 : 0}
+                                    cx={175}
+                                    cy={140}
+                                    innerRadius={70}
+                                    outerRadius={100}
+                                    paddingAngle={categoryData.length > 1 ? 3 : 0}
                                     dataKey="value"
-                                    startAngle={0}
-                                    endAngle={360}
+                                    isAnimationActive={false}
                                 >
                                     {categoryData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                                <Legend />
                             </PieChart>
                         </div>
                     </div>

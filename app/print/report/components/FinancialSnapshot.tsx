@@ -35,7 +35,7 @@ export function FinancialSnapshot({ data }: FinancialSnapshotProps) {
     // For simplicity in this snapshot, we'll use the daily data if available, or monthly
     const dailyData = data.daily ?? [];
     const chartData = dailyData.map((d: any) => ({
-        date: new Date(d.date).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        date: new Date(d.day).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
         revenue: Number(d.revenue),
     }));
 

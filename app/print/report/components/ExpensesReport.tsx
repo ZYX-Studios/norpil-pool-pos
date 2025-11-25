@@ -51,25 +51,23 @@ export function ExpensesReport({ data }: ExpensesReportProps) {
                 <div className="bg-white border border-neutral-200 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-4">Expenses by Category</h3>
                     <div className="h-48">
-                        <div className="flex justify-center">
-                            <PieChart width={300} height={200}>
+                        <div className="flex justify-center items-center">
+                            <PieChart width={350} height={220}>
                                 <Pie
                                     data={categoryData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={40}
-                                    outerRadius={60}
-                                    paddingAngle={categoryData.length > 1 ? 5 : 0}
+                                    cx={175}
+                                    cy={110}
+                                    innerRadius={60}
+                                    outerRadius={90}
+                                    paddingAngle={categoryData.length > 1 ? 3 : 0}
                                     dataKey="value"
-                                    startAngle={0}
-                                    endAngle={360}
+                                    isAnimationActive={false}
                                 >
                                     {categoryData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                                <Legend />
                             </PieChart>
                         </div>
                     </div>
