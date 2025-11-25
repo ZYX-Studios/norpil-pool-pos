@@ -10,6 +10,7 @@ import { OperationsSection } from "./sections/OperationsSection";
 import { ExpensesSection } from "./sections/ExpensesSection";
 import { Tabs } from "@/app/components/ui/Tabs";
 import { DateRangePicker } from "@/app/components/ui/DateRangePicker";
+import { DownloadReportButton } from "./pdf/DownloadReportButton";
 
 type View = "summary" | "daily" | "monthly" | "expenses";
 
@@ -109,7 +110,10 @@ export default async function ReportsPage({
 					</p>
 					<p className="text-[0.7rem] text-neutral-500 mt-1">Period: {rangeLabel}</p>
 				</div>
-				<DateRangePicker defaultStart={start} defaultEnd={end} />
+				<div className="flex items-center gap-2">
+					<DownloadReportButton data={data} start={start} end={end} />
+					<DateRangePicker defaultStart={start} defaultEnd={end} />
+				</div>
 			</div>
 
 			<Tabs tabs={tabs} currentView={view} baseUrl="/admin/reports" />
