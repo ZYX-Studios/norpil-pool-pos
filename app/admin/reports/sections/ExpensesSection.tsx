@@ -143,16 +143,19 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 										data={chartData}
 										cx="50%"
 										cy="50%"
-										innerRadius={40}
-										outerRadius={70}
+										innerRadius={60}
+										outerRadius={80}
 										paddingAngle={2}
 										dataKey="value"
+										startAngle={90}
+										endAngle={-270}
+										stroke="none"
 									>
 										{chartData.map((entry, index) => (
 											<Cell
 												key={`cell-${index}`}
 												fill={COLORS[index % COLORS.length]}
-												stroke="rgba(0,0,0,0.2)"
+												stroke="none"
 											/>
 										))}
 									</Pie>

@@ -65,12 +65,7 @@ export async function getReportData(start: string, end: string): Promise<ReportD
 		supabase.rpc("revenue_by_shift", { p_start: start, p_end: end }),
 		supabase.rpc("margin_by_drink_type", { p_start: start, p_end: end }),
 		supabase.rpc("margin_by_category", { p_start: start, p_end: end }),
-		supabase
-			.from("expenses")
-			.select("id, expense_date, category, amount, note")
-			.gte("expense_date", start)
-			.lte("expense_date", end)
-			.order("expense_date", { ascending: true }),
+		supabase.rpc("get_expenses", { p_start: start, p_end: end }),
 		supabase.rpc("monthly_financial_summary", { p_start: start, p_end: end }),
 	]);
 
