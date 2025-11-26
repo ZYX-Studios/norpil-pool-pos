@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium-min";
+import puppeteerCore from "puppeteer-core";
 
 export const runtime = "nodejs"; // Force Node.js runtime for Puppeteer
 export const dynamic = "force-dynamic"; // Disable caching
@@ -15,7 +17,6 @@ export async function GET(req: NextRequest) {
 
     try {
         // Construct the URL for the print page
-        // We use the new public route /print/report to bypass AdminLayout auth
         const host = req.headers.get("host") || "localhost:3000";
         const protocol = host.includes("localhost") ? "http" : "https";
         const secret = process.env.PDF_SECRET_KEY || "super-secret-local-key";
@@ -23,17 +24,42 @@ export async function GET(req: NextRequest) {
 
         console.log(`Generating PDF from: ${printUrl}`);
 
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        });
+        let browser;
+
+        if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+            // Vercel / Production: Use puppeteer-core + @sparticuz/chromium-min
+            console.log("Running in production mode with @sparticuz/chromium-min");
+
+            // Configure sparticuz/chromium
+            chromium.setGraphicsMode = false;
+
+            // You might need to adjust this path if you are using a specific version or setup
+            // Usually for Vercel, this works out of the box with the package
+            const executablePath = await chromium.executablePath(
+                "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar"
+            );
+
+            browser = await puppeteerCore.launch({
+                args: chromium.args,
+                defaultViewport: { width: 794, height: 1123 },
+                executablePath: executablePath,
+                headless: true,
+            });
+        } else {
+            // Local Development: Use standard puppeteer
+            console.log("Running in local mode with standard puppeteer");
+            browser = await puppeteer.launch({
+                headless: true,
+                args: ["--no-sandbox", "--disable-setuid-sandbox"],
+            });
+        }
 
         const page = await browser.newPage();
 
         // Set viewport to A4 dimensions (approximate pixels at 96 DPI)
         await page.setViewport({ width: 794, height: 1123 });
 
-        // Navigate to the print page and wait for network to be idle (charts loaded)
+        // Navigate to the print page and wait for content to load
         // We use domcontentloaded + a small delay because networkidle0 can be too slow/flaky
         await page.goto(printUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
