@@ -335,7 +335,7 @@ export const ExecutiveReport = ({ data, start, end }: ExecutiveReportProps) => {
 							<Text style={[styles.tableHeaderText, styles.col3]}>% of Total</Text>
 						</View>
 						{categories.map((cat, index) => (
-							<View key={index} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+							<View key={index} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
 								<Text style={[styles.tableCellBold, styles.colWide]}>{cat.name}</Text>
 								<Text style={[styles.tableCellText, styles.col2]}>{formatPHP(cat.revenue)}</Text>
 								<Text style={[styles.tableCellText, styles.col3]}>{formatPercent(cat.percent)}</Text>
@@ -356,7 +356,7 @@ export const ExecutiveReport = ({ data, start, end }: ExecutiveReportProps) => {
 								<Text style={[styles.tableHeaderText, styles.col2]}>Total</Text>
 							</View>
 							{methods.map((method, index) => (
-								<View key={index} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+								<View key={index} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
 									<Text style={[styles.tableCellBold, styles.col1]}>{method.method}</Text>
 									<Text style={[styles.tableCellText, styles.col2]}>{method.count}</Text>
 									<Text style={[styles.tableCellText, styles.col2]}>{formatPHP(method.total)}</Text>
@@ -374,7 +374,7 @@ export const ExecutiveReport = ({ data, start, end }: ExecutiveReportProps) => {
 								<Text style={[styles.tableHeaderText, styles.col2]}>Amount</Text>
 							</View>
 							{topExpenses.slice(0, 6).map((exp: any, index: number) => (
-								<View key={index} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+								<View key={index} style={[styles.tableRow, index % 2 === 1 ? styles.tableRowAlt : {}]}>
 									<Text style={[styles.tableCellText, styles.colWide]}>
 										{exp.category}
 										{exp.note ? ` (${exp.note})` : ""}
