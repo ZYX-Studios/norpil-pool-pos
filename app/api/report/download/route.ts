@@ -34,15 +34,16 @@ export async function GET(req: NextRequest) {
         await page.setViewport({ width: 794, height: 1123 });
 
         // Navigate to the print page and wait for network to be idle (charts loaded)
-        await page.goto(printUrl, { waitUntil: "networkidle0", timeout: 60000 });
+        // We use domcontentloaded + a small delay because networkidle0 can be too slow/flaky
+        await page.goto(printUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
         // Wait for charts to be rendered (Recharts uses SVG)
-        await page.waitForSelector('.recharts-pie', { timeout: 10000 }).catch(() => {
+        await page.waitForSelector('.recharts-pie', { timeout: 5000 }).catch(() => {
             console.log('No pie charts found on page');
         });
 
         // Add additional wait to ensure all rendering is complete
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         const pdfBuffer = await page.pdf({
             format: "A4",

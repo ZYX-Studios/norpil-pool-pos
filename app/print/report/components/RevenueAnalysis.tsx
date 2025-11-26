@@ -97,7 +97,7 @@ export function RevenueAnalysis({ data }: RevenueAnalysisProps) {
                                 <XAxis type="number" hide />
                                 <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12 }} />
                                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                                <Bar dataKey="revenue" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={30} />
+                                <Bar dataKey="revenue" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={30} isAnimationActive={false} />
                             </BarChart>
                         </div>
                     </div>
@@ -113,7 +113,7 @@ export function RevenueAnalysis({ data }: RevenueAnalysisProps) {
                                 <XAxis dataKey="name" />
                                 <YAxis tickFormatter={(val) => `₱${val}`} />
                                 <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                                <Bar dataKey="revenue" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={40} />
+                                <Bar dataKey="revenue" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={40} isAnimationActive={false} />
                             </BarChart>
                         </div>
                     </div>

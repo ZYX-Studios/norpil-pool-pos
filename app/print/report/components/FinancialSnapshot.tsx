@@ -61,7 +61,6 @@ export function FinancialSnapshot({ data }: FinancialSnapshotProps) {
                     color={netMargin >= 20 ? "text-emerald-700" : "text-amber-700"}
                 />
             </div>
-
             <div className="h-96 w-full border border-neutral-200 rounded-lg p-4 bg-white">
                 <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-4">Revenue Trend</h3>
                 <div className="flex justify-center">
@@ -81,12 +80,13 @@ export function FinancialSnapshot({ data }: FinancialSnapshotProps) {
                             axisLine={false}
                             tickFormatter={(val) => `₱${val}`}
                         />
-                        <Bar dataKey="revenue" fill="#3b82f6" barSize={20} radius={[4, 4, 0, 0]} />
-                        <Line type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2} dot={false} />
+                        <Bar dataKey="revenue" fill="#3b82f6" barSize={20} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </ComposedChart>
                 </div>
             </div>
-        </div>
+        </div >
+
     );
 }
 
