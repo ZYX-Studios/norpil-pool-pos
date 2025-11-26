@@ -80,6 +80,7 @@ interface PosOfflineDb extends DBSchema {
 			overrideHourlyRate: number | null;
 			itemsTotal: number;
 			status: "OPEN" | "CLOSED";
+			customerName?: string | null;
 			updatedAt: string;
 		};
 	};
@@ -100,6 +101,7 @@ interface PosOfflineDb extends DBSchema {
 				lineTotal: number;
 				taxRate: number;
 			}>;
+			customerName?: string | null;
 			updatedAt: string;
 		};
 	};

@@ -29,9 +29,17 @@ export async function getCurrentUserWithStaff(): Promise<{
 		const { data, error: userErr } = await supabase.auth.getUser();
 
 		if (userErr) {
-			// Most likely a connectivity issue or invalid session cookie.
-			console.error("Failed to fetch Supabase auth user", userErr);
-			return { user: null, staff: null, authError: "supabase_unreachable" };
+			// Suppress "Auth session missing!" error which is expected for unauthenticated requests (e.g. PDF generation)
+			// and doesn't indicate a system failure.
+			const isSessionMissing = userErr.name === "AuthSessionMissingError" ||
+				(userErr as any).code === "PGRST301" || // JWT expired/missing
+				userErr.message.includes("Auth session missing");
+
+			if (!isSessionMissing) {
+				console.error("Failed to fetch Supabase auth user", userErr);
+			}
+
+			return { user: null, staff: null, authError: isSessionMissing ? null : "supabase_unreachable" };
 		}
 
 		const user = data.user;
