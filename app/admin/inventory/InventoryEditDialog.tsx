@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { adjustInventoryItem, updateInventoryItem } from "./actions";
+import { useRouter } from "next/navigation";
+import { adjustInventoryItem, updateInventoryItem, deleteInventoryItemAction } from "./actions";
 
 type InventoryEditDialogProps = {
 	item: {
@@ -22,6 +23,7 @@ type InventoryEditDialogProps = {
 // This keeps the main table clean and gives more space for the form.
 export function InventoryEditDialog({ item }: InventoryEditDialogProps) {
 	const [open, setOpen] = useState(false);
+	const router = useRouter();
 
 	return (
 		<>
@@ -198,9 +200,10 @@ export function InventoryEditDialog({ item }: InventoryEditDialogProps) {
 								</div>
 							</div>
 						</div>
-					</div>,
+					</div >,
 					document.body,
-				)}
+				)
+			}
 		</>
 	);
 }

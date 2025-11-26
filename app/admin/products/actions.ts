@@ -41,6 +41,7 @@ export async function createProduct(formData: FormData) {
 	const category = String(formData.get("category") || "OTHER") as Category;
 	const price = parseNumber(formData.get("price"));
 	const taxRate = parseNumber(formData.get("tax_rate"), 0.12);
+	const isAlcoholic = formData.get("is_alcoholic") === "on";
 
 	if (!name) throw new Error("Name is required");
 	if (!["FOOD", "DRINK", "OTHER", "TABLE_TIME"].includes(category)) {
@@ -54,6 +55,7 @@ export async function createProduct(formData: FormData) {
 		price,
 		tax_rate: taxRate,
 		is_active: true,
+		is_alcoholic: isAlcoholic,
 	});
 	if (error) throw error;
 
@@ -99,6 +101,7 @@ export async function updateProduct(formData: FormData) {
 	const category = String(formData.get("category") || "OTHER") as Category;
 	const price = parseNumber(formData.get("price"));
 	const taxRate = parseNumber(formData.get("tax_rate"), 0.12);
+	const isAlcoholic = formData.get("is_alcoholic") === "on";
 
 	if (!id) throw new Error("Missing id");
 	if (!name) throw new Error("Name is required");
@@ -108,7 +111,7 @@ export async function updateProduct(formData: FormData) {
 
 	const { error } = await supabase
 		.from("products")
-		.update({ name, sku, category, price, tax_rate: taxRate })
+		.update({ name, sku, category, price, tax_rate: taxRate, is_alcoholic: isAlcoholic })
 		.eq("id", id);
 	if (error) throw error;
 	revalidatePath("/admin/products");

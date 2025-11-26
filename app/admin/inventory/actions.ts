@@ -185,3 +185,35 @@ export async function adjustInventoryItem(formData: FormData) {
 }
 
 
+
+
+export async function deleteInventoryItemAction(id: string) {
+	const supabase = createSupabaseServerClient();
+
+	// Safety check: is this item used in any recipes?
+	const { count, error: countError } = await supabase
+		.from("product_inventory_recipes")
+		.select("*", { count: "exact", head: true })
+		.eq("inventory_item_id", id);
+
+	if (countError) throw countError;
+
+	if (count && count > 0) {
+		// Block deletion if used in recipes.
+		return { error: "Cannot delete this item because it is used in product recipes." };
+	}
+
+	// Safe to delete.
+	try {
+		const { error, count } = await supabase.from("inventory_items").delete({ count: "exact" }).eq("id", id);
+		if (error) throw error;
+		if (count === 0) {
+			return { error: `Item not found or permission denied. ID: ${id}` };
+		}
+	} catch (error: any) {
+		return { error: error.message || "Unknown error" };
+	}
+
+	revalidatePath("/admin/inventory");
+	return { success: true };
+}

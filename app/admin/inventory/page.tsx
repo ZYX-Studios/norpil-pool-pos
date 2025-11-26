@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createInventoryItem } from "./actions";
 import { InventoryEditDialog } from "./InventoryEditDialog";
+import { InventoryDeleteButton } from "./InventoryDeleteButton";
 
 type InventoryItemRow = {
 	id: string;
@@ -99,6 +100,16 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 					Quantity change must be a non-zero whole number. Please enter a positive or negative integer.
 				</div>
 			)}
+			{errorCode === "in_use" && (
+				<div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+					Cannot delete this item because it is used in product recipes. Please remove it from all recipes first.
+				</div>
+			)}
+			{errorCode && !["sku", "delta", "in_use"].includes(errorCode) && (
+				<div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+					Error: {errorCode}
+				</div>
+			)}
 
 			{/*
 				Quick add form for new inventory items.
@@ -189,7 +200,10 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 								</td>
 								<td className="pl-2">{item.is_active ? "Active" : "Inactive"}</td>
 								<td className="text-right">
-									<InventoryEditDialog item={item} />
+									<div className="flex justify-end gap-2">
+										<InventoryEditDialog item={item} />
+										<InventoryDeleteButton id={item.id} name={item.name} />
+									</div>
 								</td>
 							</tr>
 						))}

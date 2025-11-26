@@ -10,7 +10,7 @@ import {
 	addRecipeComponent,
 	removeRecipeComponent,
 } from "./actions";
-import { AddRecipeForm } from "./AddRecipeForm";
+import { ProductEditDialog } from "./ProductEditDialog";
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
 	const supabase = createSupabaseServerClient();
@@ -18,7 +18,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 	// Load base product data.
 	const { data: products } = await supabase
 		.from("products")
-		.select("id, name, sku, category, price, tax_rate, is_active")
+		.select("id, name, sku, category, price, tax_rate, is_active, is_alcoholic")
 		.order("name", { ascending: true });
 
 	// Load current stock using the product_stock view built on inventory_movements.
@@ -109,6 +109,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 					</select>
 					<input name="price" placeholder="Price" type="number" step="0.01" min="0" className="rounded border px-4 py-3 text-base sm:col-span-1" required />
 					<input name="tax_rate" placeholder="Tax rate (e.g. 0.12)" type="number" step="0.01" min="0" className="rounded border px-4 py-3 text-base sm:col-span-1" defaultValue="0.12" />
+
+					<div className="sm:col-span-6 flex items-center gap-2">
+						<input type="checkbox" name="is_alcoholic" id="is_alcoholic_new" className="h-4 w-4 rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500" />
+						<label htmlFor="is_alcoholic_new" className="text-sm text-neutral-300">Is Alcoholic (Drinks only)</label>
+					</div>
+
 					<div className="sm:col-span-6">
 						<button type="submit" className="rounded bg-neutral-900 px-4 py-3 text-base font-medium text-white hover:bg-neutral-800">
 							Add
@@ -164,141 +170,25 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 									<td className="text-right">
 										<div className="flex justify-end gap-2">
 											<form action={toggleActiveAction.bind(null, p.id as string, !!p.is_active)}>
-												<button type="submit" className="rounded border px-2 py-1 hover:bg-neutral-50">
+												<button type="submit" className="rounded border border-white/20 bg-black/30 px-3 py-1.5 text-sm hover:bg-white/10">
 													{p.is_active ? "Deactivate" : "Activate"}
 												</button>
 											</form>
-											<details>
-												<summary className="cursor-pointer select-none rounded border px-2 py-1 hover:bg-neutral-50">Edit</summary>
-												<div className="mt-2 space-y-3">
-													<form action={updateProduct} className="grid grid-cols-1 gap-2 sm:grid-cols-6">
-														<input type="hidden" name="id" value={p.id as string} />
-														<input name="name" defaultValue={p.name as string} className="rounded border px-2 py-1 text-sm sm:col-span-2" required />
-														<input
-															name="sku"
-															defaultValue={(p.sku as string) ?? ""}
-															className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-neutral-50 sm:col-span-1"
-														/>
-														<select
-															name="category"
-															defaultValue={p.category as string}
-															className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-neutral-50 sm:col-span-1"
-														>
-															<option value="FOOD">FOOD</option>
-															<option value="DRINK">DRINK</option>
-															<option value="OTHER">OTHER</option>
-															<option value="TABLE_TIME">TABLE_TIME</option>
-														</select>
-														<input name="price" type="number" step="0.01" min="0" defaultValue={String(p.price)} className="rounded border px-2 py-1 text-sm sm:col-span-1" required />
-														<input name="tax_rate" type="number" step="0.01" min="0" defaultValue={String(p.tax_rate)} className="rounded border px-2 py-1 text-sm sm:col-span-1" />
-														<div className="sm:col-span-6">
-															<button type="submit" className="rounded bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800">
-																Save
-															</button>
-														</div>
-													</form>
-
-													{/* 
-														Simple inventory adjustment block.
-														Admins can bump stock up or down without leaving the products page.
-													*/}
-													<div className="rounded border border-white/10 bg-black/5 p-2 text-xs">
-														<div className="mb-1 flex items-center justify-between">
-															<span className="font-medium">Inventory</span>
-															<span className="font-mono text-[11px] text-neutral-500">Current: {stock}</span>
-														</div>
-														<form action={adjustInventory} className="flex flex-wrap items-end gap-2">
-															<input type="hidden" name="productId" value={p.id as string} />
-															<div>
-																<label className="block text-[10px] text-neutral-500">Change</label>
-																<input
-																	name="delta"
-																	type="number"
-																	step="1"
-																	className="w-20 rounded border px-2 py-1 text-xs"
-																	placeholder="+10"
-																/>
-															</div>
-															<div>
-																<label className="block text-[10px] text-neutral-500">Type</label>
-																<select
-																	name="movement_type"
-																	defaultValue="ADJUSTMENT"
-																	className="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-neutral-50"
-																>
-																	<option value="INITIAL">Initial</option>
-																	<option value="PURCHASE">Purchase</option>
-																	<option value="ADJUSTMENT">Adjustment</option>
-																</select>
-															</div>
-															<div className="min-w-[140px] flex-1">
-																<label className="block text-[10px] text-neutral-500">Note</label>
-																<input
-																	name="note"
-																	className="w-full rounded border px-2 py-1 text-xs"
-																	placeholder="Optional note (e.g. delivery, spoilage)"
-																/>
-															</div>
-															<button
-																type="submit"
-																className="rounded bg-neutral-900 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-800"
-															>
-																Apply
-															</button>
-														</form>
-													</div>
-
-													{/* 
-														Inventory recipe editor.
-														This makes the link between menu products and stock explicit:
-														which inventory items are consumed, and how much per unit.
-													*/}
-													<div className="rounded border border-white/10 bg-black/5 p-2 text-xs">
-														<div className="mb-1 flex items-center justify-between">
-															<span className="font-medium">Inventory recipe</span>
-															<span className="text-[10px] text-neutral-500">
-																Used to deduct stock when this item is sold.
-															</span>
-														</div>
-														<div className="space-y-1">
-															{recipeComponents.length > 0 ? (
-																recipeComponents.map((comp) => (
-																	<div key={comp.id} className="flex items-center justify-between gap-2">
-																		<div>
-																			<div className="font-medium">{comp.name}</div>
-																			<div className="text-[10px] text-neutral-500">
-																				{comp.quantity} {comp.unit} per {p.name}
-																			</div>
-																		</div>
-																		<form action={removeRecipeComponent} className="shrink-0">
-																			<input type="hidden" name="recipeId" value={comp.id} />
-																			<button
-																				type="submit"
-																				className="rounded border px-2 py-0.5 text-[10px] text-red-500 hover:bg-red-50"
-																			>
-																				Remove
-																			</button>
-																		</form>
-																	</div>
-																))
-															) : (
-																<div className="text-[11px] text-neutral-500">
-																	No recipe yet. Add at least one inventory item if this product should track stock.
-																</div>
-															)}
-														</div>
-														<AddRecipeForm
-															productId={p.id as string}
-															inventoryItems={inventoryItems}
-														/>
-													</div>
-												</div>
-											</details>
-											<form action={deleteProductAction.bind(null, p.id as string)}>
-												<button type="submit" className="rounded border px-2 py-1 text-red-600 hover:bg-red-50">
-													Delete
-												</button>
-											</form>
+											<ProductEditDialog
+												product={{
+													id: p.id as string,
+													name: p.name as string,
+													sku: p.sku as string,
+													category: p.category as string,
+													price: Number(p.price),
+													tax_rate: Number(p.tax_rate),
+													is_active: !!p.is_active,
+													is_alcoholic: !!p.is_alcoholic,
+												}}
+												stock={stock}
+												inventoryItems={inventoryItems}
+												recipeComponents={recipeComponents}
+											/>
 										</div>
 									</td>
 								</tr>

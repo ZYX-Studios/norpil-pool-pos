@@ -46,14 +46,14 @@ export function AddRecipeForm({ productId, inventoryItems }: AddRecipeFormProps)
     }, [selectedItem]);
 
     return (
-        <form action={addRecipeComponent} className="mt-2 flex flex-wrap items-end gap-2">
+        <form action={addRecipeComponent} className="mt-4 flex flex-wrap items-end gap-4">
             <input type="hidden" name="productId" value={productId} />
 
-            <div className="min-w-[140px] flex-1">
-                <label className="block text-[10px] text-neutral-500">Inventory item</label>
+            <div className="min-w-[200px] flex-1">
+                <label className="mb-1 block text-sm text-neutral-500">Inventory item</label>
                 <select
                     name="inventoryItemId"
-                    className="w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-neutral-50"
+                    className="w-full rounded-md border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
                     value={selectedItemId}
                     onChange={(e) => setSelectedItemId(e.target.value)}
                     required
@@ -70,24 +70,24 @@ export function AddRecipeForm({ productId, inventoryItems }: AddRecipeFormProps)
             </div>
 
             <div>
-                <label className="block text-[10px] text-neutral-500">Quantity</label>
+                <label className="mb-1 block text-sm text-neutral-500">Quantity</label>
                 <input
                     name="quantity"
                     type="number"
                     step="0.0001"
                     min="0"
-                    className="w-24 rounded border px-2 py-1 text-xs"
+                    className="w-32 rounded-md border border-white/15 bg-black/60 px-4 py-3 text-base text-neutral-50"
                     placeholder="1"
                     required
                 />
             </div>
 
             {availableUnits.length > 0 && (
-                <div className="w-24">
-                    <label className="block text-[10px] text-neutral-500">Unit</label>
+                <div className="w-32">
+                    <label className="mb-1 block text-sm text-neutral-500">Unit</label>
                     <select
                         name="unit"
-                        className="w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-neutral-50"
+                        className="w-full rounded-md border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
                         defaultValue={selectedItem?.unit}
                     >
                         {availableUnits.map(u => (
@@ -99,7 +99,7 @@ export function AddRecipeForm({ productId, inventoryItems }: AddRecipeFormProps)
 
             <button
                 type="submit"
-                className="rounded bg-neutral-900 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-800"
+                className="rounded-md bg-neutral-900 px-6 py-3 text-base font-medium text-white hover:bg-neutral-800"
             >
                 Add / update
             </button>
