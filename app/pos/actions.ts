@@ -66,4 +66,64 @@ export async function openTableAction(poolTableId: string) {
 	}
 }
 
+export async function createWalkInSession(customerName: string) {
+	const supabase = createSupabaseServerClient();
+
+	try {
+		// Create session with no table (pool_table_id is null)
+		const { data: session, error: sessionErr } = await supabase
+			.from("table_sessions")
+			.insert({
+				pool_table_id: null,
+				customer_name: customerName,
+				status: "OPEN",
+			})
+			.select("id")
+			.single();
+
+		if (sessionErr || !session) {
+			throw sessionErr ?? new Error("Failed to create walk-in session.");
+		}
+
+		// Create an OPEN order for this session
+		const { error: orderErr } = await supabase.from("orders").insert({
+			table_session_id: session.id,
+			status: "OPEN",
+		});
+		if (orderErr) {
+			throw orderErr;
+		}
+
+		revalidatePath("/pos");
+		redirect(`/pos/${session.id}`);
+	} catch (error) {
+		if (error && typeof error === "object" && "digest" in error && typeof (error as any).digest === "string") {
+			throw error;
+		}
+		console.error("createWalkInSession failed", error);
+		redirect("/pos?error=create_walk_in");
+	}
+}
+
+export async function updateSessionCustomerName(sessionId: string, name: string) {
+	const supabase = createSupabaseServerClient();
+
+	try {
+		const { error } = await supabase
+			.from("table_sessions")
+			.update({ customer_name: name })
+			.eq("id", sessionId);
+
+		if (error) {
+			throw error;
+		}
+
+		revalidatePath("/pos");
+		revalidatePath(`/pos/${sessionId}`);
+	} catch (error) {
+		console.error("updateSessionCustomerName failed", error);
+		throw new Error("Failed to update customer name.");
+	}
+}
+
 

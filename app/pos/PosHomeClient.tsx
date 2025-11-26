@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClientTimer } from "./ClientTimer";
-import { openTableAction } from "./actions";
+import { openTableAction, createWalkInSession } from "./actions";
 import {
 	getTablesSnapshot,
 	saveTablesSnapshot,
@@ -24,9 +24,10 @@ type PoolTable = {
 
 type OpenSession = {
 	id: string;
-	pool_table_id: string;
+	pool_table_id: string | null;
 	opened_at: string;
 	override_hourly_rate: number | null;
+	customer_name?: string | null;
 };
 
 type PosHomeClientProps = {
@@ -152,6 +153,7 @@ export function PosHomeClient({
 							pool_table_id: s.poolTableId,
 							opened_at: s.openedAt,
 							override_hourly_rate: s.overrideHourlyRate,
+							customer_name: s.customerName,
 						}));
 
 					const totalsMap = new Map<string, number>();
@@ -180,7 +182,9 @@ export function PosHomeClient({
 	const tableIdToSession = useMemo(() => {
 		const map = new Map<string, OpenSession>();
 		for (const s of openSessions) {
-			map.set(s.pool_table_id, s);
+			if (s.pool_table_id) {
+				map.set(s.pool_table_id, s);
+			}
 		}
 		return map;
 	}, [openSessions]);
@@ -205,104 +209,165 @@ export function PosHomeClient({
 				</div>
 			)}
 			{/* 
+			{/*
 				Grid tuned for tablets:
 				- 1 column on phones.
 				- 2 columns on tablets (gives big tap targets).
 				- 3 columns only on larger desktop screens.
 			*/}
-			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-				{tables.map((t) => {
-					const session = tableIdToSession.get(t.id);
-					const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
-					return (
-						<div key={t.id}>
-							{/* 
-								Make the entire tile a tap target.
-								- For occupied tables we navigate directly to the session.
-								- For free tables we either call the server action or the offline helper.
-								- Using a large button with min-height keeps taps easy on tablets.
-							*/}
-							{session ? (
+			{/* Active Walk-in Sessions */}
+			{openSessions.filter((s) => !s.pool_table_id).length > 0 && (
+				<div className="mb-8">
+					<h2 className="mb-4 text-lg font-semibold text-neutral-200">Active Walk-ins</h2>
+					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+						{openSessions
+							.filter((s) => !s.pool_table_id)
+							.map((session) => (
 								<button
-									type="button"
+									key={session.id}
 									onClick={() => router.push(`/pos/${session.id}`)}
-									className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
+									className="flex flex-col items-start justify-between rounded-xl border border-white/10 bg-white/5 p-4 text-left shadow-sm transition hover:bg-white/10 active:scale-95"
 								>
-									<div className="mb-3 flex items-center justify-between gap-2">
-										<div className="text-base font-semibold text-neutral-50 sm:text-lg">
-											{t.name}
+									<div className="mb-2">
+										<div className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+											Customer
 										</div>
-										<span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-300">
-											IN USE
-										</span>
+										<div className="font-semibold text-neutral-50">
+											{session.customer_name ?? "Walk-in"}
+										</div>
 									</div>
-									<div className="space-y-3">
-										<ClientTimer
-											openedAt={session.opened_at}
-											hourlyRate={Number(session.override_hourly_rate ?? t.hourly_rate)}
-											itemTotal={orderItemsTotal}
-										/>
-										<div className="flex items-center justify-between text-xs sm:text-sm text-neutral-300">
-											<span>Items total updates in real time.</span>
-											<span className="font-mono text-xs sm:text-sm opacity-80">
-												₱{orderItemsTotal.toFixed(2)}
-											</span>
-										</div>
+									<div className="text-xs text-neutral-400">
+										Opened {new Date(session.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
 									</div>
 								</button>
-							) : isOnline ? (
-								<form action={openTableAction.bind(null, t.id)}>
-									<button
-										type="submit"
-										className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
+							))}
+					</div>
+				</div>
+			)}
+
+			{/* Pool Tables Grid */}
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+				{tables.map((table) => {
+					const session = tableIdToSession.get(table.id);
+					const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
+
+					return (
+						<div key={table.id}>
+							<button
+								onClick={() => {
+									if (session) {
+										router.push(`/pos/${session.id}`);
+									} else {
+										if (isOnline) {
+											openTableAction(table.id);
+										} else {
+											void openTableOffline(table, {
+												currentTables: tables,
+												currentSessions: openSessions,
+												currentSessionTotals: sessionTotals,
+												setSessions: setOpenSessions,
+												setSessionTotals,
+												router,
+											});
+										}
+									}
+								}}
+								className={`relative flex h-full w-full flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.98] ${session
+									? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20"
+									: "border-white/10 bg-white/5 hover:bg-white/10"
+									}`}
+							>
+								<div className="flex w-full items-start justify-between">
+									<div className="flex flex-col">
+										<span
+											className={`text-sm font-bold uppercase tracking-wider ${session ? "text-emerald-400" : "text-neutral-400"
+												}`}
+										>
+											{table.name}
+										</span>
+										{session && (
+											<span className="mt-1 text-xs font-medium text-emerald-300/80">
+												Occupied
+											</span>
+										)}
+									</div>
+									<div
+										className={`flex h-8 w-8 items-center justify-center rounded-full ${session ? "bg-emerald-500 text-white" : "bg-white/10 text-neutral-400"
+											}`}
 									>
-										<div className="mb-3 flex items-center justify-between gap-2">
-											<div className="text-base font-semibold text-neutral-50 sm:text-lg">
-												{t.name}
-											</div>
-											<span className="rounded-full bg-neutral-700/70 px-3 py-1 text-[11px] font-semibold tracking-wide text-neutral-100">
-												FREE
-											</span>
-										</div>
-										<div className="mt-1 flex items-center justify-between text-xs sm:text-sm text-neutral-300">
-											<span>Tap to open this table.</span>
-											<span className="font-mono text-xs sm:text-sm opacity-80">
-												₱{t.hourly_rate.toFixed(2)}/hr
-											</span>
-										</div>
-									</button>
-								</form>
-							) : (
-								<button
-									type="button"
-									onClick={() => {
-										void openTableOffline(t, {
-											currentTables: tables,
-											currentSessions: openSessions,
-											currentSessionTotals: sessionTotals,
-											setSessions: setOpenSessions,
-											setSessionTotals,
-											router,
-										});
-									}}
-									className="group flex h-full w-full flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-left shadow-sm shadow-black/40 backdrop-blur transition hover:border-emerald-400/60 hover:bg-white/10 active:scale-[0.99]"
-								>
-									<div className="mb-3 flex items-center justify-between gap-2">
-										<div className="text-base font-semibold text-neutral-50 sm:text-lg">
-											{t.name}
-										</div>
-										<span className="rounded-full bg-neutral-700/70 px-3 py-1 text-[11px] font-semibold tracking-wide text-neutral-100">
-											FREE (OFFLINE)
-										</span>
+										{session ? (
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												viewBox="0 0 20 20"
+												fill="currentColor"
+												className="h-5 w-5"
+											>
+												<path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+											</svg>
+										) : (
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												fill="none"
+												viewBox="0 0 24 24"
+												strokeWidth={1.5}
+												stroke="currentColor"
+												className="h-5 w-5"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													d="M12 4.5v15m7.5-7.5h-15"
+												/>
+											</svg>
+										)}
 									</div>
-									<div className="mt-1 text-xs sm:text-sm text-neutral-300">
-										Tap to open this table using offline mode. It will sync when back online.
-									</div>
-								</button>
-							)}
+								</div>
+
+								<div className="mt-4">
+									{session ? (
+										<div className="flex flex-col gap-1">
+											<ClientTimer
+												openedAt={session.opened_at}
+												hourlyRate={Number(session.override_hourly_rate ?? table.hourly_rate)}
+												itemTotal={orderItemsTotal}
+											/>
+										</div>
+									) : (
+										<div className="text-sm font-medium text-neutral-500">Available</div>
+									)}
+								</div>
+							</button>
 						</div>
 					);
 				})}
+			</div>
+
+			{/* Walk-in / Quick Order Button */}
+			<div className="fixed bottom-6 right-6 z-10">
+				<button
+					type="button"
+					onClick={() => {
+						const name = window.prompt("Enter customer name for walk-in order:");
+						if (name) {
+							if (isOnline) {
+								createWalkInSession(name);
+							} else {
+								void createWalkInSessionOffline(name, {
+									currentTables: tables,
+									currentSessions: openSessions,
+									currentSessionTotals: sessionTotals,
+									setSessions: setOpenSessions,
+									setSessionTotals,
+									router,
+								});
+							}
+						}
+					}}
+					className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/40 transition hover:bg-emerald-400 active:scale-95 sm:h-16 sm:w-auto sm:px-6"
+				>
+					<span className="text-2xl sm:mr-2 sm:text-xl">+</span>
+					<span className="hidden text-base font-semibold sm:inline">Walk-in</span>
+				</button>
 			</div>
 		</div>
 	);
@@ -374,6 +439,7 @@ async function openTableOffline(
 			overrideHourlyRate: s.override_hourly_rate,
 			itemsTotal: ctx.currentSessionTotals.get(s.id) ?? 0,
 			status: "OPEN",
+			customerName: s.customer_name,
 		}));
 
 		await saveTablesSnapshot({
@@ -413,5 +479,91 @@ async function openTableOffline(
 	// attempt to load it from Supabase, and when it does not exist yet it
 	// will fall back to the client-side offline bootstrap which reads the
 	// snapshot we just saved and runs the full SessionClient from there.
+	ctx.router.push(`/pos/${localSessionId}`);
+}
+
+/**
+ * Open a new walk-in session purely offline.
+ */
+async function createWalkInSessionOffline(
+	customerName: string,
+	ctx: {
+		currentTables: PoolTable[];
+		currentSessions: OpenSession[];
+		currentSessionTotals: Map<string, number>;
+		setSessions: React.Dispatch<React.SetStateAction<OpenSession[]>>;
+		setSessionTotals: React.Dispatch<React.SetStateAction<Map<string, number>>>;
+		router: ReturnType<typeof useRouter>;
+	},
+) {
+	const localSessionId = createLocalId("session");
+	const localOrderId = createLocalId("order");
+	const openedAt = new Date().toISOString();
+
+	const newSession: OpenSession = {
+		id: localSessionId,
+		pool_table_id: null,
+		opened_at: openedAt,
+		override_hourly_rate: null,
+		customer_name: customerName,
+	};
+
+	// Update in-memory state
+	ctx.setSessions((prev) => [...prev, newSession]);
+	ctx.setSessionTotals((prev) => {
+		const next = new Map(prev);
+		next.set(localSessionId, 0);
+		return next;
+	});
+
+	try {
+		// Persist snapshot
+		const offlineTables: OfflineTable[] = ctx.currentTables.map((t) => ({
+			id: t.id,
+			name: t.name,
+			isActive: t.is_active,
+			hourlyRate: t.hourly_rate,
+		}));
+
+		const allSessions: OpenSession[] = [...ctx.currentSessions, newSession];
+		const offlineSessions: OfflineTableSession[] = allSessions.map((s) => ({
+			id: s.id,
+			poolTableId: s.pool_table_id,
+			openedAt: s.opened_at,
+			overrideHourlyRate: s.override_hourly_rate,
+			itemsTotal: ctx.currentSessionTotals.get(s.id) ?? 0,
+			status: "OPEN",
+			customerName: s.customer_name,
+		}));
+
+		await saveTablesSnapshot({
+			tables: offlineTables,
+			sessions: offlineSessions,
+		});
+
+		// Seed session snapshot
+		await saveSessionSnapshot({
+			sessionId: localSessionId,
+			tableName: customerName, // Use customer name as table name for walk-ins
+			openedAt,
+			hourlyRate: 0, // Walk-ins usually don't have hourly rate unless assigned later? Or maybe 0.
+			orderId: localOrderId,
+			items: [],
+			customerName,
+		});
+
+		// Queue sync
+		await queueSessionOpened({
+			localSessionId,
+			localOrderId,
+			poolTableId: null,
+			openedAt,
+			overrideHourlyRate: null,
+			customerName,
+		});
+	} catch (err) {
+		console.error("createWalkInSessionOffline failed", err);
+	}
+
 	ctx.router.push(`/pos/${localSessionId}`);
 }

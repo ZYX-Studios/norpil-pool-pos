@@ -217,11 +217,14 @@ export async function adjustInventory(formData: FormData) {
 
 // Add or update a single recipe component for a product.
 // This links a product to a specific inventory item with a per-unit quantity.
+// Add or update a single recipe component for a product.
+// This links a product to a specific inventory item with a per-unit quantity.
 export async function addRecipeComponent(formData: FormData) {
 	const supabase = createSupabaseServerClient();
 	const productId = String(formData.get("productId") || "").trim();
 	const inventoryItemId = String(formData.get("inventoryItemId") || "").trim();
 	const quantity = parseRecipeQuantity(formData.get("quantity"));
+	const unit = String(formData.get("unit") || "").trim();
 
 	if (!productId) {
 		throw new Error("Missing product id");
@@ -236,6 +239,37 @@ export async function addRecipeComponent(formData: FormData) {
 		redirect("/admin/products?error=recipe");
 	}
 
+	// Fetch the inventory item to check its base unit and perform conversion if needed.
+	const { data: inventoryItem, error: itemErr } = await supabase
+		.from("inventory_items")
+		.select("unit")
+		.eq("id", inventoryItemId)
+		.single();
+
+	if (itemErr || !inventoryItem) {
+		throw new Error("Invalid inventory item");
+	}
+
+	let finalQuantity = quantity;
+
+	// Perform conversion if the submitted unit differs from the base unit.
+	// We support basic metric conversions.
+	if (unit && unit !== inventoryItem.unit) {
+		// KG <-> GRAM
+		if (inventoryItem.unit === "KG" && unit === "GRAM") {
+			finalQuantity = quantity / 1000;
+		} else if (inventoryItem.unit === "GRAM" && unit === "KG") {
+			finalQuantity = quantity * 1000;
+		}
+		// L <-> ML
+		else if (inventoryItem.unit === "L" && unit === "ML") {
+			finalQuantity = quantity / 1000;
+		} else if (inventoryItem.unit === "ML" && unit === "L") {
+			finalQuantity = quantity * 1000;
+		}
+		// Add more conversions here if needed (e.g. OZ -> ML)
+	}
+
 	// Use upsert so each (product, inventory_item) pair only has one row.
 	const { error } = await supabase
 		.from("product_inventory_recipes")
@@ -243,7 +277,7 @@ export async function addRecipeComponent(formData: FormData) {
 			{
 				product_id: productId,
 				inventory_item_id: inventoryItemId,
-				quantity,
+				quantity: finalQuantity,
 			},
 			{ onConflict: "product_id,inventory_item_id" },
 		);

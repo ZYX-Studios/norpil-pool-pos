@@ -102,13 +102,13 @@ export default async function ReportsPage({
 		<div className="space-y-6 animate-in fade-in duration-500">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 				<div>
-					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">
+					<h1 className="text-2xl font-semibold text-neutral-50 sm:text-3xl">
 						Reports &amp; Analytics
 					</h1>
-					<p className="text-xs text-neutral-400">
+					<p className="text-sm text-neutral-400">
 						Daily and monthly performance for the selected date range.
 					</p>
-					<p className="text-[0.7rem] text-neutral-500 mt-1">Period: {rangeLabel}</p>
+					<p className="text-sm text-neutral-500 mt-1">Period: {rangeLabel}</p>
 				</div>
 				<div className="flex items-center gap-2">
 					<DownloadReportButton data={data} start={start} end={end} />

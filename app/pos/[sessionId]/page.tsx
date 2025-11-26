@@ -28,7 +28,7 @@ export default async function SessionPage({
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, opened_at, override_hourly_rate, pool_tables:pool_table_id(id, name, hourly_rate)")
+			.select("id, opened_at, override_hourly_rate, customer_name, pool_tables:pool_table_id(id, name, hourly_rate)")
 			.eq("id", sessionId)
 			.maybeSingle();
 		if (sessionErr) {
@@ -94,7 +94,8 @@ export default async function SessionPage({
 		return (
 			<SessionClient
 				sessionId={sessionId}
-				tableName={(session as any).pool_tables?.name ?? "Table"}
+				tableName={(session as any).pool_tables?.name ?? (session as any).customer_name ?? "Walk-in"}
+				customerName={(session as any).customer_name}
 				openedAt={session.opened_at as string}
 				hourlyRate={hourlyRate}
 				orderId={order.id as string}

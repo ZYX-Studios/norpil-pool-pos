@@ -40,19 +40,19 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 	return (
 		<div className="space-y-3">
 			<div>
-				<h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Operations
 				</h2>
-				<p className="mt-1 text-[0.7rem] text-neutral-500">
+				<p className="mt-1 text-sm text-neutral-500">
 					Table performance and transaction audit log.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				<Card className="lg:col-span-1">
-					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Revenue by table
 					</div>
-					<div className="space-y-1 text-xs text-neutral-200">
+					<div className="space-y-1 text-sm text-neutral-200">
 						{tableRevenue.length > 0 ? (
 							tableRevenue.map((row) => (
 								<div
@@ -70,11 +70,11 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 				</Card>
 
 				<Card className="lg:col-span-2">
-					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Recent transactions
 					</div>
 					<div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-						<table className="w-full text-left text-xs">
+						<table className="w-full text-left text-sm">
 							<thead className="sticky top-0 bg-[#0a0a0a] text-neutral-400">
 								<tr>
 									<th className="pb-2 font-medium">Time</th>

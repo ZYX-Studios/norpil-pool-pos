@@ -466,6 +466,7 @@ async function applySessionOpened(
 			status: "OPEN",
 			opened_at: openedAt,
 			override_hourly_rate: overrideHourlyRate,
+			customer_name: payload.customerName,
 		})
 		.select("id")
 		.single();

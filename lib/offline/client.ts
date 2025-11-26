@@ -37,9 +37,10 @@ export interface OrderItemSetQuantityPayload {
 export interface SessionOpenedPayload {
 	localSessionId: string;
 	localOrderId: string;
-	poolTableId: string;
+	poolTableId: string | null;
 	openedAt: string;
 	overrideHourlyRate: number | null;
+	customerName?: string | null;
 }
 
 export interface SyncOperationPayloads {
@@ -58,11 +59,12 @@ export type OfflineTable = {
 
 export type OfflineTableSession = {
 	id: string;
-	poolTableId: string;
+	poolTableId: string | null;
 	openedAt: string;
 	overrideHourlyRate: number | null;
 	itemsTotal: number;
 	status: "OPEN" | "CLOSED";
+	customerName?: string | null;
 };
 
 export type OfflineSessionItem = {
@@ -82,6 +84,7 @@ export type OfflineSessionSnapshot = {
 	hourlyRate: number;
 	orderId: string;
 	items: OfflineSessionItem[];
+	customerName?: string | null;
 };
 
 export type SyncQueueItem<T extends SyncOperationType = SyncOperationType> = {
@@ -219,11 +222,12 @@ export async function saveTablesSnapshot(args: {
 		await sessionsTx.store.put(
 			{
 				id: s.id,
-				poolTableId: s.poolTableId,
+				poolTableId: s.poolTableId ?? "", // Fallback for indexeddb index if needed, or handle null
 				openedAt: s.openedAt,
 				overrideHourlyRate: s.overrideHourlyRate,
 				itemsTotal: s.itemsTotal,
 				status: s.status,
+				customerName: s.customerName,
 				updatedAt: now,
 			},
 			s.id,
@@ -257,6 +261,7 @@ export async function getTablesSnapshot(): Promise<{
 		overrideHourlyRate: s.overrideHourlyRate,
 		itemsTotal: s.itemsTotal,
 		status: s.status,
+		customerName: s.customerName,
 	}));
 
 	return { tables, sessions };
@@ -279,6 +284,7 @@ export async function saveSessionSnapshot(snapshot: OfflineSessionSnapshot): Pro
 			hourlyRate: snapshot.hourlyRate,
 			orderId: snapshot.orderId,
 			items: snapshot.items,
+			customerName: snapshot.customerName,
 			updatedAt: now,
 		},
 		snapshot.sessionId,
@@ -299,6 +305,7 @@ export async function getSessionSnapshot(sessionId: string): Promise<OfflineSess
 		hourlyRate: row.hourlyRate,
 		orderId: row.orderId,
 		items: row.items,
+		customerName: row.customerName,
 	};
 }
 

@@ -10,6 +10,7 @@ import {
 	addRecipeComponent,
 	removeRecipeComponent,
 } from "./actions";
+import { AddRecipeForm } from "./AddRecipeForm";
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
 	const supabase = createSupabaseServerClient();
@@ -80,7 +81,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
 	return (
 		<div className="space-y-4">
-			<h1 className="text-2xl font-semibold">Products</h1>
+			<h1 className="text-3xl font-semibold">Products</h1>
 			{ok && (
 				<div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
 					Saved successfully.
@@ -91,14 +92,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 					Recipe quantity must be greater than zero. Please enter a positive number (e.g. 1 or 0.25).
 				</div>
 			)}
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<h2 className="mb-3 text-base font-semibold">Add Product</h2>
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur">
+				<h2 className="mb-3 text-lg font-semibold">Add Product</h2>
 				<form action={createProduct} className="grid grid-cols-1 gap-3 sm:grid-cols-6">
-					<input name="name" placeholder="Name" className="rounded border px-3 py-2 text-sm sm:col-span-2" required />
-					<input name="sku" placeholder="SKU (optional)" className="rounded border px-3 py-2 text-sm sm:col-span-1" />
+					<input name="name" placeholder="Name" className="rounded border px-4 py-3 text-base sm:col-span-2" required />
+					<input name="sku" placeholder="SKU (optional)" className="rounded border px-4 py-3 text-base sm:col-span-1" />
 					<select
 						name="category"
-						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-1"
 						defaultValue="FOOD"
 					>
 						<option value="FOOD">FOOD</option>
@@ -106,10 +107,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 						<option value="OTHER">OTHER</option>
 						<option value="TABLE_TIME">TABLE_TIME</option>
 					</select>
-					<input name="price" placeholder="Price" type="number" step="0.01" min="0" className="rounded border px-3 py-2 text-sm sm:col-span-1" required />
-					<input name="tax_rate" placeholder="Tax rate (e.g. 0.12)" type="number" step="0.01" min="0" className="rounded border px-3 py-2 text-sm sm:col-span-1" defaultValue="0.12" />
+					<input name="price" placeholder="Price" type="number" step="0.01" min="0" className="rounded border px-4 py-3 text-base sm:col-span-1" required />
+					<input name="tax_rate" placeholder="Tax rate (e.g. 0.12)" type="number" step="0.01" min="0" className="rounded border px-4 py-3 text-base sm:col-span-1" defaultValue="0.12" />
 					<div className="sm:col-span-6">
-						<button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+						<button type="submit" className="rounded bg-neutral-900 px-4 py-3 text-base font-medium text-white hover:bg-neutral-800">
 							Add
 						</button>
 					</div>
@@ -133,11 +134,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 				Wrap the products table in a scrollable container.
 				This prevents horizontal overflow on small mobile screens while keeping columns readable on desktop.
 			*/}
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
-				<table className="w-full min-w-[700px] text-sm">
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
+				<table className="w-full min-w-[700px] text-base">
 					<thead className="text-left text-neutral-600">
 						<tr>
-							<th className="py-2">Name</th>
+							<th className="py-3">Name</th>
 							<th>SKU</th>
 							<th>Category</th>
 							<th className="text-right">Price</th>
@@ -153,7 +154,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 							const recipeComponents = recipeByProduct.get(p.id as string) ?? [];
 							return (
 								<tr key={p.id} className="border-t">
-									<td className="py-2">{p.name}</td>
+									<td className="py-3">{p.name}</td>
 									<td>{p.sku ?? "-"}</td>
 									<td>{p.category}</td>
 									<td className="text-right">{formatCurrency(Number(p.price))}</td>
@@ -286,43 +287,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 																</div>
 															)}
 														</div>
-														<form action={addRecipeComponent} className="mt-2 flex flex-wrap items-end gap-2">
-															<input type="hidden" name="productId" value={p.id as string} />
-															<div className="min-w-[140px] flex-1">
-																<label className="block text-[10px] text-neutral-500">Inventory item</label>
-																<select
-																	name="inventoryItemId"
-																	className="w-full rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-neutral-50"
-																	defaultValue=""
-																>
-																	<option value="">Select item…</option>
-																	{inventoryItems
-																		.filter((it) => it.isActive)
-																		.map((it) => (
-																			<option key={it.id} value={it.id}>
-																				{it.name} ({it.unit})
-																			</option>
-																		))}
-																</select>
-															</div>
-															<div>
-																<label className="block text-[10px] text-neutral-500">Quantity per unit</label>
-																<input
-																	name="quantity"
-																	type="number"
-																	step="0.0001"
-																	min="0"
-																	className="w-24 rounded border px-2 py-1 text-xs"
-																	placeholder="1"
-																/>
-															</div>
-															<button
-																type="submit"
-																className="rounded bg-neutral-900 px-2 py-1 text-xs font-medium text-white hover:bg-neutral-800"
-															>
-																Add / update
-															</button>
-														</form>
+														<AddRecipeForm
+															productId={p.id as string}
+															inventoryItems={inventoryItems}
+														/>
 													</div>
 												</div>
 											</details>

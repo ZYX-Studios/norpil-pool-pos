@@ -29,10 +29,10 @@ export function OverviewSection({
 	return (
 		<div className="space-y-3">
 			<div>
-				<h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Overview
 				</h2>
-				<p className="mt-1 text-[0.7rem] text-neutral-500">
+				<p className="mt-1 text-sm text-neutral-500">
 					Snapshot of sales, profit, and margin for the selected period.
 				</p>
 			</div>

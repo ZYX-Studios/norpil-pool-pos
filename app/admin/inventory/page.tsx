@@ -60,13 +60,30 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 			};
 		}) ?? [];
 
+	const totalStockValue = items.reduce((sum, item) => {
+		return sum + item.quantity_on_hand * item.unit_cost;
+	}, 0);
+
 	const sp = await searchParams;
 	const ok = sp?.ok;
 	const errorCode = sp?.error as string | undefined;
 
 	return (
 		<div className="space-y-4">
-			<h1 className="text-2xl font-semibold">Inventory</h1>
+			<h1 className="text-3xl font-semibold">Inventory</h1>
+
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur">
+				<div className="text-sm font-medium uppercase tracking-wider text-neutral-400">
+					Total Stock Value
+				</div>
+				<div className="mt-2 text-4xl font-bold text-emerald-400">
+					₱{totalStockValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+				</div>
+				<p className="mt-2 text-sm text-neutral-500">
+					Calculated based on current quantity on hand and unit cost.
+				</p>
+			</div>
+
 			{ok && (
 				<div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
 					Saved successfully.
@@ -89,22 +106,22 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 				and an optional unit cost so margins can use real COGS early on.
 			*/}
 			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<h2 className="mb-3 text-base font-semibold">Add Inventory Item</h2>
+				<h2 className="mb-3 text-lg font-semibold">Add Inventory Item</h2>
 				<form action={createInventoryItem} className="grid grid-cols-1 gap-3 sm:grid-cols-5">
 					<input
 						name="name"
 						placeholder="Name"
-						className="rounded border px-3 py-2 text-sm sm:col-span-2"
+						className="rounded border px-4 py-3 text-base sm:col-span-2"
 						required
 					/>
 					<input
 						name="sku"
 						placeholder="SKU (optional)"
-						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-1"
 					/>
 					<select
 						name="unit"
-						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50 sm:col-span-1"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-1"
 						defaultValue="PCS"
 					>
 						<option value="PCS">PCS</option>
@@ -121,21 +138,21 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 						step="0.01"
 						min="0"
 						placeholder="Unit cost"
-						className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-neutral-50"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
 					/>
 					<div className="sm:col-span-5">
-						<button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800">
+						<button type="submit" className="rounded bg-neutral-900 px-4 py-3 text-base font-medium text-white hover:bg-neutral-800">
 							Add
 						</button>
 					</div>
 				</form>
 			</div>
 
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
-				<table className="w-full min-w-[720px] text-sm">
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
+				<table className="w-full min-w-[720px] text-base">
 					<thead className="text-left text-neutral-600">
 						<tr>
-							<th className="py-2">Name</th>
+							<th className="py-3">Name</th>
 							<th>SKU</th>
 							<th>Unit</th>
 							<th className="text-right">Unit cost</th>
@@ -149,12 +166,23 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 					<tbody>
 						{items.map((item) => (
 							<tr key={item.id} className="border-t">
-								<td className="py-2">{item.name}</td>
+								<td className="py-3">{item.name}</td>
 								<td>{item.sku ?? "-"}</td>
 								<td>{item.unit}</td>
 								<td className="text-right font-mono">{item.unit_cost.toFixed(2)}</td>
 								<td className="text-right font-mono">
-									{item.quantity_on_hand} {item.unit}
+									<span
+										className={
+											item.quantity_on_hand <= 0
+												? "font-bold text-red-400"
+												: item.quantity_on_hand <= 10
+													? "font-bold text-amber-400"
+													: ""
+										}
+									>
+										{item.quantity_on_hand}
+									</span>{" "}
+									{item.unit}
 								</td>
 								<td className="text-right font-mono pr-4">
 									{(item.quantity_on_hand * item.unit_cost).toFixed(2)}

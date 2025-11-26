@@ -64,17 +64,17 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
     return (
         <div className="space-y-3">
             <div>
-                <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+                <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
                     Monthly Detail
                 </h2>
-                <p className="mt-1 text-[0.7rem] text-neutral-500">
+                <p className="mt-1 text-sm text-neutral-500">
                     Daily breakdown of revenue, expenses, and net profit for the month.
                 </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <Card className="lg:col-span-2">
-                    <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+                    <div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
                         Daily Performance
                     </div>
                     <div className="h-64 w-full">
@@ -139,11 +139,11 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
                 </Card>
 
                 <Card className="lg:col-span-1">
-                    <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+                    <div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
                         Daily Breakdown
                     </div>
                     <div className="max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-                        <table className="w-full text-xs">
+                        <table className="w-full text-sm">
                             <thead className="sticky top-0 bg-[#0a0a0a] text-left text-neutral-400">
                                 <tr>
                                     <th className="pb-2 font-medium">Date</th>
@@ -165,10 +165,10 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
                                                 </td>
                                                 <td
                                                     className={`py-2 text-right ${marginPct >= 20
-                                                            ? "text-emerald-400"
-                                                            : marginPct > 0
-                                                                ? "text-amber-400"
-                                                                : "text-red-400"
+                                                        ? "text-emerald-400"
+                                                        : marginPct > 0
+                                                            ? "text-amber-400"
+                                                            : "text-red-400"
                                                         }`}
                                                 >
                                                     {formatPercent(marginPct)}

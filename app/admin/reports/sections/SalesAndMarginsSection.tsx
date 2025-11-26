@@ -70,17 +70,17 @@ export function SalesAndMarginsSection({
 	return (
 		<div className="space-y-3">
 			<div>
-				<h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Sales &amp; margins
 				</h2>
-				<p className="mt-1 text-[0.7rem] text-neutral-500">
+				<p className="mt-1 text-sm text-neutral-500">
 					See how categories contribute to revenue and profit.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 				{/* Revenue trend across the date range */}
 				<Card className="md:col-span-2">
-					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-4 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Revenue trend
 					</div>
 					<div className="h-64 w-full">
@@ -132,7 +132,7 @@ export function SalesAndMarginsSection({
 
 				{/* Category mix with margin percentage */}
 				<Card>
-					<div className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-4 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						By category
 					</div>
 					<div className="h-48 w-full">
@@ -175,7 +175,7 @@ export function SalesAndMarginsSection({
 					</div>
 					<div className="mt-4 space-y-2">
 						{categoriesWithShare.map((row, index) => (
-							<div key={row.name} className="flex items-center justify-between text-xs">
+							<div key={row.name} className="flex items-center justify-between text-sm">
 								<div className="flex items-center gap-2">
 									<div
 										className="h-2 w-2 rounded-full"

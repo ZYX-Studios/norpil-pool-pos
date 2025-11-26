@@ -11,6 +11,7 @@ import {
 	queueOrderItemSetQuantity,
 	saveSessionSnapshot,
 } from "@/lib/offline/client";
+import { updateSessionCustomerName } from "../actions";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
 
@@ -44,6 +45,7 @@ type SessionClientProps = {
 	// Products from the server are used as a starting point and as a seed
 	// for the offline cache. The live UI prefers the offline cache once ready.
 	products: SessionProduct[];
+	customerName?: string;
 	errorCode?: string;
 };
 
@@ -99,6 +101,7 @@ export function SessionClient({
 	orderId,
 	initialItems,
 	products,
+	customerName,
 	errorCode,
 }: SessionClientProps) {
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -324,25 +327,49 @@ export function SessionClient({
 								href="/pos"
 								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
 							>
-								← Back to tables
+								← Back
 							</Link>
 							<div>
 								<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
-									Table
+									{customerName ? "Customer" : "Table"}
 								</div>
-								<div className="text-lg sm:text-xl font-semibold text-neutral-50">
-									{tableName}
+								<div className="flex items-center gap-2">
+									<div className="text-lg sm:text-xl font-semibold text-neutral-50">
+										{customerName ?? tableName}
+									</div>
+									{customerName && (
+										<button
+											onClick={() => {
+												const newName = window.prompt("Update customer name:", customerName);
+												if (newName && newName !== customerName) {
+													startTransition(async () => {
+														await updateSessionCustomerName(sessionId, newName);
+													});
+												}
+											}}
+											className="rounded-full p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+												<path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+												<path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+											</svg>
+										</button>
+									)}
 								</div>
 							</div>
 						</div>
-						<div className="text-right text-xs sm:text-sm text-neutral-400">
-							<div>Rate</div>
-							<div className="font-mono text-sm sm:text-base text-neutral-100">
-								₱{hourlyRate.toFixed(2)}/hr
+						{!customerName && (
+							<div className="text-right text-xs sm:text-sm text-neutral-400">
+								<div>Rate</div>
+								<div className="font-mono text-sm sm:text-base text-neutral-100">
+									₱{hourlyRate.toFixed(2)}/hr
+								</div>
 							</div>
-						</div>
+						)}
 					</div>
-					<ClientTimer openedAt={openedAt} hourlyRate={hourlyRate} itemTotal={itemsTotal} />
+					{!customerName && (
+						<ClientTimer openedAt={openedAt} hourlyRate={hourlyRate} itemTotal={itemsTotal} />
+					)}
 				</div>
 
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur">
@@ -487,11 +514,10 @@ export function SessionClient({
 									key={cat.id}
 									type="button"
 									onClick={() => setActiveCategory(cat.id)}
-									className={`rounded-full border px-3 py-1.5 font-medium transition ${
-										isActive
-											? "border-white/80 bg-white text-neutral-900"
-											: "border-white/15 bg-white/5 text-neutral-200 hover:border-white/40 hover:text-white"
-									}`}
+									className={`rounded-full border px-3 py-1.5 font-medium transition ${isActive
+										? "border-white/80 bg-white text-neutral-900"
+										: "border-white/15 bg-white/5 text-neutral-200 hover:border-white/40 hover:text-white"
+										}`}
 								>
 									{cat.label}
 								</button>
@@ -506,33 +532,33 @@ export function SessionClient({
 				*/}
 				<div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
 					{visibleProducts.map((p) => (
-							<button
-								key={p.id}
-								type="button"
-								onClick={() => handleAddProduct(p.id)}
-								className="flex w-full min-h-[96px] flex-col items-start rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4 text-left shadow-sm shadow-black/40 transition hover:border-emerald-400/60 hover:bg-black/60 active:scale-[0.99]"
-							>
-								<div className="text-sm sm:text-base font-medium text-neutral-50">{p.name}</div>
-								<div className="text-[10px] sm:text-xs uppercase tracking-[0.16em] text-neutral-500">
-									{p.category}
-								</div>
-								<div className="mt-2 flex w-full items-baseline justify-between gap-2 text-sm sm:text-base text-neutral-100">
-									<span>{formatCurrency(p.price)}</span>
-									{typeof p.stock === "number" && (
-										<span
-											className={`text-[10px] sm:text-xs font-medium ${p.stock <= 0
-												? "text-red-300"
-												: p.stock <= 5
-													? "text-amber-300"
-													: "text-neutral-400"
-												}`}
-										>
-											{p.stock <= 0 ? "OUT" : p.stock <= 5 ? `Low · ${p.stock}` : `${p.stock}`}
-										</span>
-									)}
-								</div>
-							</button>
-						))}
+						<button
+							key={p.id}
+							type="button"
+							onClick={() => handleAddProduct(p.id)}
+							className="flex w-full min-h-[96px] flex-col items-start rounded-2xl border border-white/10 bg-black/30 p-3 sm:p-4 text-left shadow-sm shadow-black/40 transition hover:border-emerald-400/60 hover:bg-black/60 active:scale-[0.99]"
+						>
+							<div className="text-sm sm:text-base font-medium text-neutral-50">{p.name}</div>
+							<div className="text-[10px] sm:text-xs uppercase tracking-[0.16em] text-neutral-500">
+								{p.category}
+							</div>
+							<div className="mt-2 flex w-full items-baseline justify-between gap-2 text-sm sm:text-base text-neutral-100">
+								<span>{formatCurrency(p.price)}</span>
+								{typeof p.stock === "number" && (
+									<span
+										className={`text-[10px] sm:text-xs font-medium ${p.stock <= 0
+											? "text-red-300"
+											: p.stock <= 5
+												? "text-amber-300"
+												: "text-neutral-400"
+											}`}
+									>
+										{p.stock <= 0 ? "OUT" : p.stock <= 5 ? `Low · ${p.stock}` : `${p.stock}`}
+									</span>
+								)}
+							</div>
+						</button>
+					))}
 				</div>
 			</section>
 		</div>

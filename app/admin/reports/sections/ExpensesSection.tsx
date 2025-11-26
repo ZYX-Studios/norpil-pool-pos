@@ -56,26 +56,26 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 	return (
 		<div className="space-y-3">
 			<div>
-				<h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Expenses &amp; cost structure
 				</h2>
-				<p className="mt-1 text-[0.7rem] text-neutral-500">
+				<p className="mt-1 text-sm text-neutral-500">
 					Record operating expenses and see how they roll up into profit.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				<Card className="lg:col-span-1">
-					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Add expense
 					</div>
-					<form action={createExpense} className="space-y-3 text-xs">
+					<form action={createExpense} className="space-y-3 text-sm">
 						<div className="space-y-1">
 							<label className="block text-neutral-300">Date</label>
 							<input
 								type="date"
 								name="expense_date"
 								defaultValue={startDate}
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-sm text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							/>
 						</div>
@@ -83,7 +83,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 							<label className="block text-neutral-300">Category</label>
 							<select
 								name="category"
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-sm text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							>
 								<option value="">Select category</option>
@@ -109,7 +109,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 								name="amount"
 								min="0"
 								step="0.01"
-								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+								className="w-full rounded border border-white/10 bg-black/40 px-3 py-2 text-sm text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								required
 							/>
 						</div>
@@ -118,13 +118,13 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 							<textarea
 								name="note"
 								rows={2}
-								className="w-full resize-none rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+								className="w-full resize-none rounded border border-white/10 bg-black/40 px-3 py-2 text-sm text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
 								placeholder="Short description..."
 							/>
 						</div>
 						<button
 							type="submit"
-							className="mt-1 w-full rounded-full bg-neutral-50 px-4 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200 transition-colors"
+							className="mt-1 w-full rounded-full bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition-colors"
 						>
 							Save expense
 						</button>
@@ -132,7 +132,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 				</Card>
 
 				<Card className="lg:col-span-2">
-					<div className="mb-3 flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 flex items-center justify-between text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						<span>Expenses breakdown</span>
 					</div>
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -174,7 +174,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 						<div className="space-y-2">
 							{chartData.length > 0 ? (
 								chartData.map((row, index) => (
-									<div key={row.name} className="flex items-center justify-between text-xs">
+									<div key={row.name} className="flex items-center justify-between text-sm">
 										<div className="flex items-center gap-2">
 											<div
 												className="h-2 w-2 rounded-full"
@@ -199,10 +199,10 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 					</div>
 
 					<div className="mt-6 border-t border-white/5 pt-4">
-						<div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+						<div className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 							Recent entries
 						</div>
-						<div className="max-h-40 overflow-y-auto space-y-1 text-xs text-neutral-200 pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+						<div className="max-h-40 overflow-y-auto space-y-1 text-sm text-neutral-200 pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
 							{expenseArray.length > 0 ? (
 								expenseArray.map((row: any) => (
 									<div

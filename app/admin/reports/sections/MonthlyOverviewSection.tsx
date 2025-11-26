@@ -45,17 +45,17 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 	return (
 		<div className="space-y-3">
 			<div>
-				<h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">
+				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Monthly overview
 				</h2>
-				<p className="mt-1 text-[0.7rem] text-neutral-500">
+				<p className="mt-1 text-sm text-neutral-500">
 					Big-picture trends for gross sales, expenses, and net profit.
 				</p>
 			</div>
 
 			<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 				<Card className="lg:col-span-2">
-					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Financial trends
 					</div>
 					<div className="h-64 w-full">
@@ -120,11 +120,11 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 				</Card>
 
 				<Card className="lg:col-span-1">
-					<div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
+					<div className="mb-3 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
 						Monthly breakdown
 					</div>
 					<div className="max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-						<table className="w-full text-xs">
+						<table className="w-full text-sm">
 							<thead className="sticky top-0 bg-[#0a0a0a] text-left text-neutral-400">
 								<tr>
 									<th className="pb-2 font-medium">Month</th>

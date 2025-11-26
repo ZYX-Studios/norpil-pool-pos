@@ -65,14 +65,18 @@ export async function closeSessionAndRecordPayment(
 		return;
 	}
 
-	// Fetch table hourly rate.
-	const { data: tbl, error: tblErr } = await supabase
-		.from("pool_tables")
-		.select("hourly_rate")
-		.eq("id", session.pool_table_id)
-		.maybeSingle();
-	if (tblErr) throw tblErr;
-	if (!tbl) throw new Error("Pool table not found for session");
+	// Fetch table hourly rate if a table is assigned.
+	let tableHourlyRate = 0;
+	if (session.pool_table_id) {
+		const { data: tbl, error: tblErr } = await supabase
+			.from("pool_tables")
+			.select("hourly_rate")
+			.eq("id", session.pool_table_id)
+			.maybeSingle();
+		if (tblErr) throw tblErr;
+		if (!tbl) throw new Error("Pool table not found for session");
+		tableHourlyRate = tbl.hourly_rate;
+	}
 
 	// Close session (set closed_at + status) if it is still marked OPEN.
 	const closedAt = new Date();
@@ -96,7 +100,7 @@ export async function closeSessionAndRecordPayment(
 
 	const billedMinutes = billedHours * 60;
 	const qty = billedMinutes; // we store quantity as integer minutes
-	const hourlyRate = Number(session.override_hourly_rate ?? tbl.hourly_rate);
+	const hourlyRate = Number(session.override_hourly_rate ?? tableHourlyRate);
 
 	// Ensure TABLE_TIME product exists.
 	const { data: tableTimeProduct, error: ttpErr } = await supabase

@@ -23,13 +23,8 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 	const ok = sp?.ok;
 
 	return (
-		<div className="space-y-6">
-			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">Tables</h1>
-					<p className="text-xs text-neutral-400">Manage pool tables, VIP tables, and hourly rates.</p>
-				</div>
-			</div>
+		<div className="space-y-4">
+			<h1 className="text-3xl font-semibold">Tables</h1>
 
 			{ok && (
 				<div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
@@ -37,29 +32,13 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 				</div>
 			)}
 
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<h2 className="mb-3 text-sm font-semibold text-neutral-50">Add Table</h2>
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur">
+				<h2 className="mb-3 text-lg font-semibold">Add Table</h2>
 				<form action={createTableAction} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-					<input
-						name="name"
-						placeholder="e.g. Table 3 or VIP Table 1"
-						className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 sm:col-span-2"
-						required
-					/>
-					<input
-						name="hourly_rate"
-						type="number"
-						step="0.01"
-						min="0"
-						placeholder="Hourly rate (₱)"
-						className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 sm:col-span-1"
-						required
-					/>
+					<input name="name" placeholder="Table Name" className="rounded border border-white/10 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-2" required />
+					<input name="hourly_rate" placeholder="Hourly Rate" type="number" step="0.01" min="0" className="rounded border border-white/10 bg-black/40 px-4 py-3 text-base text-neutral-50" required />
 					<div className="sm:col-span-1">
-						<button
-							type="submit"
-							className="h-full w-full rounded-full bg-neutral-50 px-3 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
-						>
+						<button type="submit" className="h-full w-full rounded-full bg-neutral-50 px-4 py-3 text-base font-medium text-neutral-900 hover:bg-neutral-200">
 							Add table
 						</button>
 					</div>
@@ -70,11 +49,11 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 				Allow the tables list to scroll horizontally on mobile.
 				This avoids layout breakage when there are many columns on narrow screens.
 			*/}
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
-				<table className="w-full min-w-[520px] text-xs text-neutral-100">
-					<thead className="text-left text-neutral-400">
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
+				<table className="w-full min-w-[520px] text-base text-neutral-100">
+					<thead className="text-left text-neutral-600">
 						<tr>
-							<th className="py-2">Name</th>
+							<th className="py-3">Name</th>
 							<th className="text-right">Hourly rate</th>
 							<th className="text-center">Status</th>
 							<th className="text-right">Actions</th>
@@ -83,13 +62,12 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 					<tbody>
 						{tables.map((t) => (
 							<tr key={t.id} className="border-t border-white/10">
-								<td className="py-2">{t.name}</td>
+								<td className="py-3">{t.name}</td>
 								<td className="text-right">₱{Number(t.hourly_rate).toFixed(2)}/hr</td>
 								<td className="text-center">
 									<span
-										className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-											t.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-neutral-700/50 text-neutral-300"
-										}`}
+										className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${t.is_active ? "bg-emerald-500/20 text-emerald-200" : "bg-neutral-700/50 text-neutral-300"
+											}`}
 									>
 										{t.is_active ? "ACTIVE" : "HIDDEN"}
 									</span>

@@ -22,13 +22,9 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 	const ok = sp?.ok;
 
 	return (
-		<div className="space-y-6">
-			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-				<div>
-					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">Staff</h1>
-					<p className="text-xs text-neutral-400">Manage who can use Norpil Billiards POS and who has admin access.</p>
-				</div>
-			</div>
+		<div className="space-y-4">
+			<h1 className="text-3xl font-semibold">Staff</h1>
+			<p className="text-sm text-neutral-400">Manage who can use Norpil Billiards POS and who has admin access.</p>
 
 			{ok && (
 				<div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
@@ -40,11 +36,11 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 				Make staff table scroll horizontally on very small screens.
 				This keeps all columns accessible on phones without breaking the layout.
 			*/}
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
-				<table className="w-full min-w-[480px] text-xs text-neutral-100">
-					<thead className="text-left text-neutral-400">
+			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
+				<table className="w-full min-w-[480px] text-base text-neutral-100">
+					<thead className="text-left text-neutral-600">
 						<tr>
-							<th className="py-2">Name / Identifier</th>
+							<th className="py-3">Name / Identifier</th>
 							<th>Role</th>
 							<th className="text-right">Actions</th>
 						</tr>
@@ -52,18 +48,18 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 					<tbody>
 						{staff.map((s) => (
 							<tr key={s.id} className="border-t border-white/10">
-								<td className="py-2">
-									<div className="text-xs font-medium text-neutral-50">{s.name}</div>
-									<div className="text-[10px] text-neutral-500">{s.user_id}</div>
+								<td className="py-3">
+									<div className="font-medium text-neutral-50">{s.name}</div>
+									<div className="text-sm text-neutral-500">{s.user_id}</div>
 								</td>
 								<td className="align-middle">
-									<span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-neutral-200">
+									<span className="rounded-full bg-white/10 px-2 py-0.5 text-sm font-medium uppercase tracking-[0.16em] text-neutral-200">
 										{s.role}
 									</span>
 								</td>
 								<td className="text-right">
 									<details className="inline-block">
-										<summary className="cursor-pointer select-none rounded-full border border-white/15 px-3 py-1 text-[11px] hover:bg-white/10">
+										<summary className="cursor-pointer select-none rounded-full border border-white/15 px-3 py-1 text-sm hover:bg-white/10">
 											Edit
 										</summary>
 										<form action={updateStaffAction} className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -71,13 +67,13 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 											<input
 												name="name"
 												defaultValue={s.name}
-												className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-neutral-50 sm:col-span-2"
+												className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-2"
 												required
 											/>
 											<select
 												name="role"
 												defaultValue={s.role}
-												className="rounded border border-white/10 bg-black/40 px-2 py-1 text-xs text-neutral-50 sm:col-span-1"
+												className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-1"
 											>
 												<option value="ADMIN">ADMIN</option>
 												<option value="CASHIER">CASHIER</option>
