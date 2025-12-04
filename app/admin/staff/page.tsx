@@ -1,5 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { updateStaffAction } from "./actions";
+import { updateStaffAction, deleteStaffAction } from "./actions";
+import { PromoteStaffForm } from "./PromoteStaffForm";
+import { DeleteStaffButton } from "./DeleteStaffButton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 	const { data } = await supabase
 		.from("staff")
 		.select("id, user_id, name, role")
+		.is("deleted_at", null)
 		.order("name", { ascending: true });
 
 	const staff = (data ?? []) as StaffRow[];
@@ -31,6 +34,12 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 					Staff updated.
 				</div>
 			)}
+
+			{/* 
+				Make staff table scroll horizontally on very small screens.
+				This keeps all columns accessible on phones without breaking the layout.
+			*/}
+			<PromoteStaffForm />
 
 			{/* 
 				Make staff table scroll horizontally on very small screens.
@@ -62,32 +71,37 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 										<summary className="cursor-pointer select-none rounded-full border border-white/15 px-3 py-1 text-sm hover:bg-white/10">
 											Edit
 										</summary>
-										<form action={updateStaffAction} className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-											<input type="hidden" name="id" value={s.id} />
-											<input
-												name="name"
-												defaultValue={s.name}
-												className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-2"
-												required
-											/>
-											<select
-												name="role"
-												defaultValue={s.role}
-												className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-1"
-											>
-												<option value="ADMIN">ADMIN</option>
-												<option value="CASHIER">CASHIER</option>
-												<option value="WAITER">WAITER</option>
-											</select>
-											<div className="sm:col-span-3">
-												<button
-													type="submit"
-													className="rounded-full bg-neutral-50 px-3 py-1 text-[11px] font-medium text-neutral-900 hover:bg-neutral-200"
+										<div className="mt-2 space-y-2">
+											<form action={updateStaffAction} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+												<input type="hidden" name="id" value={s.id} />
+												<input
+													name="name"
+													defaultValue={s.name}
+													className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-2"
+													required
+												/>
+												<select
+													name="role"
+													defaultValue={s.role}
+													className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-1"
 												>
-													Save
-												</button>
+													<option value="ADMIN">ADMIN</option>
+													<option value="CASHIER">CASHIER</option>
+													<option value="WAITER">WAITER</option>
+												</select>
+												<div className="sm:col-span-3 flex justify-end pt-2">
+													<button
+														type="submit"
+														className="rounded-full bg-neutral-50 px-3 py-1 text-[11px] font-medium text-neutral-900 hover:bg-neutral-200"
+													>
+														Save
+													</button>
+												</div>
+											</form>
+											<div className="flex justify-start border-t border-white/10 pt-2">
+												<DeleteStaffButton id={s.id} />
 											</div>
-										</form>
+										</div>
 									</details>
 								</td>
 							</tr>
@@ -95,15 +109,14 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 						{staff.length === 0 && (
 							<tr>
 								<td colSpan={3} className="py-4 text-center text-neutral-500">
-									No staff yet. Users are auto-created after their first login.
+									No staff yet. Promote a customer to get started.
 								</td>
 							</tr>
 						)}
 					</tbody>
 				</table>
 				<p className="mt-3 text-[11px] text-neutral-500">
-					New staff appear here automatically after their first successful login. You can then promote them to ADMIN or change
-					their role.
+					Staff members can access the POS. Admins can manage staff and settings.
 				</p>
 			</div>
 		</div>

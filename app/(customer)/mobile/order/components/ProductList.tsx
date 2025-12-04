@@ -1,0 +1,66 @@
+"use client";
+
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+
+type Product = {
+    id: string;
+    name: string;
+    price: number;
+    category: string;
+};
+
+type ProductListProps = {
+    products: Product[];
+    onAdd: (product: Product) => void;
+};
+
+export function ProductList({ products, onAdd }: ProductListProps) {
+    const [activeCategory, setActiveCategory] = useState("FOOD");
+
+    const categories = ["FOOD", "DRINK", "OTHER"];
+    const filteredProducts = products.filter(p => p.category === activeCategory);
+
+    return (
+        <div className="space-y-4">
+            <div className="flex space-x-2 overflow-x-auto pb-2 no-scrollbar">
+                {categories.map(cat => (
+                    <button
+                        key={cat}
+                        onClick={() => setActiveCategory(cat)}
+                        className={cn(
+                            "px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
+                            activeCategory === cat
+                                ? "bg-emerald-500 text-white"
+                                : "bg-white/5 text-neutral-400 hover:bg-white/10"
+                        )}
+                    >
+                        {cat}
+                    </button>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                {filteredProducts.map(product => (
+                    <button
+                        key={product.id}
+                        onClick={() => onAdd(product)}
+                        className="flex flex-col items-start justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-left shadow-sm backdrop-blur transition-all active:scale-95 hover:bg-white/10"
+                    >
+                        <div className="w-full">
+                            <div className="font-semibold text-neutral-50 truncate">{product.name}</div>
+                            <div className="text-sm text-emerald-400 font-medium mt-1">
+                                ₱{product.price.toLocaleString()}
+                            </div>
+                        </div>
+                        <div className="mt-3 self-end bg-white/10 rounded-full p-1.5 text-neutral-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                            </svg>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}

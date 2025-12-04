@@ -15,6 +15,8 @@ type InventoryItemRow = {
 	// Simple per-unit cost used for COGS and margin reporting.
 	// This is stored directly on inventory_items.unit_cost in the database.
 	unit_cost: number;
+	min_stock: number;
+	max_stock: number;
 };
 
 export default async function InventoryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
@@ -29,7 +31,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 		// We now also load unit_cost so the UI can show and edit per-unit costs.
 		// This keeps the cost model aligned with the reporting SQL functions
 		// that calculate margins from inventory_items.unit_cost.
-		.select("id, name, sku, unit, is_active, unit_cost")
+		.select("id, name, sku, unit, is_active, unit_cost, min_stock, max_stock")
 		.order("name", { ascending: true });
 	const { data: stockRows } = await supabase
 		.from("inventory_item_stock")
@@ -49,6 +51,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 			const quantityOnHand = stockMap.get(row.id as string) ?? 0;
 			const rawCost = Number((row as any).unit_cost ?? 0);
 			const unitCost = Number.isFinite(rawCost) ? Number(rawCost.toFixed(2)) : 0;
+			const minStock = Number((row as any).min_stock ?? 0);
+			const maxStock = Number((row as any).max_stock ?? 0);
 
 			return {
 				id: row.id as string,
@@ -58,6 +62,8 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 				is_active: !!row.is_active,
 				quantity_on_hand: quantityOnHand,
 				unit_cost: unitCost,
+				min_stock: minStock,
+				max_stock: maxStock,
 			};
 		}) ?? [];
 
@@ -151,6 +157,22 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 						placeholder="Unit cost"
 						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
 					/>
+					<input
+						name="min_stock"
+						type="number"
+						step="0.01"
+						min="0"
+						placeholder="Min Stock"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
+					/>
+					<input
+						name="max_stock"
+						type="number"
+						step="0.01"
+						min="0"
+						placeholder="Max Stock"
+						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
+					/>
 					<div className="sm:col-span-5">
 						<button type="submit" className="rounded bg-neutral-900 px-4 py-3 text-base font-medium text-white hover:bg-neutral-800">
 							Add
@@ -167,6 +189,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 							<th>SKU</th>
 							<th>Unit</th>
 							<th className="text-right">Unit cost</th>
+							<th className="text-right">Min / Max</th>
 							<th className="text-right">On hand</th>
 							{/* Add a bit of extra space after stock value so the status column reads clearly. */}
 							<th className="text-right pr-4">Stock value</th>
@@ -181,6 +204,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 								<td>{item.sku ?? "-"}</td>
 								<td>{item.unit}</td>
 								<td className="text-right font-mono">{item.unit_cost.toFixed(2)}</td>
+								<td className="text-right font-mono text-neutral-400">
+									{item.min_stock} / {item.max_stock}
+								</td>
 								<td className="text-right font-mono">
 									<span
 										className={

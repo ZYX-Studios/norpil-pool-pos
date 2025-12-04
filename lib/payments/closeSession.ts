@@ -199,7 +199,7 @@ export async function closeSessionAndRecordPayment(
 				const pid = row.product_id as string;
 				const qtySold = Number(row.quantity ?? 0);
 				if (!pid || !Number.isFinite(qtySold) || qtySold === 0) continue;
-				const safeQty = Math.abs(Math.trunc(qtySold));
+				const safeQty = Math.abs(qtySold); // Allow fractional sales if needed, but usually whole.
 				if (safeQty === 0) continue;
 				const components = recipeByProduct.get(pid);
 				if (!components || components.length === 0) {
@@ -210,10 +210,11 @@ export async function closeSessionAndRecordPayment(
 					if (!Number.isFinite(perUnit) || perUnit <= 0) continue;
 					const totalOut = safeQty * perUnit;
 					if (!Number.isFinite(totalOut) || totalOut <= 0) continue;
+
 					saleMovements.push({
 						inventory_item_id: comp.inventory_item_id,
 						movement_type: "SALE",
-						quantity: -Math.trunc(totalOut),
+						quantity: -totalOut, // Use exact fractional amount
 						order_id: order.id as string,
 						order_item_id: row.id as string,
 					});

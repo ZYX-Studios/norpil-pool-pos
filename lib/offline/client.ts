@@ -65,6 +65,8 @@ export type OfflineTableSession = {
 	itemsTotal: number;
 	status: "OPEN" | "CLOSED";
 	customerName?: string | null;
+	pausedAt?: string | null;
+	accumulatedPausedTime?: number;
 };
 
 export type OfflineSessionItem = {

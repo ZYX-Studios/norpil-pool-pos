@@ -25,7 +25,7 @@ async function getData() {
 
 	try {
 		const [{ data: tables, error: tablesErr }, { data: sessions, error: sessionsErr }] = await Promise.all([
-			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").order("name", { ascending: true }),
+			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").is("deleted_at", null).order("name", { ascending: true }),
 			supabase
 				.from("table_sessions")
 				.select("id, pool_table_id, opened_at, override_hourly_rate, customer_name")

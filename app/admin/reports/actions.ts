@@ -2,6 +2,7 @@
 
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { logAction } from "@/lib/logger";
 
 /**
  * Simple server action for recording an operating expense.
@@ -46,6 +47,12 @@ export async function createExpense(formData: FormData) {
 	// Revalidate the reports page so the new expense immediately appears
 	// in totals and the expense list.
 	await revalidatePath("/admin/reports");
+
+	await logAction({
+		actionType: "CREATE_EXPENSE",
+		entityType: "expense",
+		details: { expenseDate, category, amount, note },
+	});
 }
 
 

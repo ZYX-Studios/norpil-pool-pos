@@ -16,6 +16,8 @@ type InventoryEditDialogProps = {
 		// Per-unit cost used for reporting margins. This is stored in
 		// inventory_items.unit_cost and is kept simple: numeric with 2 decimals.
 		unit_cost: number;
+		min_stock: number;
+		max_stock: number;
 	};
 };
 
@@ -77,6 +79,32 @@ export function InventoryEditDialog({ item }: InventoryEditDialogProps) {
 												className="w-full rounded-md border border-white/15 bg-black/60 px-4 py-3 text-base text-neutral-50"
 												required
 											/>
+										</div>
+										<div className="flex gap-2">
+											<div className="flex-1">
+												<label className="mb-1 block text-sm text-neutral-400">Min Stock</label>
+												<input
+													name="min_stock"
+													type="number"
+													step="0.01"
+													min="0"
+													defaultValue={item.min_stock}
+													placeholder="0"
+													className="w-full rounded-md border border-white/15 bg-black/60 px-4 py-3 text-base text-neutral-50"
+												/>
+											</div>
+											<div className="flex-1">
+												<label className="mb-1 block text-sm text-neutral-400">Max Stock</label>
+												<input
+													name="max_stock"
+													type="number"
+													step="0.01"
+													min="0"
+													defaultValue={item.max_stock}
+													placeholder="0"
+													className="w-full rounded-md border border-white/15 bg-black/60 px-4 py-3 text-base text-neutral-50"
+												/>
+											</div>
 										</div>
 										<div>
 											<label className="mb-1 block text-sm text-neutral-400">Unit cost</label>

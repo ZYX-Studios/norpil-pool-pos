@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { logAction } from "@/lib/logger";
 
 /**
  * Simple helpers for Admin Tables management.
@@ -34,6 +35,13 @@ export async function createTableAction(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/tables");
+
+	await logAction({
+		actionType: "CREATE_TABLE",
+		entityType: "pool_table",
+		details: { name, hourlyRate: rate },
+	});
+
 	redirect("/admin/tables?ok=1");
 }
 
@@ -53,6 +61,14 @@ export async function updateTableAction(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/tables");
+
+	await logAction({
+		actionType: "UPDATE_TABLE",
+		entityType: "pool_table",
+		entityId: id,
+		details: { name, hourlyRate: rate },
+	});
+
 	redirect("/admin/tables?ok=1");
 }
 
@@ -70,6 +86,14 @@ export async function toggleTableActiveAction(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/tables");
+
+	await logAction({
+		actionType: "TOGGLE_TABLE_ACTIVE",
+		entityType: "pool_table",
+		entityId: id,
+		details: { isActive: !current },
+	});
+
 	redirect("/admin/tables?ok=1");
 }
 
@@ -77,5 +101,29 @@ export async function toggleTableActiveAction(formData: FormData) {
 
 
 
+export async function deleteTableAction(id: string) {
+	const supabase = createSupabaseServerClient();
 
+	if (!id) return { error: "Missing table id" };
 
+	const { error } = await supabase
+		.from("pool_tables")
+		.update({ deleted_at: new Date().toISOString() })
+		.eq("id", id);
+
+	if (error) {
+		console.error("Error deleting table:", error);
+		return { error: "Failed to delete table" };
+	}
+
+	revalidatePath("/admin/tables");
+
+	await logAction({
+		actionType: "DELETE_TABLE",
+		entityType: "pool_table",
+		entityId: id,
+		details: {},
+	});
+
+	redirect("/admin/tables?ok=1");
+}

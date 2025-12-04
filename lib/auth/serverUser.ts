@@ -58,26 +58,8 @@ export async function getCurrentUserWithStaff(): Promise<{
 			return { user, staff: existing as StaffRow, authError: null };
 		}
 
-		// Auto-provision staff on first login
-		const role: StaffRow["role"] = user.email === "robneil@gmail.com" ? "ADMIN" : "CASHIER";
-		const name = user.email ?? "Staff";
-
-		const { data: inserted, error: insertErr } = await supabase
-			.from("staff")
-			.insert({
-				user_id: user.id,
-				name,
-				role,
-			})
-			.select("id, user_id, name, role")
-			.single();
-
-		if (insertErr || !inserted) {
-			console.error("Failed to auto-provision staff row", insertErr);
-			return { user, staff: null, authError: null };
-		}
-
-		return { user, staff: inserted as StaffRow, authError: null };
+		// If no staff row exists, they are a customer.
+		return { user, staff: null, authError: null };
 	} catch (error) {
 		// Any unexpected error here should be treated as "auth service unreachable".
 		console.error("getCurrentUserWithStaff failed", error);

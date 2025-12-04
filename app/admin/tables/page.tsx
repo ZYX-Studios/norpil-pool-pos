@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createTableAction, updateTableAction, toggleTableActiveAction } from "./actions";
+import { TableDeleteButton } from "./TableDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 	const { data } = await supabase
 		.from("pool_tables")
 		.select("id, name, hourly_rate, is_active")
+		.is("deleted_at", null)
 		.order("name", { ascending: true });
 
 	const tables = (data ?? []) as PoolTable[];
@@ -115,6 +117,7 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
 												</div>
 											</form>
 										</details>
+										<TableDeleteButton id={t.id} name={t.name} />
 									</div>
 								</td>
 							</tr>

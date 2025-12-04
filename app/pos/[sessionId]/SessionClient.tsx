@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
@@ -11,7 +12,7 @@ import {
 	queueOrderItemSetQuantity,
 	saveSessionSnapshot,
 } from "@/lib/offline/client";
-import { updateSessionCustomerName } from "../actions";
+import { updateSessionCustomerName, pauseSession, resumeSession, releaseTable } from "../actions";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
 
@@ -47,6 +48,9 @@ type SessionClientProps = {
 	products: SessionProduct[];
 	customerName?: string;
 	errorCode?: string;
+	pausedAt?: string | null;
+	accumulatedPausedTime?: number;
+	isTableSession?: boolean;
 };
 
 // Helper to keep money values to 2 decimal places.
@@ -65,9 +69,17 @@ function formatCurrency(n: number) {
 // Compute billed hours for table time using a fixed 5 minute grace window.
 // - No charge for the first 5 minutes.
 // - After that, hours increase in 60-minute blocks with the same grace per hour.
-function computeBilledHours(openedAt: string, nowMs: number, graceMinutes = 5) {
+function computeBilledHours(openedAt: string, nowMs: number, graceMinutes = 5, pausedAt?: string | null, accumulatedPausedTime = 0) {
 	const openedMs = new Date(openedAt).getTime();
-	const elapsedMs = Math.max(0, nowMs - openedMs);
+	const accumulated = accumulatedPausedTime * 1000;
+	let elapsedMs = 0;
+	if (pausedAt) {
+		const pauseStart = new Date(pausedAt).getTime();
+		elapsedMs = Math.max(0, pauseStart - openedMs - accumulated);
+	} else {
+		elapsedMs = Math.max(0, nowMs - openedMs - accumulated);
+	}
+
 	const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
 	if (elapsedMinutes <= graceMinutes) return 0;
 	const extra = elapsedMinutes - graceMinutes;
@@ -79,8 +91,8 @@ function computeTotals(items: SessionItem[]) {
 	let taxTotal = 0;
 
 	for (const item of items) {
-		// Ignore TABLE_TIME while the session is still open.
-		if (item.category === "TABLE_TIME") continue;
+		// For active table sessions, TABLE_TIME is dynamic and not in items.
+		// For released sessions, it's a fixed item and SHOULD be included.
 		const line = item.lineTotal ?? item.unitPrice * item.quantity;
 		subtotal += line;
 		taxTotal += round2(line * item.taxRate);
@@ -103,7 +115,11 @@ export function SessionClient({
 	products,
 	customerName,
 	errorCode,
+	pausedAt,
+	accumulatedPausedTime = 0,
+	isTableSession = true,
 }: SessionClientProps) {
+	const router = useRouter();
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
 	const [productList, setProductList] = useState<SessionProduct[]>(products);
@@ -111,18 +127,26 @@ export function SessionClient({
 	const [activeCategory, setActiveCategory] = useState<ItemCategory | "ALL">("ALL");
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
-	const [now, setNow] = useState(() => new Date(openedAt).getTime());
+	const [now, setNow] = useState(() => Date.now());
 	const [isOnline, setIsOnline] = useState(true);
 	const [hasQueuedOps, setHasQueuedOps] = useState(false);
 	// When an offline payment is queued for this session, we treat the cart as
 	// logically closed on this device. This prevents accidental extra edits
 	// while we wait for the server to process the queued sale.
 	const [isOfflineClosingQueued, setIsOfflineClosingQueued] = useState(false);
+	const [showReleaseModal, setShowReleaseModal] = useState(false);
+	const [releaseName, setReleaseName] = useState("");
+	const [isMounted, setIsMounted] = useState(false);
 
 	useEffect(() => {
+		setIsMounted(true);
+	}, []);
+
+	useEffect(() => {
+		if (pausedAt) return;
 		const id = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(id);
-	}, []);
+	}, [pausedAt]);
 
 	// Hydrate products from the offline cache when available and keep the
 	// cache in sync with the latest products passed from the server.
@@ -226,7 +250,15 @@ export function SessionClient({
 	}, [sessionId, tableName, openedAt, hourlyRate, orderId, items]);
 
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
-	const billedHours = useMemo(() => computeBilledHours(openedAt, now), [openedAt, now]);
+
+	// We only compute time-based fees on the client after mount to avoid hydration mismatch.
+	// On the server (and initial client render), we assume 0 hours or use the passed props if we wanted to be precise,
+	// but 'now' is the moving target.
+	const billedHours = useMemo(() => {
+		if (!isMounted || !isTableSession) return 0;
+		return computeBilledHours(openedAt, now, 5, pausedAt, accumulatedPausedTime);
+	}, [openedAt, now, pausedAt, accumulatedPausedTime, isMounted, isTableSession]);
+
 	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
 	const grandTotal = useMemo(() => round2(itemsTotal + tableFee), [itemsTotal, tableFee]);
 
@@ -319,16 +351,67 @@ export function SessionClient({
 
 	return (
 		<div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 sm:p-6 lg:grid-cols-12">
+			{/* Release Table Modal */}
+			{showReleaseModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+					<div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl">
+						<h3 className="mb-2 text-lg font-semibold text-white">Release Table</h3>
+						<p className="mb-4 text-sm text-neutral-400">
+							This will free up the table for new customers. The current session will continue as a "Walk-in".
+						</p>
+
+						<div className="mb-6">
+							<label className="mb-2 block text-xs font-medium uppercase tracking-wider text-neutral-500">
+								Customer Name (Optional)
+							</label>
+							<input
+								type="text"
+								value={releaseName}
+								onChange={(e) => setReleaseName(e.target.value)}
+								placeholder="e.g. John Doe"
+								className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+								autoFocus
+							/>
+						</div>
+
+						<div className="flex gap-3">
+							<button
+								onClick={() => setShowReleaseModal(false)}
+								className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-neutral-300 hover:bg-white/10"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={() => {
+									startTransition(async () => {
+										await releaseTable(sessionId, releaseName || undefined);
+										setShowReleaseModal(false);
+									});
+								}}
+								className="flex-1 rounded-xl bg-emerald-500 py-3 text-sm font-medium text-white hover:bg-emerald-400"
+							>
+								Confirm Release
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
 			<section className="space-y-4 lg:col-span-4">
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 shadow-sm shadow-black/40 backdrop-blur">
 					<div className="mb-3 flex items-center justify-between gap-2">
+						{/* ... header content ... */}
 						<div className="flex items-center gap-3">
-							<Link
-								href="/pos"
+							<button
+								onClick={() => {
+									// Force a hard navigation to ensure the home screen fetches fresh data
+									// and doesn't show stale "Occupied" status for released tables.
+									window.location.href = "/pos";
+								}}
 								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
 							>
 								← Back
-							</Link>
+							</button>
 							<div>
 								<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">
 									{customerName ? "Customer" : "Table"}
@@ -367,8 +450,42 @@ export function SessionClient({
 							</div>
 						)}
 					</div>
-					{!customerName && (
-						<ClientTimer openedAt={openedAt} hourlyRate={hourlyRate} itemTotal={itemsTotal} />
+					{isTableSession && (
+						<div className="space-y-3">
+							<ClientTimer
+								openedAt={openedAt}
+								hourlyRate={hourlyRate}
+								itemTotal={itemsTotal}
+								pausedAt={pausedAt}
+								accumulatedPausedTime={accumulatedPausedTime}
+							/>
+							<div className="flex gap-2">
+								{pausedAt ? (
+									<button
+										onClick={() => startTransition(async () => await resumeSession(sessionId))}
+										className="flex-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 active:scale-[0.98]"
+									>
+										Resume Timer
+									</button>
+								) : (
+									<button
+										onClick={() => startTransition(async () => await pauseSession(sessionId))}
+										className="flex-1 rounded-xl border border-amber-500/30 bg-amber-500/10 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20 active:scale-[0.98]"
+									>
+										Pause Timer
+									</button>
+								)}
+								<button
+									onClick={() => {
+										setReleaseName("");
+										setShowReleaseModal(true);
+									}}
+									className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2 text-sm font-medium text-neutral-300 hover:bg-white/10 active:scale-[0.98]"
+								>
+									Release Table
+								</button>
+							</div>
+						</div>
 					)}
 				</div>
 
@@ -399,7 +516,7 @@ export function SessionClient({
 						</div>
 					)}
 					<div className="space-y-3 sm:space-y-4">
-						{items.filter((i) => i.category !== "TABLE_TIME").map((i) => (
+						{items.map((i) => (
 							<div
 								key={i.id}
 								className="flex items-center justify-between gap-3 rounded-xl px-1 py-2 sm:px-2 sm:py-3"
@@ -434,7 +551,7 @@ export function SessionClient({
 								</div>
 							</div>
 						))}
-						{items.filter((i) => i.category !== "TABLE_TIME").length === 0 && (
+						{items.length === 0 && (
 							<div className="text-sm sm:text-base text-neutral-400">
 								No items yet. Tap a product on the right to add it.
 							</div>
@@ -661,5 +778,3 @@ async function syncUpdateQuantity(
 		if (onQueued) onQueued();
 	}
 }
-
-

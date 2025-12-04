@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { logAction } from "@/lib/logger";
 
 // Keep types small and explicit so form handling stays easy to read.
 type Category = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
@@ -90,6 +91,13 @@ export async function createProduct(formData: FormData) {
 	}
 
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "CREATE_PRODUCT",
+		entityType: "product",
+		details: { name, sku, category, price },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -115,6 +123,14 @@ export async function updateProduct(formData: FormData) {
 		.eq("id", id);
 	if (error) throw error;
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "UPDATE_PRODUCT",
+		entityType: "product",
+		entityId: id,
+		details: { name, sku, category, price },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -123,6 +139,14 @@ export async function toggleActiveAction(id: string, isActive: boolean) {
 	const { error } = await supabase.from("products").update({ is_active: !isActive }).eq("id", id);
 	if (error) throw error;
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "TOGGLE_PRODUCT_ACTIVE",
+		entityType: "product",
+		entityId: id,
+		details: { isActive: !isActive },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -132,6 +156,13 @@ export async function deleteProductAction(id: string) {
 	const { error } = await supabase.from("products").delete().eq("id", id);
 	if (error) throw error;
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "DELETE_PRODUCT",
+		entityType: "product",
+		entityId: id,
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -171,6 +202,13 @@ export async function createManyProducts(formData: FormData) {
 		if (error) throw error;
 	}
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "CREATE_MANY_PRODUCTS",
+		entityType: "product",
+		details: { count: records.length },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -215,6 +253,13 @@ export async function adjustInventory(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "ADJUST_INVENTORY",
+		entityType: "inventory_movement",
+		details: { productId, delta, movementType },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -287,6 +332,13 @@ export async function addRecipeComponent(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "ADD_RECIPE_COMPONENT",
+		entityType: "product_inventory_recipe",
+		details: { productId, inventoryItemId, quantity: finalQuantity },
+	});
+
 	redirect("/admin/products?ok=1");
 }
 
@@ -303,6 +355,13 @@ export async function removeRecipeComponent(formData: FormData) {
 	if (error) throw error;
 
 	revalidatePath("/admin/products");
+
+	await logAction({
+		actionType: "REMOVE_RECIPE_COMPONENT",
+		entityType: "product_inventory_recipe",
+		entityId: id,
+	});
+
 	redirect("/admin/products?ok=1");
 }
 

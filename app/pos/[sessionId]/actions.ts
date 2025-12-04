@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { closeSessionAndRecordPayment } from "@/lib/payments/closeSession";
+import { logAction } from "@/lib/logger";
 
 export async function addItemAction(orderId: string, productId: string) {
 	const supabase = createSupabaseServerClient();
@@ -46,6 +47,14 @@ export async function addItemAction(orderId: string, productId: string) {
 	}
 
 	await recalcOrderTotals(orderId);
+
+	await logAction({
+		actionType: "ADD_ITEM",
+		entityType: "order",
+		entityId: orderId,
+		details: { productId },
+	});
+
 	revalidatePath(`/pos`);
 }
 
@@ -73,6 +82,14 @@ export async function updateItemQuantityAction(orderItemId: string, quantity: nu
 	}
 
 	await recalcOrderTotals(line.order_id as string);
+
+	await logAction({
+		actionType: "UPDATE_ITEM_QUANTITY",
+		entityType: "order_item",
+		entityId: orderItemId,
+		details: { quantity },
+	});
+
 	// Revalidate session view; page will fetch fresh data
 	revalidatePath(`/pos/${line.order_id}`);
 }
@@ -114,6 +131,13 @@ export async function payOrderAction(
 ) {
 	const supabase = createSupabaseServerClient();
 	await closeSessionAndRecordPayment(supabase, { sessionId, method, tenderedAmount });
+
+	await logAction({
+		actionType: "PAY_ORDER",
+		entityType: "table_session",
+		entityId: sessionId,
+		details: { method, tenderedAmount },
+	});
 
 	revalidatePath("/pos");
 	redirect("/pos");

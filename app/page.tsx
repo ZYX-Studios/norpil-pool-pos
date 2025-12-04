@@ -11,19 +11,52 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * page – they always end up either at /auth/login or /pos.
  */
 export default async function Home() {
-	// We use the server-side Supabase client so we can inspect the auth cookie
-	// on the initial request. This is the recommended pattern for @supabase/ssr.
 	const supabase = createSupabaseServerClient();
 
-	// Ask Supabase for the current auth user based on the request cookies.
-	const { data, error } = await supabase.auth.getUser();
+	const { data: { user }, error } = await supabase.auth.getUser();
 
-	// If we have a valid user and no auth error, go directly to the POS shell.
-	if (!error && data.user) {
-		redirect("/pos");
+	if (!error && user) {
+		// Check if the user is a staff member
+		const { data: staff } = await supabase
+			.from("staff")
+			.select("role")
+			.eq("user_id", user.id)
+			.single();
+
+		if (staff) {
+			redirect("/pos");
+		}
 	}
 
-	// Otherwise, send the person to the login form so they can authenticate.
-	redirect("/auth/login");
+	// If not logged in, show the Landing Page
+	return (
+		<div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6 text-center">
+			<div className="space-y-8 max-w-sm w-full">
+				<div className="space-y-4">
+					<h1 className="text-4xl font-bold tracking-tight text-neutral-50">NORPIL BILLIARDS</h1>
+					<p className="text-lg text-neutral-400">Experience premium billiards, seamless ordering, and exclusive rewards.</p>
+				</div>
+
+				<div className="space-y-3">
+					<a
+						href="/auth/login"
+						className="block w-full rounded-xl bg-emerald-500 py-3.5 font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 active:scale-[0.98]"
+					>
+						Sign In
+					</a>
+					<a
+						href="/auth/signup"
+						className="block w-full rounded-xl border border-white/10 bg-white/5 py-3.5 font-semibold text-neutral-50 backdrop-blur transition-all hover:bg-white/10 active:scale-[0.98]"
+					>
+						Create Account
+					</a>
+				</div>
+
+				<div className="pt-8 text-sm text-neutral-500">
+					<p>Open daily from 10:00 AM - 2:00 AM</p>
+				</div>
+			</div>
+		</div>
+	);
 }
 

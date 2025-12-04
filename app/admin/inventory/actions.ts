@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { logAction } from "@/lib/logger";
 
 // Keep types narrow so intent stays clear.
 type MovementType = "INITIAL" | "PURCHASE" | "SALE" | "ADJUSTMENT";
@@ -49,6 +50,8 @@ export async function createInventoryItem(formData: FormData) {
 	const allowedUnits: InventoryUnit[] = ["PCS", "BOTTLE", "CAN", "ML", "L", "GRAM", "KG"];
 	const unit: InventoryUnit = (allowedUnits.includes(unitRaw as InventoryUnit) ? unitRaw : "PCS") as InventoryUnit;
 	const unitCost = Math.max(parseNumber(formData.get("unit_cost"), 0), 0);
+	const minStock = Math.max(parseNumber(formData.get("min_stock"), 0), 0);
+	const maxStock = Math.max(parseNumber(formData.get("max_stock"), 0), 0);
 
 	if (!name) {
 		throw new Error("Name is required");
@@ -69,6 +72,8 @@ export async function createInventoryItem(formData: FormData) {
 		// We always persist a non-negative cost so reporting functions
 		// can safely treat unit_cost as a simple numeric(10,2) value.
 		unit_cost: unitCost,
+		min_stock: minStock,
+		max_stock: maxStock,
 		is_active: true,
 	});
 	if (error) {
@@ -83,6 +88,13 @@ export async function createInventoryItem(formData: FormData) {
 	}
 
 	revalidatePath("/admin/inventory");
+
+	await logAction({
+		actionType: "CREATE_INVENTORY_ITEM",
+		entityType: "inventory_item",
+		details: { name, sku, unit, unitCost },
+	});
+
 	redirect("/admin/inventory?ok=1");
 }
 
@@ -97,6 +109,8 @@ export async function updateInventoryItem(formData: FormData) {
 	const isActiveRaw = String(formData.get("is_active") || "true");
 	const isActive = isActiveRaw === "true";
 	const unitCost = Math.max(parseNumber(formData.get("unit_cost"), 0), 0);
+	const minStock = Math.max(parseNumber(formData.get("min_stock"), 0), 0);
+	const maxStock = Math.max(parseNumber(formData.get("max_stock"), 0), 0);
 
 	if (!id) throw new Error("Missing id");
 	if (!name) throw new Error("Name is required");
@@ -111,11 +125,27 @@ export async function updateInventoryItem(formData: FormData) {
 
 	const { error } = await supabase
 		.from("inventory_items")
-		.update({ name, sku: sku || null, unit, is_active: isActive, unit_cost: unitCost })
+		.update({
+			name,
+			sku: sku || null,
+			unit,
+			is_active: isActive,
+			unit_cost: unitCost,
+			min_stock: minStock,
+			max_stock: maxStock
+		})
 		.eq("id", id);
 	if (error) throw error;
 
 	revalidatePath("/admin/inventory");
+
+	await logAction({
+		actionType: "UPDATE_INVENTORY_ITEM",
+		entityType: "inventory_item",
+		entityId: id,
+		details: { name, sku, unit, unitCost },
+	});
+
 	redirect("/admin/inventory?ok=1");
 }
 
@@ -181,6 +211,13 @@ export async function adjustInventoryItem(formData: FormData) {
 	}
 
 	revalidatePath("/admin/inventory");
+
+	await logAction({
+		actionType: "ADJUST_INVENTORY_ITEM",
+		entityType: "inventory_movement",
+		details: { inventoryItemId, delta, movementType },
+	});
+
 	redirect("/admin/inventory?ok=1");
 }
 
@@ -215,5 +252,12 @@ export async function deleteInventoryItemAction(id: string) {
 	}
 
 	revalidatePath("/admin/inventory");
+
+	await logAction({
+		actionType: "DELETE_INVENTORY_ITEM",
+		entityType: "inventory_item",
+		entityId: id,
+	});
+
 	return { success: true };
 }

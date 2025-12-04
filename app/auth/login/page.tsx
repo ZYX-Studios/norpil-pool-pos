@@ -53,6 +53,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 						Sign in
 					</button>
 				</form>
+				<div className="mt-4 text-center">
+					<p className="text-[11px] text-neutral-400">
+						Don't have an account?{" "}
+						<a href="/auth/signup" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+							Sign up
+						</a>
+					</p>
+				</div>
 				<p className="mt-3 text-[11px] text-neutral-500">
 					Your access level (Admin / POS only) is controlled by your staff role.
 				</p>

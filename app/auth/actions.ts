@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 
@@ -22,17 +23,58 @@ export async function loginAction(formData: FormData) {
 	// Ensure staff row exists and determine role
 	const { staff } = await getCurrentUserWithStaff();
 
+	revalidatePath("/", "layout");
+
 	if (staff?.role === "ADMIN") {
 		redirect("/admin");
+	} else if (staff) {
+		redirect("/pos");
 	}
 
-	redirect("/pos");
+	// If not staff, assume customer
+	redirect("/mobile/home");
 }
 
 export async function logoutAction() {
 	const supabase = createSupabaseServerActionClient();
 	await supabase.auth.signOut();
+	revalidatePath("/", "layout");
 	redirect("/auth/login");
+}
+
+export async function signupAction(formData: FormData) {
+	const email = String(formData.get("email") || "").trim();
+	const password = String(formData.get("password") || "");
+	const fullName = String(formData.get("fullName") || "").trim();
+
+	if (!email || !password || !fullName) {
+		redirect("/auth/signup?error=missing");
+	}
+
+	const supabase = createSupabaseServerActionClient();
+
+	const { data, error } = await supabase.auth.signUp({
+		email,
+		password,
+		options: {
+			data: {
+				full_name: fullName,
+			},
+		},
+	});
+
+	if (error) {
+		console.error("Signup error:", error);
+		redirect(`/auth/signup?error=${encodeURIComponent(error.message)}`);
+	}
+
+	if (data.session) {
+		// User is logged in immediately (email confirmation disabled or not required)
+		redirect("/mobile/home");
+	} else {
+		// Email confirmation required
+		redirect("/auth/verify-email");
+	}
 }
 
 

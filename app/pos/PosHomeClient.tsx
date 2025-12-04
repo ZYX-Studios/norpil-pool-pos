@@ -28,6 +28,8 @@ type OpenSession = {
 	opened_at: string;
 	override_hourly_rate: number | null;
 	customer_name?: string | null;
+	paused_at?: string | null;
+	accumulated_paused_time?: number;
 };
 
 type PosHomeClientProps = {
@@ -62,6 +64,27 @@ export function PosHomeClient({
 	});
 	const [errorCode, setErrorCode] = useState<string | null>(initialErrorCode);
 	const [isOnline, setIsOnline] = useState(true);
+
+	// Sync state with props when server data changes (e.g. after revalidatePath)
+	useEffect(() => {
+		setTables(initialTables);
+	}, [initialTables]);
+
+	useEffect(() => {
+		setOpenSessions(initialSessions);
+	}, [initialSessions]);
+
+	useEffect(() => {
+		const map = new Map<string, number>();
+		for (const { sessionId, itemsTotal } of initialSessionTotals) {
+			map.set(sessionId, itemsTotal);
+		}
+		setSessionTotals(map);
+	}, [initialSessionTotals]);
+
+	useEffect(() => {
+		setErrorCode(initialErrorCode);
+	}, [initialErrorCode]);
 
 	// On mount, decide whether to use server data or fall back to cached snapshot.
 	// Track basic online/offline status so we can choose between server actions
@@ -121,6 +144,8 @@ export function PosHomeClient({
 						overrideHourlyRate: s.override_hourly_rate,
 						itemsTotal: sessionTotals.get(s.id) ?? 0,
 						status: "OPEN",
+						pausedAt: s.paused_at,
+						accumulatedPausedTime: s.accumulated_paused_time,
 					}));
 
 					await saveTablesSnapshot({
@@ -154,6 +179,8 @@ export function PosHomeClient({
 							opened_at: s.openedAt,
 							override_hourly_rate: s.overrideHourlyRate,
 							customer_name: s.customerName,
+							paused_at: s.pausedAt,
+							accumulated_paused_time: s.accumulatedPausedTime,
 						}));
 
 					const totalsMap = new Map<string, number>();
@@ -330,6 +357,8 @@ export function PosHomeClient({
 												openedAt={session.opened_at}
 												hourlyRate={Number(session.override_hourly_rate ?? table.hourly_rate)}
 												itemTotal={orderItemsTotal}
+												pausedAt={session.paused_at}
+												accumulatedPausedTime={session.accumulated_paused_time}
 											/>
 										</div>
 									) : (
@@ -440,6 +469,8 @@ async function openTableOffline(
 			itemsTotal: ctx.currentSessionTotals.get(s.id) ?? 0,
 			status: "OPEN",
 			customerName: s.customer_name,
+			pausedAt: s.paused_at,
+			accumulatedPausedTime: s.accumulated_paused_time,
 		}));
 
 		await saveTablesSnapshot({
@@ -534,6 +565,8 @@ async function createWalkInSessionOffline(
 			itemsTotal: ctx.currentSessionTotals.get(s.id) ?? 0,
 			status: "OPEN",
 			customerName: s.customer_name,
+			pausedAt: s.paused_at,
+			accumulatedPausedTime: s.accumulated_paused_time,
 		}));
 
 		await saveTablesSnapshot({
