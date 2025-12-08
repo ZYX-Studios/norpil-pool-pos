@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/auth/actions";
+import { ReservationsList } from "@/app/components/ReservationsList";
 
 export default async function ProfilePage() {
     const supabase = createSupabaseServerClient();
@@ -34,6 +35,10 @@ export default async function ProfilePage() {
                         Sign Out
                     </button>
                 </form>
+            </div>
+
+            <div className="pt-6 border-t border-white/10">
+                <ReservationsList userId={user.id} />
             </div>
         </div>
     );

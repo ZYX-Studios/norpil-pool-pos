@@ -31,7 +31,7 @@ export async function closeSessionAndRecordPayment(
 	const [{ data: session, error: sessionErr }, { data: order, error: orderErr }] = await Promise.all([
 		supabase
 			.from("table_sessions")
-			.select("id, opened_at, closed_at, status, override_hourly_rate, pool_table_id")
+			.select("id, opened_at, closed_at, status, override_hourly_rate, pool_table_id, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status)")
 			.eq("id", sessionId)
 			.maybeSingle(),
 		supabase
@@ -86,59 +86,111 @@ export async function closeSessionAndRecordPayment(
 		.eq("id", sessionId);
 	if (closeErr) throw closeErr;
 
-	// Compute billed duration using the same 5-minute grace policy.
+	// Compute final table fee using the robust logic (matching releaseTable).
 	const openedAt = new Date(session.opened_at as string);
 	const durationMs = Math.max(0, closedAt.getTime() - openedAt.getTime());
-	const elapsedMinutes = Math.max(0, Math.floor(durationMs / (1000 * 60)));
-	const GRACE_MINUTES = 5;
-
-	let billedHours = 0;
-	if (elapsedMinutes > GRACE_MINUTES) {
-		const extra = elapsedMinutes - GRACE_MINUTES;
-		billedHours = Math.ceil(extra / 60);
-	}
-
-	const billedMinutes = billedHours * 60;
-	const qty = billedMinutes; // we store quantity as integer minutes
+	const elapsedMinutes = Math.floor(durationMs / (1000 * 60));
 	const hourlyRate = Number(session.override_hourly_rate ?? tableHourlyRate);
 
-	// Ensure TABLE_TIME product exists.
-	const { data: tableTimeProduct, error: ttpErr } = await supabase
-		.from("products")
-		.select("id, category")
-		.eq("sku", "TABLE_TIME")
-		.maybeSingle();
-	if (ttpErr || !tableTimeProduct) {
-		throw new Error("TABLE_TIME product not found. Please run seed migration.");
+	let tableFee = 0;
+	let isPrepaid = false;
+
+	// Check prepaid status safely
+	if ((session as any).reservation_id) {
+		// Use the joined reservation data if available, or we might need to fetch if not joined (but we will join it)
+		const res = (session as any).reservations;
+		// Handle join returning array or object
+		const paymentStatus = (Array.isArray(res) ? res[0] : res)?.payment_status;
+		if (paymentStatus === 'PAID') {
+			isPrepaid = true;
+		}
 	}
 
-	if (qty > 0) {
-		// Upsert TABLE_TIME line (replace any existing).
-		const perMinuteRate = Number((hourlyRate / 60).toFixed(2));
-		const lineTotal = Number((qty * perMinuteRate).toFixed(2));
-		const { data: existingLine, error: existingLineErr } = await supabase
-			.from("order_items")
-			.select("id")
-			.eq("order_id", order.id)
-			.eq("product_id", tableTimeProduct.id)
-			.maybeSingle();
-		if (existingLineErr) throw existingLineErr;
+	const sessionType = (session as any).session_type || 'OPEN';
+	const targetDuration = (session as any).target_duration_minutes;
 
-		if (existingLine?.id) {
-			const { error: updErr } = await supabase
-				.from("order_items")
-				.update({ quantity: qty, unit_price: perMinuteRate, line_total: lineTotal })
-				.eq("id", existingLine.id);
-			if (updErr) throw updErr;
+	if (sessionType === 'FIXED' && targetDuration) {
+		const baseFee = (targetDuration / 60) * hourlyRate;
+		const excessMinutes = Math.max(0, elapsedMinutes - targetDuration);
+		const excessFee = excessMinutes * (hourlyRate / 60);
+
+		if (isPrepaid) {
+			tableFee = excessFee;
 		} else {
-			const { error: insErr } = await supabase.from("order_items").insert({
-				order_id: order.id,
-				product_id: tableTimeProduct.id,
-				quantity: qty,
-				unit_price: perMinuteRate,
-				line_total: lineTotal,
-			});
-			if (insErr) throw insErr;
+			tableFee = baseFee + excessFee;
+		}
+	} else {
+		// Open Time Logic: 5 min grace, then 30m blocks
+		if (elapsedMinutes > 5) {
+			const blocks = Math.ceil(elapsedMinutes / 30);
+			tableFee = blocks * 0.5 * hourlyRate;
+		}
+	}
+
+	// Money Game Logic
+	if ((session as any).is_money_game && (session as any).bet_amount) {
+		const minFee = (session as any).bet_amount * 0.10;
+		tableFee = Math.max(tableFee, minFee);
+	}
+
+	tableFee = Number(tableFee.toFixed(2));
+
+	if (tableFee > 0 || isPrepaid) {
+		// Even if fee is 0 (fully prepaid), we might want to record it? 
+		// Actually if fee is 0, we don't need to charge.
+		// But if it was Money Game and fee is > 0, we charge.
+
+		if (tableFee > 0) {
+			// Ensure TABLE_TIME product exists.
+			const { data: tableTimeProduct, error: ttpErr } = await supabase
+				.from("products")
+				.select("id, category")
+				.eq("name", "Table Time") // Match releaseTable selector (name vs sku) - use name to be safe or sku? 
+				// releaseTable uses name="Table Time". closeSession used sku="TABLE_TIME".
+				// Let's stick to name="Table Time" as per releaseTable to ensure we find the same product.
+				.limit(1)
+				.maybeSingle();
+
+			// Fallback if not found by name, try SKU
+			let timeProduct = tableTimeProduct;
+			if (!timeProduct) {
+				const { data: skuProd } = await supabase.from("products").select("id, category").eq("sku", "TABLE_TIME").maybeSingle();
+				timeProduct = skuProd;
+			}
+
+			if (!timeProduct) {
+				// Create if missing (fallback)
+				const { data: newPro } = await supabase.from("products").insert({ name: "Table Time", category: "TABLE_TIME", price: 0, is_active: false }).select().single();
+				timeProduct = newPro;
+			}
+
+			if (timeProduct) {
+				// Upsert line item with Quantity 1, Price = tableFee
+				const { data: existingLine, error: existingLineErr } = await supabase
+					.from("order_items")
+					.select("id")
+					.eq("order_id", order.id)
+					.eq("product_id", timeProduct.id)
+					.maybeSingle();
+				if (existingLineErr) throw existingLineErr;
+
+				if (existingLine?.id) {
+					const { error: updErr } = await supabase
+						.from("order_items")
+						.update({ quantity: 1, unit_price: tableFee, line_total: tableFee })
+						.eq("id", existingLine.id);
+					if (updErr) throw updErr;
+				} else {
+					const { error: insErr } = await supabase.from("order_items").insert({
+						order_id: order.id,
+						product_id: timeProduct.id,
+						quantity: 1,
+						unit_price: tableFee,
+						line_total: tableFee,
+					});
+					if (insErr) throw insErr;
+				}
+			}
 		}
 	}
 

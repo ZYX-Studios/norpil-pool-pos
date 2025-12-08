@@ -151,8 +151,8 @@ export async function payOrderFormAction(formData: FormData) {
 	const tenderedRaw = formData.get("tenderedAmount") ?? formData.get("amount");
 	const tenderedAmount = Number(tenderedRaw ?? "0");
 
-	// Do not allow zero or negative payments
-	if (!Number.isFinite(tenderedAmount) || tenderedAmount <= 0) {
+	// Do not allow negative payments. We allow 0 for prepaid/comped sessions.
+	if (!Number.isFinite(tenderedAmount) || tenderedAmount < 0) {
 		redirect(`/pos/${sessionId}?error=amount`);
 	}
 

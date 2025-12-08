@@ -28,7 +28,7 @@ export default async function SessionPage({
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, pool_tables:pool_table_id(id, name, hourly_rate)")
+			.select("id, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate)")
 			.eq("id", sessionId)
 			.maybeSingle();
 		if (sessionErr) {
@@ -92,40 +92,47 @@ export default async function SessionPage({
 		);
 
 		return (
-			<SessionClient
-				sessionId={sessionId}
-				tableName={(session as any).pool_tables?.name ?? (session as any).customer_name ?? "Walk-in"}
-				customerName={(session as any).customer_name}
-				openedAt={session.opened_at as string}
-				hourlyRate={hourlyRate}
-				orderId={order.id as string}
-				initialItems={(items ?? []).map((i: any) => ({
-					id: i.id as string,
-					productId: i.product_id as string,
-					name: i.products?.name as string,
-					category: i.products?.category as any,
-					unitPrice: Number(i.unit_price),
-					quantity: Number(i.quantity),
-					lineTotal: Number(i.line_total),
-					taxRate: Number(i.products?.tax_rate ?? 0),
-				}))}
-				products={(products ?? []).map((p: any) => ({
-					id: p.id as string,
-					name: p.name as string,
-					category: p.category as any,
-					price: Number(p.price),
-					taxRate: Number(p.tax_rate ?? 0),
-					stock: stockMap.get(p.id as string) ?? 0,
-				}))}
-				errorCode={errorCode}
-				pausedAt={session.paused_at}
-				accumulatedPausedTime={session.accumulated_paused_time}
-				isTableSession={!!(session as any).pool_tables}
-				sessionType={(session as any).session_type}
-				targetDurationMinutes={(session as any).target_duration_minutes}
-				isMoneyGame={(session as any).is_money_game}
-				betAmount={(session as any).bet_amount}
-			/>
+			<>
+				<SessionClient
+					sessionId={sessionId}
+					tableName={(session as any).pool_tables?.name ?? (session as any).customer_name ?? "Walk-in"}
+					customerName={(session as any).customer_name}
+					openedAt={session.opened_at as string}
+					hourlyRate={hourlyRate}
+					orderId={order.id as string}
+					initialItems={(items ?? []).map((i: any) => ({
+						id: i.id as string,
+						productId: i.product_id as string,
+						name: i.products?.name as string,
+						category: i.products?.category as any,
+						unitPrice: Number(i.unit_price),
+						quantity: Number(i.quantity),
+						lineTotal: Number(i.line_total),
+						taxRate: Number(i.products?.tax_rate ?? 0),
+					}))}
+					products={(products ?? []).map((p: any) => ({
+						id: p.id as string,
+						name: p.name as string,
+						category: p.category as any,
+						price: Number(p.price),
+						taxRate: Number(p.tax_rate ?? 0),
+						stock: stockMap.get(p.id as string) ?? 0,
+					}))}
+					errorCode={errorCode}
+					pausedAt={session.paused_at}
+					accumulatedPausedTime={session.accumulated_paused_time}
+					isTableSession={!!(session as any).pool_tables}
+					sessionType={(session as any).session_type}
+					targetDurationMinutes={(session as any).target_duration_minutes}
+					isMoneyGame={(session as any).is_money_game}
+					betAmount={(session as any).bet_amount}
+					isPrepaid={(() => {
+						const r = (session as any).reservations;
+						const status = Array.isArray(r) ? r[0]?.payment_status : r?.payment_status;
+						return status === 'PAID';
+					})()}
+				/>
+			</>
 		);
 	} catch (error) {
 		// When the device is offline or Supabase is unreachable, we render a

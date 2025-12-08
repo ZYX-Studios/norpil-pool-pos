@@ -11,7 +11,7 @@ export function BottomNav() {
     const navItems = [
         { href: "/mobile/home", label: "Home", icon: Home },
         { href: "/mobile/wallet", label: "Wallet", icon: Wallet },
-        { href: "/mobile/reserve", label: "Reserve", icon: Calendar },
+        { href: "/mobile/reservations", label: "Reserve", icon: Calendar },
         { href: "/mobile/order", label: "Order", icon: Utensils },
         { href: "/mobile/profile", label: "Profile", icon: User },
     ];

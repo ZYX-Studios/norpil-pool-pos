@@ -9,7 +9,7 @@ export default function HomePage() {
             </header>
 
             <div className="grid grid-cols-2 gap-4">
-                <Link href="/mobile/reserve" className="block group">
+                <Link href="/mobile/reservations" className="block group">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-6 flex flex-col items-center justify-center space-y-3 shadow-sm shadow-black/40 backdrop-blur transition-all hover:bg-white/10 active:scale-95 aspect-square">
                         <span className="text-4xl">🎱</span>
                         <span className="font-semibold text-center text-neutral-50">Reserve Table</span>

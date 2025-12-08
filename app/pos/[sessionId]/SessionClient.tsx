@@ -95,6 +95,7 @@ function computeTableFee(
 		const baseFee = (targetDurationMinutes / 60) * hourlyRate;
 		const excessMinutes = Math.max(0, elapsedMinutes - targetDurationMinutes);
 		const excessFee = excessMinutes * (hourlyRate / 60);
+		// Return gross fee; prepaid logic is handled in the component
 		tableFee = baseFee + excessFee;
 	} else {
 		// Open Time default
@@ -112,6 +113,7 @@ function computeTableFee(
 }
 
 function computeTotals(items: SessionItem[]) {
+	// ... existing computeTotals ...
 	let subtotal = 0;
 	let taxTotal = 0;
 
@@ -145,12 +147,15 @@ export function SessionClient({
 	targetDurationMinutes,
 	isMoneyGame,
 	betAmount,
+	isPrepaid,
 }: SessionClientProps & {
 	sessionType?: "OPEN" | "FIXED";
 	targetDurationMinutes?: number;
 	isMoneyGame?: boolean;
 	betAmount?: number;
+	isPrepaid?: boolean;
 }) {
+	// ... component state ...
 	const router = useRouter();
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
@@ -176,13 +181,13 @@ export function SessionClient({
 		return () => clearInterval(id);
 	}, [pausedAt]);
 
+	// ... offline sync effects ...
 	// Hydrate products from the offline cache when available and keep the
 	// cache in sync with the latest products passed from the server.
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			try {
-				// If we already have products cached from a recent sync, prefer those.
 				const offline = await getOfflineProducts();
 				if (!cancelled && offline.length > 0) {
 					setProductList(
@@ -197,9 +202,6 @@ export function SessionClient({
 					);
 				}
 
-				// Always seed the offline cache with the latest server products
-				// so that, after a normal online session, this device can still
-				// open the POS when offline.
 				if (products.length > 0) {
 					await saveOfflineProducts(
 						products.map((p) => ({
@@ -213,8 +215,6 @@ export function SessionClient({
 					);
 				}
 			} catch {
-				// If IndexedDB is unavailable (e.g. in private mode) we simply
-				// fall back to the in-memory server-provided products.
 			}
 		})();
 
@@ -245,8 +245,7 @@ export function SessionClient({
 		};
 	}, []);
 
-	// Persist a lightweight session snapshot so that, if the device goes offline,
-	// we can still show recent data for this table session.
+	// Persist a lightweight session snapshot
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
@@ -268,8 +267,6 @@ export function SessionClient({
 					})),
 				});
 			} catch {
-				// If IndexedDB is not available we silently ignore; the live session
-				// view still works as normal.
 			}
 		})();
 		return () => {
@@ -295,9 +292,18 @@ export function SessionClient({
 		);
 	}, [openedAt, now, hourlyRate, pausedAt, accumulatedPausedTime, isMounted, isTableSession, sessionType, targetDurationMinutes, isMoneyGame, betAmount]);
 
-	const grandTotal = useMemo(() => round2(itemsTotal + tableFee), [itemsTotal, tableFee]);
+	const prepaidCredit = useMemo(() => {
+		if (isPrepaid && sessionType === 'FIXED' && targetDurationMinutes) {
+			return (targetDurationMinutes / 60) * hourlyRate;
+		}
+		return 0;
+	}, [isPrepaid, sessionType, targetDurationMinutes, hourlyRate]);
 
-	// Compute visible products based on the current category filter.
+	const netTableFee = Math.max(0, tableFee - prepaidCredit);
+
+	const grandTotal = useMemo(() => round2(itemsTotal + netTableFee), [itemsTotal, netTableFee]);
+
+	// ... rest of component until return ...
 	const visibleProducts = useMemo(
 		() =>
 			productList.filter((p) => {
@@ -308,23 +314,17 @@ export function SessionClient({
 		[productList, activeCategory],
 	);
 
-	// Optimistically add or increase an item in the cart.
 	function handleAddProduct(productId: string) {
-		// If a closing payment has already been queued while offline, we freeze
-		// further cart edits to avoid double-charging once sync completes.
+		// ... existing handleAddProduct ...
 		if (isOfflineClosingQueued) {
 			return;
 		}
 		const product = productList.find((p) => p.id === productId);
 		if (!product) return;
 
-		// Determine the target quantity after this operation so we can use it both
-		// for the optimistic UI and any queued offline sync operation.
 		const existingLine = items.find((i) => i.productId === productId);
 		const targetQty = existingLine ? existingLine.quantity + 1 : 1;
 
-		// Soft stock warning: if this product appears out of stock, we still
-		// allow adding it but show a gentle warning to the staff.
 		if (typeof product.stock === "number" && product.stock <= 0) {
 			setStockWarning(`“${product.name}” is out of stock in inventory. Please confirm before serving.`);
 		}
@@ -338,7 +338,6 @@ export function SessionClient({
 						: i,
 				);
 			}
-			// Use a temporary id for React key; we write using orderId + productId.
 			const tempId = `temp-${productId}-${Date.now()}`;
 			return [
 				...prev,
@@ -355,14 +354,13 @@ export function SessionClient({
 			];
 		});
 
-		// Persist in the background. UI stays snappy even if the network is slow.
 		startTransition(() => {
 			void syncAddItem(orderId, productId, targetQty, supabase, () => setHasQueuedOps(true));
 		});
 	}
 
-	// Optimistically update quantity (or remove) for an item.
 	function handleChangeQuantity(productId: string, nextQty: number) {
+		// ... existing handleChangeQuantity ...
 		if (isOfflineClosingQueued) {
 			return;
 		}
@@ -435,12 +433,10 @@ export function SessionClient({
 			<section className="space-y-4 lg:col-span-4">
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 shadow-sm shadow-black/40 backdrop-blur">
 					<div className="mb-3 flex items-center justify-between gap-2">
-						{/* ... header content ... */}
+						{/* ... existing header ... */}
 						<div className="flex items-center gap-3">
 							<button
 								onClick={() => {
-									// Force a hard navigation to ensure the home screen fetches fresh data
-									// and doesn't show stale "Occupied" status for released tables.
 									window.location.href = "/pos";
 								}}
 								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
@@ -493,6 +489,7 @@ export function SessionClient({
 								itemTotal={itemsTotal}
 								pausedAt={pausedAt}
 								accumulatedPausedTime={accumulatedPausedTime}
+								isPrepaid={isPrepaid}
 							/>
 							<div className="flex gap-2">
 								{pausedAt ? (
@@ -551,6 +548,7 @@ export function SessionClient({
 						</div>
 					)}
 					<div className="space-y-3 sm:space-y-4">
+						{/* ... items map ... */}
 						{items.map((i) => (
 							<div
 								key={i.id}
@@ -627,9 +625,17 @@ export function SessionClient({
 							<span>{formatCurrency(itemsTotal)}</span>
 						</div>
 						<div className="mt-1 flex justify-between text-sm text-neutral-200">
-							<span>Table time</span>
+							<div className="flex items-center gap-2">
+								<span>Table time</span>
+							</div>
 							<span>{formatCurrency(tableFee)}</span>
 						</div>
+						{prepaidCredit > 0 && (
+							<div className="mt-1 flex justify-between text-sm text-emerald-400">
+								<span>Less: Prepaid</span>
+								<span>-{formatCurrency(prepaidCredit)}</span>
+							</div>
+						)}
 						<div className="mt-1 flex justify-between text-base font-semibold text-emerald-300">
 							<span>Grand total</span>
 							<span>{formatCurrency(grandTotal)}</span>

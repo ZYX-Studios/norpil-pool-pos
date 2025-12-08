@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClientTimer } from "./ClientTimer";
-import { openTableAction, createWalkInSession } from "./actions";
+import { openTableAction, createWalkInSession, checkInReservation } from "./actions";
 import { StartSessionDialog } from "./StartSessionDialog";
 import { CustomerSearchDialog } from "./components/CustomerSearchDialog";
 import { WalletTopUpDialog } from "./components/WalletTopUpDialog";
@@ -18,6 +18,7 @@ import {
 	type OfflineTableSession,
 } from "@/lib/offline/client";
 import { createLocalId } from "@/lib/offline/db";
+import { isBefore, parseISO, addMinutes } from "date-fns";
 
 type PoolTable = {
 	id: string;
@@ -40,9 +41,20 @@ type OpenSession = {
 	bet_amount?: number | null;
 };
 
+type Reservation = {
+	id: string;
+	pool_table_id: string;
+	start_time: string;
+	end_time: string;
+	status: string;
+	profiles?: { full_name: string };
+	customer_name?: string; // Fallback or if joined
+};
+
 type PosHomeClientProps = {
 	initialTables: PoolTable[];
 	initialSessions: OpenSession[];
+	initialReservations: Reservation[];
 	initialSessionTotals: Array<{ sessionId: string; itemsTotal: number }>;
 	initialErrorCode: string | null;
 };
@@ -57,12 +69,14 @@ type PosHomeClientProps = {
 export function PosHomeClient({
 	initialTables,
 	initialSessions,
+	initialReservations,
 	initialSessionTotals,
 	initialErrorCode,
 }: PosHomeClientProps) {
 	const router = useRouter();
 	const [tables, setTables] = useState<PoolTable[]>(initialTables);
 	const [openSessions, setOpenSessions] = useState<OpenSession[]>(initialSessions);
+	const [reservations, setReservations] = useState<Reservation[]>(initialReservations || []);
 	const [sessionTotals, setSessionTotals] = useState<Map<string, number>>(() => {
 		const map = new Map<string, number>();
 		for (const { sessionId, itemsTotal } of initialSessionTotals) {
@@ -97,6 +111,10 @@ export function PosHomeClient({
 	useEffect(() => {
 		setOpenSessions(initialSessions);
 	}, [initialSessions]);
+
+	useEffect(() => {
+		setReservations(initialReservations || []);
+	}, [initialReservations]);
 
 	useEffect(() => {
 		const map = new Map<string, number>();
@@ -230,6 +248,9 @@ export function PosHomeClient({
 		};
 	}, [initialTables, initialSessions, initialSessionTotals, initialErrorCode, sessionTotals]);
 
+	// Hydration fix: Track "now" in state so it only changes on client, avoiding server/client mismatch.
+	const [now, setNow] = useState<Date | null>(null);
+
 	const tableIdToSession = useMemo(() => {
 		const map = new Map<string, OpenSession>();
 		for (const s of openSessions) {
@@ -239,6 +260,63 @@ export function PosHomeClient({
 		}
 		return map;
 	}, [openSessions]);
+
+
+
+	useEffect(() => {
+		if (!now) return;
+
+		// Check for AUTO-START opportunities
+		// 1. Table is AVAILABLE (no open session)
+		// 2. Reservation is CONFIRMED and Current Time >= Start Time
+		// 3. We haven't already processed it (status is still confirmed)
+
+		const checkAutoStart = async () => {
+			for (const table of tables) {
+				const session = tableIdToSession.get(table.id);
+				if (session) continue; // Table busy
+
+				const activeRes = (reservations || []).find(r => r.pool_table_id === table.id &&
+					r.status === 'CONFIRMED' &&
+					isBefore(parseISO(r.start_time), now) &&
+					isBefore(now, parseISO(r.end_time))
+				);
+
+				if (activeRes) {
+					// Found a candidate!
+					// Heuristic:
+					// - If late by < 10 mins: Backdate (Strict)
+					// - If late by >= 10 mins: Use Now (Delayed)
+					const start = parseISO(activeRes.start_time);
+					const diffMinutes = (now.getTime() - start.getTime()) / (1000 * 60);
+					const useCurrentTime = diffMinutes >= 10;
+
+					console.log(`[AutoStart] Starting reservation ${activeRes.id} for table ${table.name}. Late by ${diffMinutes.toFixed(1)}m. Delayed mode: ${useCurrentTime}`);
+
+					try {
+						await checkInReservation(activeRes.id, { useCurrentTime });
+						// We don't need to refresh here, server action revalidates path.
+					} catch (e) {
+						console.error("AutoStart failed", e);
+					}
+				}
+			}
+		};
+
+		// Run check every 10 seconds? Or just piggyback on 'now' updates?
+		// 'now' updates every minute. 
+		// We can also run it immediately on mount/data change.
+		void checkAutoStart();
+
+	}, [now, tables, reservations, tableIdToSession]);
+
+	useEffect(() => {
+		setNow(new Date());
+		const interval = setInterval(() => {
+			setNow(new Date());
+		}, 1000 * 60); // Update every minute
+		return () => clearInterval(interval);
+	}, []);
 
 	return (
 		<div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
@@ -315,7 +393,9 @@ export function PosHomeClient({
 
 					return (
 						<div key={table.id}>
-							<button
+							<div
+								role="button"
+								tabIndex={0}
 								onClick={() => {
 									if (session) {
 										router.push(`/pos/${session.id}`);
@@ -339,7 +419,12 @@ export function PosHomeClient({
 										}
 									}
 								}}
-								className={`relative flex h-full w-full flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.98] ${session
+								onKeyDown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.currentTarget.click();
+									}
+								}}
+								className={`cursor-pointer relative flex h-full w-full flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.98] ${session
 									? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20"
 									: "border-white/10 bg-white/5 hover:bg-white/10"
 									}`}
@@ -408,8 +493,63 @@ export function PosHomeClient({
 									) : (
 										<div className="text-sm font-medium text-neutral-500">Available</div>
 									)}
+
+									{/* Reservation Logic: Auto-Start & Waiting Indicator */}
+									{(() => {
+										if (!now) return null;
+
+										// Find confirmed reservation intersecting now
+										const activeRes = (reservations || []).find(r => r.pool_table_id === table.id &&
+											r.status === 'CONFIRMED' &&
+											isBefore(parseISO(r.start_time), now) &&
+											isBefore(now, parseISO(r.end_time))
+										);
+
+										// Find upcoming reservation (next 2 hours)
+										const upcomingRes = (reservations || []).find(r => r.pool_table_id === table.id &&
+											r.status === 'CONFIRMED' &&
+											!activeRes &&
+											isBefore(now, parseISO(r.start_time)) &&
+											isBefore(parseISO(r.start_time), addMinutes(now, 120))
+										);
+
+										// 1. Auto-Start Logic (Effect-like via immediate invocation check? No, bad pattern in render)
+										// We handle Auto-Start in a dedicated useEffect below. Here we just show UI.
+
+										if (activeRes) {
+											if (session) {
+												// CONFLICT: Table is busy but should be reserved.
+												// Is it the SAME person? Unlikely unless we track user IDs.
+												// If busy, show "Waiting" state.
+												return (
+													<div className="mt-2 text-xs font-semibold text-red-400 bg-red-950/30 px-2 py-1 rounded animate-pulse">
+														Reservation Waiting ({activeRes.profiles?.full_name})
+													</div>
+												);
+											} else {
+												// Table is FREE and Reservation is ACTIVE.
+												// The Auto-Start effect should pick this up momentarily.
+												// We show "Starting..." or similar.
+												return (
+													<div className="mt-2 text-xs font-semibold text-emerald-400">
+														Starting Reservation...
+													</div>
+												);
+											}
+										}
+
+										if (upcomingRes) {
+											const start = parseISO(upcomingRes.start_time);
+											return (
+												<div className="mt-2 text-xs font-semibold text-amber-500 bg-amber-950/30 px-2 py-1 rounded">
+													Next: {upcomingRes.profiles?.full_name} @ {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+												</div>
+											);
+										}
+										return null;
+									})()}
 								</div>
-							</button>
+							</div>
 						</div>
 					);
 				})}

@@ -62,11 +62,26 @@ async function getData() {
 			sessionIdToOrderTotal.set(o.table_session_id as string, Number(totalNow.toFixed(2)));
 		}
 
+		// Fetch today's reservations
+		const startOfDay = new Date();
+		startOfDay.setHours(0, 0, 0, 0);
+		const endOfDay = new Date();
+		endOfDay.setHours(23, 59, 59, 999);
+
+		const { data: reservations } = await supabase
+			.from("reservations")
+			.select("*")
+			.in("status", ["CONFIRMED"]) // Filter only by valid statuses
+			.gte("start_time", startOfDay.toISOString())
+			.lte("start_time", endOfDay.toISOString())
+			.order("start_time");
+
 		// We keep this structure small and serialisable so it can be safely
 		// passed into the client component that handles offline snapshots.
 		return {
 			tables: (tables ?? []) as PoolTable[],
 			openSessions: (sessions ?? []) as OpenSession[],
+			reservations: (reservations ?? []) as any[],
 			sessionIdToOrderTotal,
 			errorCode: null as string | null,
 		};
@@ -91,6 +106,7 @@ async function getData() {
 		return {
 			tables: [] as PoolTable[],
 			openSessions: [] as OpenSession[],
+			reservations: [] as any[],
 			sessionIdToOrderTotal: new Map<string, number>(),
 			errorCode: "load_failed" as string | null,
 		};
@@ -104,7 +120,7 @@ export default async function PosHome({
 }) {
 	const sp = await searchParams;
 	const queryError = (sp?.error as string | undefined) ?? null;
-	const { tables, openSessions, sessionIdToOrderTotal, errorCode } = await getData();
+	const { tables, openSessions, reservations, sessionIdToOrderTotal, errorCode } = await getData();
 
 	// Prepare a serialisable representation of session totals for the client.
 	const sessionTotalsArray = Array.from(sessionIdToOrderTotal.entries()).map(
@@ -121,8 +137,11 @@ export default async function PosHome({
 		<PosHomeClient
 			initialTables={tables}
 			initialSessions={openSessions}
+			initialReservations={reservations}
 			initialSessionTotals={sessionTotalsArray}
 			initialErrorCode={errorCode ?? queryError}
 		/>
 	);
 }
+
+// Forced rebuild comment

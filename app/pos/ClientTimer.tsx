@@ -12,6 +12,7 @@ export function ClientTimer(props: {
 	targetDurationMinutes?: number;
 	isMoneyGame?: boolean;
 	betAmount?: number;
+	isPrepaid?: boolean;
 }) {
 	const {
 		openedAt,
@@ -23,6 +24,7 @@ export function ClientTimer(props: {
 		targetDurationMinutes,
 		isMoneyGame,
 		betAmount,
+		isPrepaid,
 	} = props;
 
 	return (
@@ -37,6 +39,7 @@ export function ClientTimer(props: {
 				targetDurationMinutes={targetDurationMinutes}
 				isMoneyGame={isMoneyGame}
 				betAmount={betAmount}
+				isPrepaid={isPrepaid}
 			/>
 		</div>
 	);
@@ -52,6 +55,7 @@ function TimerContent({
 	targetDurationMinutes,
 	isMoneyGame,
 	betAmount,
+	isPrepaid,
 }: {
 	openedAt: string;
 	hourlyRate: number;
@@ -62,12 +66,18 @@ function TimerContent({
 	targetDurationMinutes?: number;
 	isMoneyGame?: boolean;
 	betAmount?: number;
+	isPrepaid?: boolean;
 }) {
-	const [now, setNow] = useState(() => Date.now());
+	// Hydration fix: Initialize with null so we match server render initially
+	const [now, setNow] = useState<number | null>(null);
 	const [isMounted, setIsMounted] = useState(false);
 
 	useEffect(() => {
 		setIsMounted(true);
+	}, []);
+
+	useEffect(() => {
+		setNow(Date.now()); // Set initial client time
 	}, []);
 
 	useEffect(() => {
@@ -79,6 +89,7 @@ function TimerContent({
 	}, [pausedAt]);
 
 	const elapsedMs = useMemo(() => {
+		if (!now) return 0; // Prevent mismatch during hydration
 		const start = new Date(openedAt).getTime();
 		const accumulated = (accumulatedPausedTime || 0) * 1000;
 		if (pausedAt) {
@@ -91,12 +102,19 @@ function TimerContent({
 	const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
 	let tableFee = 0;
 
+	// Calculate fees
 	if (sessionType === "FIXED" && targetDurationMinutes) {
 		// Fixed Time Logic
 		const baseFee = (targetDurationMinutes / 60) * hourlyRate;
 		const excessMinutes = Math.max(0, elapsedMinutes - targetDurationMinutes);
 		const excessFee = excessMinutes * (hourlyRate / 60);
-		tableFee = baseFee + excessFee;
+
+		if (isPrepaid) {
+			// If prepaid, we only charge for excess time.
+			tableFee = excessFee;
+		} else {
+			tableFee = baseFee + excessFee;
+		}
 	} else {
 		// Open Time Logic (Default)
 		// "exceeds 5 mins... add every 30 mins"
@@ -120,7 +138,8 @@ function TimerContent({
 	const minutes = Math.floor((totalSeconds % 3600) / 60);
 	const seconds = totalSeconds % 60;
 
-	if (!isMounted) {
+	// Use existence of 'now' as the hydration check
+	if (now === null) {
 		return (
 			<div className="flex items-center justify-between gap-4">
 				<div>
@@ -155,6 +174,11 @@ function TimerContent({
 					{isMoneyGame && (
 						<span className="flex h-3 w-3 items-center justify-center rounded bg-emerald-500/20 text-[8px] font-bold text-emerald-500 uppercase">
 							$
+						</span>
+					)}
+					{isPrepaid && (
+						<span className="rounded bg-emerald-600/30 px-1 py-0.5 text-[8px] font-bold text-emerald-400 uppercase tracking-widest">
+							Prepaid
 						</span>
 					)}
 				</div>

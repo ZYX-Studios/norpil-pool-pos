@@ -276,12 +276,34 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 		const hourlyRate = session.pool_table?.hourly_rate ?? 0;
 		let tableFee = 0;
 
+		// Check reservation payment status
+		let isPrepaid = false;
+		if (session.reservation_id) {
+			const { data: res } = await supabase
+				.from("reservations")
+				.select("payment_status")
+				.eq("id", session.reservation_id)
+				.single();
+
+			if (res?.payment_status === 'PAID') {
+				isPrepaid = true;
+			}
+		}
+
 		if (session.session_type === 'FIXED' && session.target_duration_minutes) {
 			// Fixed Time Logic
 			const baseFee = (session.target_duration_minutes / 60) * hourlyRate;
 			const excessMinutes = Math.max(0, elapsedMinutes - session.target_duration_minutes);
 			const excessFee = excessMinutes * (hourlyRate / 60);
-			tableFee = baseFee + excessFee;
+
+			if (isPrepaid) {
+				// If prepaid, we only charge for excess time.
+				// Base fee is already covered.
+				tableFee = excessFee;
+				console.log(`[releaseTable] Prepaid reservation. Charging only excess: ${excessFee}`);
+			} else {
+				tableFee = baseFee + excessFee;
+			}
 		} else {
 			// Open Time Logic (Default)
 			// "exceeds 5 mins... add every 30 mins"
@@ -289,12 +311,36 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 				const blocks = Math.ceil(elapsedMinutes / 30);
 				tableFee = blocks * 0.5 * hourlyRate;
 			}
+			// (Open time is rarely prepaid, but if it were, we'd need logic. Assuming unrelated for now)
 		}
 
 		// Money Game Logic
+		// If prepaid, the base fee might cover the minimum fee? 
+		// Or does the minimum fee apply on TOP?
+		// Usually "Consumable" or minimum is covered by payment. 
+		// Let's assume minimum fee logic applies to the *total value* of the table.
+		// If they paid 150 (1hr) and minimum is 50, they are good.
+		// So we might not need to add extra if tableFee (calculated above) is just excess.
+		// BUT, if they bet huge, say Minimum is 500, and they paid 150. They still owe 350?
+		// For now, let's keep Money Game simple: It enforces a minimum table fee.
+		// If prepaid, we verify if (Amount Paid + Current Fee) >= Minimum?
+		// Too complex related to "checks". 
+		// Let's just say Money Game adds to the fee if the calculated fee is low.
+
 		if (session.is_money_game && session.bet_amount) {
 			const minimumFee = session.bet_amount * 0.10;
-			tableFee = Math.max(tableFee, minimumFee);
+			// If prepaid, we should count the prepaid amount towards this minimum?
+			// Simplification: if Is Money Game, we just enforce the minimum fee as the *Total Fee*
+			// Then subtract what was paid?
+			// Let's stick to standard logic: Money Game Minimum is for the TABLE CHARGE.
+			// If prepaid, we treat it as paid credit.
+
+			const totalValue = (isPrepaid && session.target_duration_minutes ? ((session.target_duration_minutes / 60) * hourlyRate) : 0) + tableFee;
+			if (totalValue < minimumFee) {
+				// We need to top up
+				const diff = minimumFee - totalValue;
+				tableFee += diff;
+			}
 		}
 
 		tableFee = Number(tableFee.toFixed(2));
@@ -409,3 +455,81 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 }
 
 
+
+export async function checkInReservation(reservationId: string, options?: { useCurrentTime?: boolean }) {
+	const supabase = createSupabaseServerClient();
+	const useCurrentTime = options?.useCurrentTime ?? false;
+
+	try {
+		// 1. Get Reservation
+		const { data: reservation, error: resErr } = await supabase
+			.from("reservations")
+			.select("*, profiles(full_name)")
+			.eq("id", reservationId)
+			.single();
+
+		if (resErr || !reservation) throw resErr ?? new Error("Reservation not found");
+
+		if (reservation.status === 'COMPLETED') throw new Error("Reservation already completed");
+		if (reservation.status === 'CANCELLED') throw new Error("Reservation cancelled");
+
+		// 2. Calculate duration
+		// If useCurrentTime is true, we start NOW, but keep the original DURATION.
+		// If useCurrentTime is false, we start at start_time, effectively backdating if we are late.
+
+		const originalStart = new Date(reservation.start_time);
+		const originalEnd = new Date(reservation.end_time);
+		const durationMinutes = Math.round((originalEnd.getTime() - originalStart.getTime()) / (1000 * 60));
+
+		const openedAt = useCurrentTime ? new Date().toISOString() : reservation.start_time;
+
+		// 3. Create Session (Fixed Time)
+		// We use the customer name from profile or fallback
+		const customerName = reservation.profiles?.full_name || "Reservation Guest";
+
+		const { data: session, error: sessionErr } = await supabase
+			.from("table_sessions")
+			.insert({
+				pool_table_id: reservation.pool_table_id,
+				status: "OPEN",
+				session_type: "FIXED",
+				target_duration_minutes: durationMinutes,
+				is_money_game: false,
+				customer_name: customerName,
+				opened_at: openedAt,
+				reservation_id: reservation.id,
+			})
+			.select("id")
+			.single();
+
+		if (sessionErr || !session) throw sessionErr ?? new Error("Failed to create session");
+
+		// 4. Create Order
+		await supabase.from("orders").insert({
+			table_session_id: session.id,
+			status: "OPEN",
+		});
+
+		// 5. Update Reservation Status
+		await supabase
+			.from("reservations")
+			.update({ status: 'COMPLETED' })
+			.eq("id", reservationId);
+
+		revalidatePath("/pos");
+
+		await logAction({
+			actionType: "CHECK_IN_RESERVATION",
+			entityType: "table_session",
+			entityId: session.id,
+			details: { reservationId, customerName },
+		});
+
+		// Return session ID to redirect
+		return { success: true, sessionId: session.id };
+
+	} catch (error) {
+		console.error("checkInReservation failed", error);
+		return { success: false, message: "Failed to check in" };
+	}
+}
