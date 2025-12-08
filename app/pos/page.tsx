@@ -18,6 +18,10 @@ type OpenSession = {
 	opened_at: string;
 	override_hourly_rate: number | null;
 	customer_name?: string | null;
+	session_type: "OPEN" | "FIXED";
+	target_duration_minutes?: number | null;
+	is_money_game: boolean;
+	bet_amount?: number | null;
 };
 
 async function getData() {
@@ -28,7 +32,7 @@ async function getData() {
 			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").is("deleted_at", null).order("name", { ascending: true }),
 			supabase
 				.from("table_sessions")
-				.select("id, pool_table_id, opened_at, override_hourly_rate, customer_name")
+				.select("id, pool_table_id, opened_at, override_hourly_rate, customer_name, session_type, target_duration_minutes, is_money_game, bet_amount")
 				.eq("status", "OPEN"),
 		]);
 

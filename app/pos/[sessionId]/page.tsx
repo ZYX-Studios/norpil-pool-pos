@@ -28,7 +28,7 @@ export default async function SessionPage({
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, pool_tables:pool_table_id(id, name, hourly_rate)")
+			.select("id, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, pool_tables:pool_table_id(id, name, hourly_rate)")
 			.eq("id", sessionId)
 			.maybeSingle();
 		if (sessionErr) {
@@ -121,6 +121,10 @@ export default async function SessionPage({
 				pausedAt={session.paused_at}
 				accumulatedPausedTime={session.accumulated_paused_time}
 				isTableSession={!!(session as any).pool_tables}
+				sessionType={(session as any).session_type}
+				targetDurationMinutes={(session as any).target_duration_minutes}
+				isMoneyGame={(session as any).is_money_game}
+				betAmount={(session as any).bet_amount}
 			/>
 		);
 	} catch (error) {

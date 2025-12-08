@@ -8,8 +8,23 @@ export function ClientTimer(props: {
 	itemTotal: number;
 	pausedAt?: string | null;
 	accumulatedPausedTime?: number;
+	sessionType?: "OPEN" | "FIXED";
+	targetDurationMinutes?: number;
+	isMoneyGame?: boolean;
+	betAmount?: number;
 }) {
-	const { openedAt, hourlyRate, itemTotal, pausedAt, accumulatedPausedTime } = props;
+	const {
+		openedAt,
+		hourlyRate,
+		itemTotal,
+		pausedAt,
+		accumulatedPausedTime,
+		sessionType = "OPEN",
+		targetDurationMinutes,
+		isMoneyGame,
+		betAmount,
+	} = props;
+
 	return (
 		<div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs text-neutral-200 shadow-inner shadow-black/60">
 			<TimerContent
@@ -18,6 +33,10 @@ export function ClientTimer(props: {
 				itemTotal={itemTotal}
 				pausedAt={pausedAt}
 				accumulatedPausedTime={accumulatedPausedTime}
+				sessionType={sessionType}
+				targetDurationMinutes={targetDurationMinutes}
+				isMoneyGame={isMoneyGame}
+				betAmount={betAmount}
 			/>
 		</div>
 	);
@@ -29,12 +48,20 @@ function TimerContent({
 	itemTotal,
 	pausedAt,
 	accumulatedPausedTime = 0,
+	sessionType,
+	targetDurationMinutes,
+	isMoneyGame,
+	betAmount,
 }: {
 	openedAt: string;
 	hourlyRate: number;
 	itemTotal: number;
 	pausedAt?: string | null;
 	accumulatedPausedTime?: number;
+	sessionType?: "OPEN" | "FIXED";
+	targetDurationMinutes?: number;
+	isMoneyGame?: boolean;
+	betAmount?: number;
 }) {
 	const [now, setNow] = useState(() => Date.now());
 	const [isMounted, setIsMounted] = useState(false);
@@ -58,22 +85,34 @@ function TimerContent({
 			const pauseStart = new Date(pausedAt).getTime();
 			return Math.max(0, pauseStart - start - accumulated);
 		}
-		// During server render or initial client render, use a stable time if possible,
-		// but since we suppress hydration warning on the time display, we just need
-		// to be consistent. However, 'now' changes.
-		// To be safe, we can just use 'now' but rely on suppressHydrationWarning
-		// which is already there. But 'estimatedTotal' also depends on it.
 		return Math.max(0, now - start - accumulated);
 	}, [now, openedAt, pausedAt, accumulatedPausedTime]);
 
 	const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
-	const graceMinutes = 5;
-	let billedHours = 0;
-	if (elapsedMinutes > graceMinutes) {
-		const extra = elapsedMinutes - graceMinutes;
-		billedHours = Math.ceil(extra / 60);
+	let tableFee = 0;
+
+	if (sessionType === "FIXED" && targetDurationMinutes) {
+		// Fixed Time Logic
+		const baseFee = (targetDurationMinutes / 60) * hourlyRate;
+		const excessMinutes = Math.max(0, elapsedMinutes - targetDurationMinutes);
+		const excessFee = excessMinutes * (hourlyRate / 60);
+		tableFee = baseFee + excessFee;
+	} else {
+		// Open Time Logic (Default)
+		// "exceeds 5 mins... add every 30 mins"
+		if (elapsedMinutes > 5) {
+			const blocks = Math.ceil(elapsedMinutes / 30);
+			tableFee = blocks * 0.5 * hourlyRate;
+		}
 	}
-	const tableFee = Number((billedHours * hourlyRate).toFixed(2));
+
+	// Money Game Logic: Max of calculated fee or 10% of bet
+	if (isMoneyGame && betAmount) {
+		const minimumFee = betAmount * 0.10;
+		tableFee = Math.max(tableFee, minimumFee);
+	}
+
+	tableFee = Number(tableFee.toFixed(2));
 	const estimatedTotal = Number((tableFee + itemTotal).toFixed(2));
 
 	const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -101,6 +140,8 @@ function TimerContent({
 		);
 	}
 
+	const isOvertime = sessionType === "FIXED" && targetDurationMinutes && elapsedMinutes > targetDurationMinutes;
+
 	return (
 		<div className="flex items-center justify-between gap-4">
 			<div>
@@ -111,11 +152,22 @@ function TimerContent({
 					{pausedAt && (
 						<span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
 					)}
+					{isMoneyGame && (
+						<span className="flex h-3 w-3 items-center justify-center rounded bg-emerald-500/20 text-[8px] font-bold text-emerald-500 uppercase">
+							$
+						</span>
+					)}
 				</div>
-				<div className={`font-mono text-lg ${pausedAt ? "text-amber-400" : "text-neutral-50"}`}>
+				<div className={`font-mono text-lg ${pausedAt ? "text-amber-400" : isOvertime ? "text-red-400" : "text-neutral-50"}`}>
 					{hours.toString().padStart(2, "0")}:{minutes.toString().padStart(2, "0")}:
 					{seconds.toString().padStart(2, "0")}
 				</div>
+				{sessionType === "FIXED" && targetDurationMinutes && (
+					<div className="text-[10px] text-neutral-500">
+						Target: {Math.floor(targetDurationMinutes / 60)}h {targetDurationMinutes % 60 > 0 ? `${targetDurationMinutes % 60}m` : ''}
+						{isOvertime && <span className="text-red-400 ml-1">Overtime</span>}
+					</div>
+				)}
 			</div>
 			<div className="text-right">
 				<div className="text-[10px] uppercase tracking-[0.18em] text-neutral-500">Est. total</div>

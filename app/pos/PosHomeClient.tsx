@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ClientTimer } from "./ClientTimer";
 import { openTableAction, createWalkInSession } from "./actions";
+import { StartSessionDialog } from "./StartSessionDialog";
+import { CustomerSearchDialog } from "./components/CustomerSearchDialog";
+import { WalletTopUpDialog } from "./components/WalletTopUpDialog";
+import type { CustomerResult } from "./wallet-actions";
 import {
 	getTablesSnapshot,
 	saveTablesSnapshot,
@@ -30,6 +34,10 @@ type OpenSession = {
 	customer_name?: string | null;
 	paused_at?: string | null;
 	accumulated_paused_time?: number;
+	session_type?: "OPEN" | "FIXED";
+	target_duration_minutes?: number | null;
+	is_money_game?: boolean;
+	bet_amount?: number | null;
 };
 
 type PosHomeClientProps = {
@@ -64,6 +72,22 @@ export function PosHomeClient({
 	});
 	const [errorCode, setErrorCode] = useState<string | null>(initialErrorCode);
 	const [isOnline, setIsOnline] = useState(true);
+
+	const [startSessionDialog, setStartSessionDialog] = useState<{
+		isOpen: boolean;
+		tableId: string | null;
+		tableName: string;
+		hourlyRate: number;
+	}>({
+		isOpen: false,
+		tableId: null,
+		tableName: "",
+		hourlyRate: 0,
+	});
+
+	const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+	const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
+	const [topUpOpen, setTopUpOpen] = useState(false);
 
 	// Sync state with props when server data changes (e.g. after revalidatePath)
 	useEffect(() => {
@@ -225,6 +249,17 @@ export function PosHomeClient({
 						Open and manage live pool sessions with large, touch-friendly tiles.
 					</p>
 				</div>
+				<div>
+					<button
+						onClick={() => setCustomerSearchOpen(true)}
+						className="flex items-center gap-2 rounded-xl bg-neutral-800 px-4 py-3 font-semibold text-neutral-200 transition hover:bg-neutral-700 active:scale-95"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+							<path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+						</svg>
+						Customers
+					</button>
+				</div>
 			</div>
 			{errorCode && (
 				<div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
@@ -286,7 +321,12 @@ export function PosHomeClient({
 										router.push(`/pos/${session.id}`);
 									} else {
 										if (isOnline) {
-											openTableAction(table.id);
+											setStartSessionDialog({
+												isOpen: true,
+												tableId: table.id,
+												tableName: table.name,
+												hourlyRate: table.hourly_rate,
+											});
 										} else {
 											void openTableOffline(table, {
 												currentTables: tables,
@@ -359,6 +399,10 @@ export function PosHomeClient({
 												itemTotal={orderItemsTotal}
 												pausedAt={session.paused_at}
 												accumulatedPausedTime={session.accumulated_paused_time}
+												sessionType={session.session_type}
+												targetDurationMinutes={session.target_duration_minutes ?? undefined}
+												isMoneyGame={session.is_money_game}
+												betAmount={session.bet_amount ?? undefined}
 											/>
 										</div>
 									) : (
@@ -398,6 +442,38 @@ export function PosHomeClient({
 					<span className="hidden text-base font-semibold sm:inline">Walk-in</span>
 				</button>
 			</div>
+
+			<StartSessionDialog
+				isOpen={startSessionDialog.isOpen}
+				onClose={() => setStartSessionDialog(prev => ({ ...prev, isOpen: false }))}
+				tableName={startSessionDialog.tableName}
+				hourlyRate={startSessionDialog.hourlyRate}
+				onConfirm={(data) => {
+					if (startSessionDialog.tableId) {
+						openTableAction({
+							poolTableId: startSessionDialog.tableId,
+							...data,
+						});
+						setStartSessionDialog(prev => ({ ...prev, isOpen: false }));
+					}
+				}}
+			/>
+
+			<CustomerSearchDialog
+				isOpen={customerSearchOpen}
+				onClose={() => setCustomerSearchOpen(false)}
+				onSelectCustomer={(customer) => {
+					setSelectedCustomer(customer);
+					setCustomerSearchOpen(false);
+					setTopUpOpen(true);
+				}}
+			/>
+
+			<WalletTopUpDialog
+				isOpen={topUpOpen}
+				onClose={() => setTopUpOpen(false)}
+				customer={selectedCustomer}
+			/>
 		</div>
 	);
 }

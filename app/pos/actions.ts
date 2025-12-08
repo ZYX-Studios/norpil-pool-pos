@@ -5,8 +5,18 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { logAction } from "@/lib/logger";
 
-export async function openTableAction(poolTableId: string) {
+export type OpenTableData = {
+	poolTableId: string;
+	sessionType: "OPEN" | "FIXED";
+	targetDurationMinutes?: number;
+	isMoneyGame: boolean;
+	betAmount?: number;
+	customerName?: string;
+};
+
+export async function openTableAction(data: OpenTableData) {
 	const supabase = createSupabaseServerClient();
+	const { poolTableId, sessionType, targetDurationMinutes, isMoneyGame, betAmount, customerName } = data;
 
 	try {
 		// Find an existing OPEN session for this table (idempotency safeguard)
@@ -31,6 +41,11 @@ export async function openTableAction(poolTableId: string) {
 			.insert({
 				pool_table_id: poolTableId,
 				status: "OPEN",
+				session_type: sessionType,
+				target_duration_minutes: targetDurationMinutes,
+				is_money_game: isMoneyGame,
+				bet_amount: betAmount,
+				customer_name: customerName,
 			})
 			.select("id")
 			.single();
@@ -45,6 +60,7 @@ export async function openTableAction(poolTableId: string) {
 			status: "OPEN",
 		});
 		if (orderErr) {
+
 			throw orderErr;
 		}
 
@@ -54,7 +70,7 @@ export async function openTableAction(poolTableId: string) {
 			actionType: "OPEN_TABLE",
 			entityType: "table_session",
 			entityId: session.id,
-			details: { poolTableId },
+			details: { poolTableId, sessionType, isMoneyGame },
 		});
 
 		redirect(`/pos/${session.id}`);
@@ -257,18 +273,34 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 		}
 
 		const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
-		const graceMinutes = 5;
-		let billedHours = 0;
-		if (elapsedMinutes > graceMinutes) {
-			const extra = elapsedMinutes - graceMinutes;
-			billedHours = Math.ceil(extra / 60);
+		const hourlyRate = session.pool_table?.hourly_rate ?? 0;
+		let tableFee = 0;
+
+		if (session.session_type === 'FIXED' && session.target_duration_minutes) {
+			// Fixed Time Logic
+			const baseFee = (session.target_duration_minutes / 60) * hourlyRate;
+			const excessMinutes = Math.max(0, elapsedMinutes - session.target_duration_minutes);
+			const excessFee = excessMinutes * (hourlyRate / 60);
+			tableFee = baseFee + excessFee;
+		} else {
+			// Open Time Logic (Default)
+			// "exceeds 5 mins... add every 30 mins"
+			if (elapsedMinutes > 5) {
+				const blocks = Math.ceil(elapsedMinutes / 30);
+				tableFee = blocks * 0.5 * hourlyRate;
+			}
 		}
 
-		const hourlyRate = session.pool_table?.hourly_rate ?? 0;
-		const tableFee = Number((billedHours * hourlyRate).toFixed(2));
+		// Money Game Logic
+		if (session.is_money_game && session.bet_amount) {
+			const minimumFee = session.bet_amount * 0.10;
+			tableFee = Math.max(tableFee, minimumFee);
+		}
+
+		tableFee = Number(tableFee.toFixed(2));
 
 		// 3. Add "Table Time" as a fixed order item if there's a fee
-		console.log(`[releaseTable] Fee calc: elapsed=${elapsedMinutes}m, billed=${billedHours}h, rate=${hourlyRate}, fee=${tableFee}`);
+		console.log(`[releaseTable] Fee calc: elapsed=${elapsedMinutes}m, type=${session.session_type}, fee=${tableFee}`);
 
 		if (tableFee > 0 && session.orders?.[0]?.id) {
 			const orderId = session.orders[0].id;

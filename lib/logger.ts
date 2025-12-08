@@ -28,7 +28,8 @@ type ActionType =
     | "CREATE_INVENTORY_ITEM"
     | "UPDATE_INVENTORY_ITEM"
     | "DELETE_INVENTORY_ITEM"
-    | "ADJUST_INVENTORY_ITEM";
+    | "ADJUST_INVENTORY_ITEM"
+    | "WALLET_TOPUP";
 
 interface LogParams {
     actionType: ActionType;

@@ -66,10 +66,18 @@ function formatCurrency(n: number) {
 	}).format(n);
 }
 
-// Compute billed hours for table time using a fixed 5 minute grace window.
-// - No charge for the first 5 minutes.
-// - After that, hours increase in 60-minute blocks with the same grace per hour.
-function computeBilledHours(openedAt: string, nowMs: number, graceMinutes = 5, pausedAt?: string | null, accumulatedPausedTime = 0) {
+// Compute table fee based on session configuration
+function computeTableFee(
+	openedAt: string,
+	nowMs: number,
+	hourlyRate: number,
+	pausedAt?: string | null,
+	accumulatedPausedTime = 0,
+	sessionType: "OPEN" | "FIXED" = "OPEN",
+	targetDurationMinutes?: number,
+	isMoneyGame?: boolean,
+	betAmount?: number
+) {
 	const openedMs = new Date(openedAt).getTime();
 	const accumulated = accumulatedPausedTime * 1000;
 	let elapsedMs = 0;
@@ -81,9 +89,26 @@ function computeBilledHours(openedAt: string, nowMs: number, graceMinutes = 5, p
 	}
 
 	const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
-	if (elapsedMinutes <= graceMinutes) return 0;
-	const extra = elapsedMinutes - graceMinutes;
-	return Math.ceil(extra / 60);
+	let tableFee = 0;
+
+	if (sessionType === "FIXED" && targetDurationMinutes) {
+		const baseFee = (targetDurationMinutes / 60) * hourlyRate;
+		const excessMinutes = Math.max(0, elapsedMinutes - targetDurationMinutes);
+		const excessFee = excessMinutes * (hourlyRate / 60);
+		tableFee = baseFee + excessFee;
+	} else {
+		// Open Time default
+		if (elapsedMinutes > 5) {
+			const blocks = Math.ceil(elapsedMinutes / 30);
+			tableFee = blocks * 0.5 * hourlyRate;
+		}
+	}
+
+	if (isMoneyGame && betAmount) {
+		tableFee = Math.max(tableFee, betAmount * 0.10);
+	}
+
+	return round2(tableFee);
 }
 
 function computeTotals(items: SessionItem[]) {
@@ -91,8 +116,6 @@ function computeTotals(items: SessionItem[]) {
 	let taxTotal = 0;
 
 	for (const item of items) {
-		// For active table sessions, TABLE_TIME is dynamic and not in items.
-		// For released sessions, it's a fixed item and SHOULD be included.
 		const line = item.lineTotal ?? item.unitPrice * item.quantity;
 		subtotal += line;
 		taxTotal += round2(line * item.taxRate);
@@ -118,21 +141,26 @@ export function SessionClient({
 	pausedAt,
 	accumulatedPausedTime = 0,
 	isTableSession = true,
-}: SessionClientProps) {
+	sessionType = "OPEN",
+	targetDurationMinutes,
+	isMoneyGame,
+	betAmount,
+}: SessionClientProps & {
+	sessionType?: "OPEN" | "FIXED";
+	targetDurationMinutes?: number;
+	isMoneyGame?: boolean;
+	betAmount?: number;
+}) {
 	const router = useRouter();
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 	const [items, setItems] = useState<SessionItem[]>(initialItems);
 	const [productList, setProductList] = useState<SessionProduct[]>(products);
-	// Simple category filter for the products grid so staff can quickly narrow the menu on tablets.
 	const [activeCategory, setActiveCategory] = useState<ItemCategory | "ALL">("ALL");
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const [now, setNow] = useState(() => Date.now());
 	const [isOnline, setIsOnline] = useState(true);
 	const [hasQueuedOps, setHasQueuedOps] = useState(false);
-	// When an offline payment is queued for this session, we treat the cart as
-	// logically closed on this device. This prevents accidental extra edits
-	// while we wait for the server to process the queued sale.
 	const [isOfflineClosingQueued, setIsOfflineClosingQueued] = useState(false);
 	const [showReleaseModal, setShowReleaseModal] = useState(false);
 	const [releaseName, setReleaseName] = useState("");
@@ -252,14 +280,21 @@ export function SessionClient({
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
 
 	// We only compute time-based fees on the client after mount to avoid hydration mismatch.
-	// On the server (and initial client render), we assume 0 hours or use the passed props if we wanted to be precise,
-	// but 'now' is the moving target.
-	const billedHours = useMemo(() => {
+	const tableFee = useMemo(() => {
 		if (!isMounted || !isTableSession) return 0;
-		return computeBilledHours(openedAt, now, 5, pausedAt, accumulatedPausedTime);
-	}, [openedAt, now, pausedAt, accumulatedPausedTime, isMounted, isTableSession]);
+		return computeTableFee(
+			openedAt,
+			now,
+			hourlyRate,
+			pausedAt,
+			accumulatedPausedTime,
+			sessionType,
+			targetDurationMinutes,
+			isMoneyGame,
+			betAmount
+		);
+	}, [openedAt, now, hourlyRate, pausedAt, accumulatedPausedTime, isMounted, isTableSession, sessionType, targetDurationMinutes, isMoneyGame, betAmount]);
 
-	const tableFee = useMemo(() => round2(billedHours * hourlyRate), [billedHours, hourlyRate]);
 	const grandTotal = useMemo(() => round2(itemsTotal + tableFee), [itemsTotal, tableFee]);
 
 	// Compute visible products based on the current category filter.
@@ -557,13 +592,18 @@ export function SessionClient({
 							</div>
 						)}
 					</div>
-					{billedHours > 0 && (
+					{tableFee > 0 && (
 						<div className="mt-3 border-t border-dashed border-white/15 pt-2 text-sm">
 							<div className="flex items-center justify-between">
 								<div>
 									<div className="font-medium text-neutral-50">Table time</div>
 									<div className="text-xs text-neutral-400">
-										{billedHours} hour{billedHours > 1 ? "s" : ""} × {formatCurrency(hourlyRate)}
+										{sessionType === 'FIXED' && targetDurationMinutes
+											? `Fixed ${targetDurationMinutes / 60}h + Excess`
+											: isMoneyGame
+												? "Money Game (Min 10%)"
+												: `${formatCurrency(hourlyRate)}/hr`
+										}
 									</div>
 								</div>
 								<div className="w-24 text-right font-medium">
