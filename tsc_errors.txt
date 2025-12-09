@@ -1,0 +1,4 @@
+app/api/reservations/cancel/route.ts(1,30): error TS2307: Cannot find module '@/utils/supabase/server' or its corresponding type declarations.
+app/pos/[sessionId]/PayFormClient.tsx(437,12): error TS2322: Type '"WALLET" | "OTHER" | "CASH" | "GCASH" | "CARD"' is not assignable to type '"OTHER" | "CASH" | "GCASH" | "CARD"'.
+  Type '"WALLET"' is not assignable to type '"OTHER" | "CASH" | "GCASH" | "CARD"'.
+scripts/debug-session.ts(3,20): error TS2307: Cannot find module 'dotenv' or its corresponding type declarations.

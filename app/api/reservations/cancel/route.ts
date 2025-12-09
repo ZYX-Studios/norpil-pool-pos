@@ -1,9 +1,9 @@
-import { createClient } from "@/utils/supabase/server";
+import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { differenceInHours, parseISO } from "date-fns";
 
 export async function POST(request: Request) {
-    const supabase = await createClient();
+    const supabase = createSupabaseServerActionClient();
     const { id } = await request.json();
 
     const { data: { user } } = await supabase.auth.getUser();

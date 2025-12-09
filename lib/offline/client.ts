@@ -22,7 +22,7 @@ export type SyncOperationType = "sale_created" | "order_item_set_quantity" | "se
  */
 export interface SaleCreatedPayload {
 	sessionId: string;
-	method: "CASH" | "GCASH" | "CARD" | "OTHER";
+	method: "CASH" | "GCASH" | "CARD" | "WALLET" | "OTHER";
 	tenderedAmount: number;
 	suggestedAmount: number;
 	capturedAt: string;
