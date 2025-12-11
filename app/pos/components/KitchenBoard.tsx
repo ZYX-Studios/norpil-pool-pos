@@ -57,7 +57,7 @@ export function KitchenBoard() {
                     product:products(name, category)
                 )
             `)
-            .or("status.in.(PREPARING,READY),and(status.eq.OPEN,order_type.eq.MOBILE)")
+            .or("status.in.(PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)")
             .order("created_at", { ascending: true });
 
         if (!error && data) {
@@ -93,12 +93,16 @@ export function KitchenBoard() {
                     schema: "public",
                     table: "orders",
                 },
-                (payload) => {
-                    // Start simple: Refresh everything on any order change
-                    // Optimization: handle INSERT/UPDATE locally
-                    console.log("Realtime event:", payload);
-                    fetchOrders();
-                }
+                () => fetchOrders()
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "order_items",
+                },
+                () => fetchOrders()
             )
             .subscribe((status) => {
                 setIsConnected(status === "SUBSCRIBED");
@@ -136,7 +140,7 @@ export function KitchenBoard() {
     // Grouping
     // We intentionally exclude PAID/SERVED from "New" to avoid resurfacing old orders.
     // If a "Pay First" workflow is needed later, we need a separate logic (e.g. check if items were prepped).
-    const newOrders = orders.filter(o => o.status === "OPEN" || (o.status as any) === "NEW" /* handle potential edge cases */);
+    const newOrders = orders.filter(o => o.status === "OPEN" || o.status === "PAID" || (o.status as any) === "NEW");
     const prepOrders = orders.filter(o => o.status === "PREPARING");
     const readyOrders = orders.filter(o => o.status === "READY");
 
@@ -222,18 +226,46 @@ function OrderCard({ order, onAction, actionLabel }: { order: Order; onAction: (
     // Usually handled by a separate Timer component or interval in parent, but for simple MVP:
     const elapsed = formatDistanceToNow(new Date(order.created_at), { addSuffix: true });
 
+    // Determine Card Style
+    const isAdvance = order.table_label?.startsWith("Advance");
+    const isWalkIn = order.table_label === "Walk-in";
+
+    let borderColor = "border-white/5";
+    let shadowColor = "";
+    let headerBg = "bg-white/5 border-white/5";
+    let titleColor = "text-white";
+
+    if (isAdvance) {
+        borderColor = "border-purple-500/50";
+        shadowColor = "shadow-purple-500/10";
+        headerBg = "bg-purple-500/20 border-purple-500/20";
+        titleColor = "text-purple-300";
+    } else if (isWalkIn) {
+        borderColor = "border-amber-500/50";
+        shadowColor = "shadow-amber-500/10";
+        headerBg = "bg-amber-500/20 border-amber-500/20";
+        titleColor = "text-amber-300";
+    }
+
     return (
-        <div className="bg-neutral-800/50 border border-white/5 rounded-xl p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex justify-between items-start mb-3">
+        <div
+            key={order.id}
+            className={cn(
+                "bg-neutral-800 rounded-xl overflow-hidden border shadow-lg flex flex-col animate-in fade-in slide-in-from-bottom-2",
+                borderColor, shadowColor
+            )}
+        >
+            {/* Header */}
+            <div className={cn("p-3 flex justify-between items-start border-b", headerBg)}>
                 <div>
-                    <div className="font-bold text-lg text-neutral-50">
-                        {order.table_label ? (
-                            <span className="text-emerald-400">{order.table_label}</span>
-                        ) : order.table_session?.pool_table?.name ? (
-                            <span className="text-emerald-400">{order.table_session.pool_table.name}</span>
-                        ) : (
-                            <span className="text-amber-400">Walk-in</span>
-                        )}
+                    <div className="flex items-center space-x-2">
+                        <h3 className={cn("font-bold text-lg", titleColor)}>
+                            {order.table_session?.pool_table?.name || order.table_label || "No Table"}
+                        </h3>
+                        {/* Badge */}
+                        <div className="text-xs font-mono text-neutral-500 bg-neutral-950 px-2 py-1 rounded">
+                            {elapsed}
+                        </div>
                     </div>
                     <div className="text-xs text-neutral-400">
                         {order.table_session?.customer_name || order.profiles?.full_name || "Guest"}

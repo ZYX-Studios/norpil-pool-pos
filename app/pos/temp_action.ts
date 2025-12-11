@@ -1,6 +1,10 @@
+"use server";
+
+import { createSupabaseServerActionClient } from "@/lib/supabase/server"; // Use Action Client for server actions!
+import { revalidatePath } from "next/cache";
 
 export async function markOrderServedAction(orderId: string) {
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseServerActionClient();
 
     // 1. Get all items for this order
     const { data: items, error: fetchError } = await supabase

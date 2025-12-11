@@ -10,10 +10,11 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
     useEffect(() => {
         // Initial fetch
         const fetchCount = async () => {
+            // Match KDS Filter Logic: PREPARING, READY, PAID, or (OPEN + MOBILE)
             const { count } = await supabase
                 .from("orders")
                 .select("*", { count: "exact", head: true })
-                .in("status", ["PREPARING", "READY"]);
+                .or("status.in.(PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)");
 
             setCount(count || 0);
         };
@@ -30,9 +31,16 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
                     schema: "public",
                     table: "orders",
                 },
-                (payload) => {
-                    fetchCount();
-                }
+                () => fetchCount()
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "order_items",
+                },
+                () => fetchCount()
             )
             .subscribe();
 

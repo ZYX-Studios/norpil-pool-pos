@@ -3,92 +3,148 @@
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
+// Define strict types
 type CartItem = {
     productId: string;
     quantity: number;
-    price: number; // Passed from client for calculation, but we should verify on server ideally. 
-    // For MVP, we'll trust the price or fetch it. Let's fetch it to be safe.
+    price: number;
 };
 
 type PaymentMethod = "WALLET" | "CHARGE_TO_TABLE";
 
-export async function placeOrderAction(items: CartItem[], tableIdentifier?: string, method: PaymentMethod = "WALLET") {
+type OrderResult =
+    | { success: true; orderId: string }
+    | { success: false; error: string };
+
+export async function placeOrderAction(
+    items: CartItem[],
+    tableIdentifier?: string,
+    method: PaymentMethod = "WALLET"
+): Promise<OrderResult> {
     const supabase = createSupabaseServerActionClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        return { error: "You must be logged in to place an order." };
+        return { success: false, error: "You must be logged in to place an order." };
     }
 
     if (!items || items.length === 0) {
-        return { error: "Cart is empty." };
+        return { success: false, error: "Cart is empty." };
     }
 
     // 1. Fetch products to verify prices and calculate total
+    // Security: Always fetch fresh prices from DB, never trust client prices
     const productIds = items.map(i => i.productId);
     const { data: products, error: productsError } = await supabase
         .from("products")
-        .select("id, price, name, category")
+        .select("id, price, name, category, is_active")
         .in("id", productIds);
 
     if (productsError || !products) {
-        return { error: "Failed to fetch product details." };
+        return { success: false, error: "Failed to fetch product details." };
     }
 
     let subtotal = 0;
-    const verifiedItems = items.map(item => {
+    const verifiedItems = [];
+
+    for (const item of items) {
         const product = products.find(p => p.id === item.productId);
-        if (!product) throw new Error(`Product not found: ${item.productId}`);
+
+        if (!product) {
+            return { success: false, error: `Product not found: ${item.productId}` };
+        }
+
+        if (!product.is_active) {
+            return { success: false, error: `Product '${product.name}' is currently unavailable.` };
+        }
+
         const lineTotal = product.price * item.quantity;
         subtotal += lineTotal;
-        return {
+
+        verifiedItems.push({
             ...item,
-            price: product.price,
+            price: product.price, // Override with authoritative price
             lineTotal
-        };
-    });
+        });
+    }
 
     let activeSessionId: string | null = null;
-    let finalStatus = "PAID";
-    let finalOrderType = "MOBILE"; // Default
+    let finalTableLabel: string | null = null;
+    let finalStatus = "PAID"; // Default for Wallet
 
-    // 2. Resolve Table Session if needed
-    if (tableIdentifier) {
-        // Normalize: "1" -> "Table 1", "Table 1" -> "Table 1"
-        // Try exact match first, then with "Table " prefix
-        const possibleNames = [tableIdentifier, `Table ${tableIdentifier}`];
+    // 2. KDS Filter Logic
+    // ... (comments)
 
+    // 3. Resolve Table & Session
+    const isAdvanceOrder = tableIdentifier?.startsWith("ADVANCE::");
+    const isWalkIn = tableIdentifier === "WALK_IN";
+
+    if (isAdvanceOrder) {
+        // Advance Order Logic
+        if (method === "CHARGE_TO_TABLE") {
+            return { success: false, error: "Advance orders must be paid via Wallet." };
+        }
+        // Extract time/note from identifier "ADVANCE::Arriving in 30 mins"
+        finalTableLabel = tableIdentifier!.replace("ADVANCE::", "Advance: ");
+        // No session ID for advance orders
+    } else if (isWalkIn) {
+        // Walk-in Logic
+        if (method === "CHARGE_TO_TABLE") {
+            return { success: false, error: "Walk-in orders must be paid via Wallet." };
+        }
+        finalTableLabel = "Walk-in";
+    } else if (tableIdentifier) {
+        // Standard Dine-in Logic
+        // Normalize: "1" -> "Table 1", "table 1" -> "Table 1"
+        const normalizedInput = tableIdentifier.toLowerCase().replace(/\s+/g, '');
+
+        // Exact match first (try "Table 1" then "1")
+        // We fetch all non-deleted tables to match
         const { data: tables } = await supabase
             .from("pool_tables")
             .select("id, name")
-            .in("name", possibleNames)
-            .limit(1);
+            .is("deleted_at", null);
 
-        const table = tables?.[0];
+        const matchedTable = tables?.find(t => {
+            const tNorm = t.name.toLowerCase().replace(/\s+/g, '');
+            return tNorm === normalizedInput || tNorm === `table${normalizedInput}`;
+        });
 
-        if (table) {
-            // Check for OPEN session
-            const { data: session } = await supabase
-                .from("table_sessions")
-                .select("id")
-                .eq("pool_table_id", table.id)
-                .eq("status", "OPEN")
-                .single();
-
-            if (session) {
-                activeSessionId = session.id;
-            }
+        if (!matchedTable) {
+            return { success: false, error: `Table "${tableIdentifier}" not found.` };
         }
+
+        finalTableLabel = matchedTable.name;
+
+        // Find Active Session
+        const { data: session } = await supabase
+            .from("table_sessions")
+            .select("id, status")
+            .eq("pool_table_id", matchedTable.id) // Corrected column name
+            .eq("status", "OPEN")
+            .maybeSingle(); // Use maybeSingle as it might not exist
+
+        if (session) {
+            activeSessionId = session.id;
+        } else {
+            // If "Charge to Table", session is MANDATORY
+            if (method === "CHARGE_TO_TABLE") {
+                return { success: false, error: `${matchedTable.name} has no active session. Ask staff to open it.` };
+            }
+            // If Wallet, allow generic order linked to table (optional, but good for tracking)
+        }
+    } else if (method === "CHARGE_TO_TABLE") {
+        return { success: false, error: "No table specified for table charge." };
     }
 
     // 3. Handle Payment Method Logic
     if (method === "CHARGE_TO_TABLE") {
+        // Redundant check, but safe
         if (!activeSessionId) {
-            return { error: "No active session found for this table. Please ask staff to open the table or pay upfront." };
+            return { success: false, error: "Unable to charge to table: No active session found." };
         }
         finalStatus = "OPEN";
-        finalOrderType = "SESSION"; // It acts like a session order now
-        // No wallet deduction
+        // We do NOT deduct wallet.
     } else {
         // WALLET PAYMENT
         // Check Wallet Balance
@@ -99,11 +155,11 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
             .single();
 
         if (walletError || !wallet) {
-            return { error: "Wallet not found." };
+            return { success: false, error: "Wallet not found. Please contact support." };
         }
 
         if (wallet.balance < subtotal) {
-            return { error: "Insufficient wallet balance." };
+            return { success: false, error: `Insufficient wallet balance. Needed: ₱${subtotal}, Available: ₱${wallet.balance}` };
         }
 
         // Deduct Wallet
@@ -113,7 +169,7 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
             .eq("id", wallet.id);
 
         if (updateError) {
-            return { error: "Failed to process payment." };
+            return { success: false, error: "Failed to process payment." };
         }
 
         // Record Transaction
@@ -121,11 +177,10 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
             wallet_id: wallet.id,
             amount: -subtotal,
             type: "PAYMENT",
-            description: "Mobile Order"
+            description: `Mobile Order ${tableIdentifier ? `(Table ${tableIdentifier})` : ''}`
         });
 
-        // Ensure paid record
-        // We do this later
+        // status remains "PAID"
     }
 
     // 4. Create Order
@@ -136,26 +191,18 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
             status: finalStatus,
             subtotal: subtotal,
             total: subtotal,
-            order_type: "MOBILE", // Keep as MOBILE to distinguish source, even if charged to table?
-            // User plan said: "Order type: SESSION (POS-initiated) vs MOBILE".
-            // If charged to table, should it show on KDS? YES.
-            // If I set to SESSION, does it break KDS filter?
-            // KDS filters: PAID, PREPARING, READY.
-            // If status is OPEN, KDS usually ignores it (POS orders are OPEN).
-            // BUT User wants Mobile Orders to go to KDS.
-            // So we should keep order_type = MOBILE (or verify KDS query).
-            // KDS Query: .in("status", ["PAID", "PREPARING", "READY"])
-            // !! PROBLEM: If we set status to OPEN (charged to table), KDS won't see it!
-            // We need to update KDS to include OPEN orders IF they are type MOBILE.
-            table_session_id: activeSessionId, // Link if exists
-            table_label: tableIdentifier || null,
+            order_type: "MOBILE", // ALWAYS MOBILE to trigger KDS visibility rule for OPEN orders
+            table_session_id: activeSessionId,
+            table_label: finalTableLabel || (tableIdentifier ? (tableIdentifier.startsWith('Table') ? tableIdentifier : `Table ${tableIdentifier}`) : null),
         })
         .select()
         .single();
 
     if (orderError || !order) {
         console.error("Order creation failed", orderError);
-        return { error: "Order creation failed." };
+        // Refund if wallet was charged? Ideally use transaction, but Supabase HTTP API doesn't support easy transactions yet without RPC.
+        // For now, this is a risk edge case.
+        return { success: false, error: "Order creation database failed." };
     }
 
     // 5. Create Items
@@ -167,9 +214,14 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
         line_total: item.lineTotal
     }));
 
-    await supabase.from("order_items").insert(orderItemsData);
+    const { error: itemsError } = await supabase.from("order_items").insert(orderItemsData);
 
-    // 6. Record Payment (Only for Wallet)
+    if (itemsError) {
+        console.error("Order items creation failed", itemsError);
+        return { success: false, error: "Failed to add items to order." };
+    }
+
+    // 6. Record Payment Record (Only for Wallet)
     if (method === "WALLET") {
         await supabase.from("payments").insert({
             order_id: order.id,
@@ -181,3 +233,4 @@ export async function placeOrderAction(items: CartItem[], tableIdentifier?: stri
 
     return { success: true, orderId: order.id };
 }
+
