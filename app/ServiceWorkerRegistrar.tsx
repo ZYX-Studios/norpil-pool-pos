@@ -9,19 +9,15 @@ import { useEffect } from "react";
  */
 export function ServiceWorkerRegistrar() {
 	useEffect(() => {
-		// Service workers are only available in secure contexts (https or localhost).
-		if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-			return;
-		}
-
-		// We keep the registration path simple: the file lives in /public/sw.js
-		// so it is served from the site root as /sw.js.
-		navigator.serviceWorker
-			.register("/sw.js")
-			.catch(() => {
-				// In case of any registration error, we do not block the POS.
-				// Offline features simply will not be available until it succeeds.
+		// We are removing offline support. To ensure no clients are stuck with
+		// an old service worker, we explicitly unregister any that we find.
+		if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+			navigator.serviceWorker.getRegistrations().then((registrations) => {
+				for (const registration of registrations) {
+					registration.unregister();
+				}
 			});
+		}
 	}, []);
 
 	return null;

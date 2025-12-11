@@ -29,7 +29,7 @@ async function getData() {
 
 	try {
 		const [{ data: tables, error: tablesErr }, { data: sessions, error: sessionsErr }] = await Promise.all([
-			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").is("deleted_at", null).order("name", { ascending: true }),
+			supabase.from("pool_tables").select("id, name, is_active, hourly_rate").is("deleted_at", null).eq("is_active", true).order("name", { ascending: true }),
 			supabase
 				.from("table_sessions")
 				.select("id, pool_table_id, opened_at, override_hourly_rate, customer_name, session_type, target_duration_minutes, is_money_game, bet_amount")
@@ -47,7 +47,7 @@ async function getData() {
 					.from("orders")
 					.select("id, table_session_id, subtotal, tax_total, service_charge, discount_amount")
 					.in("table_session_id", sessionIds)
-					.eq("status", "OPEN")
+					.in("status", ["OPEN", "PREPARING", "READY", "SERVED"])
 				: { data: [] as any[], error: null as any };
 
 		if (ordersErr) throw ordersErr;

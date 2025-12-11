@@ -6,12 +6,6 @@ import Link from "next/link";
 import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import {
-	getProducts as getOfflineProducts,
-	saveProducts as saveOfflineProducts,
-	queueOrderItemSetQuantity,
-	saveSessionSnapshot,
-} from "@/lib/offline/client";
 import { updateSessionCustomerName, pauseSession, resumeSession, releaseTable } from "../actions";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
@@ -23,6 +17,7 @@ type SessionItem = {
 	category: ItemCategory;
 	unitPrice: number;
 	quantity: number;
+	servedQuantity: number;
 	lineTotal: number;
 	taxRate: number;
 };
@@ -130,31 +125,38 @@ function computeTotals(items: SessionItem[]) {
 	return { subtotal, taxTotal, itemsTotal };
 }
 
-export function SessionClient({
-	sessionId,
-	tableName,
-	openedAt,
-	hourlyRate,
-	orderId,
-	initialItems,
-	products,
-	customerName,
-	errorCode,
-	pausedAt,
-	accumulatedPausedTime = 0,
-	isTableSession = true,
-	sessionType = "OPEN",
-	targetDurationMinutes,
-	isMoneyGame,
-	betAmount,
-	isPrepaid,
-}: SessionClientProps & {
+export function SessionClient(props: SessionClientProps & {
 	sessionType?: "OPEN" | "FIXED";
 	targetDurationMinutes?: number;
 	isMoneyGame?: boolean;
 	betAmount?: number;
 	isPrepaid?: boolean;
+
+	orderStatus?: string;
+	lastSubmittedItemCount?: number;
 }) {
+	const {
+		sessionId,
+		tableName,
+		openedAt,
+		hourlyRate,
+		orderId,
+		initialItems,
+		products,
+		customerName,
+		errorCode,
+		pausedAt,
+		accumulatedPausedTime,
+		isTableSession,
+		sessionType,
+		targetDurationMinutes,
+		isMoneyGame,
+		betAmount,
+		isPrepaid,
+
+		orderStatus = "OPEN",
+		lastSubmittedItemCount = 0,
+	} = props;
 	// ... component state ...
 	const router = useRouter();
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -164,9 +166,19 @@ export function SessionClient({
 	const [stockWarning, setStockWarning] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 	const [now, setNow] = useState(() => Date.now());
-	const [isOnline, setIsOnline] = useState(true);
-	const [hasQueuedOps, setHasQueuedOps] = useState(false);
-	const [isOfflineClosingQueued, setIsOfflineClosingQueued] = useState(false);
+
+	// Track submitted count locally for optimistic updates, syncing with server prop
+	const [submittedCount, setSubmittedCount] = useState(lastSubmittedItemCount);
+	useEffect(() => {
+		setSubmittedCount(lastSubmittedItemCount);
+	}, [lastSubmittedItemCount]);
+
+	// Derived total quantity (sum of all items) to handle fragmented rows or duplicates correctly
+	const totalQuantity = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
+
+	useEffect(() => {
+	}, [totalQuantity, submittedCount, items.length, orderStatus]);
+
 	const [showReleaseModal, setShowReleaseModal] = useState(false);
 	const [releaseName, setReleaseName] = useState("");
 	const [isMounted, setIsMounted] = useState(false);
@@ -181,98 +193,7 @@ export function SessionClient({
 		return () => clearInterval(id);
 	}, [pausedAt]);
 
-	// ... offline sync effects ...
-	// Hydrate products from the offline cache when available and keep the
-	// cache in sync with the latest products passed from the server.
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			try {
-				const offline = await getOfflineProducts();
-				if (!cancelled && offline.length > 0) {
-					setProductList(
-						offline.map((p) => ({
-							id: p.id,
-							name: p.name,
-							category: p.category as ItemCategory,
-							price: p.price,
-							taxRate: p.taxRate,
-							stock: typeof p.stock === "number" ? p.stock : undefined,
-						})),
-					);
-				}
 
-				if (products.length > 0) {
-					await saveOfflineProducts(
-						products.map((p) => ({
-							id: p.id,
-							name: p.name,
-							category: p.category,
-							price: p.price,
-							taxRate: p.taxRate,
-							stock: typeof p.stock === "number" ? p.stock : null,
-						})),
-					);
-				}
-			} catch {
-			}
-		})();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [products]);
-
-	// Track basic online/offline status for this session so we can explain that
-	// cart changes may be queued for later sync.
-	useEffect(() => {
-		if (typeof window === "undefined") return;
-
-		function handleOnline() {
-			setIsOnline(true);
-		}
-
-		function handleOffline() {
-			setIsOnline(false);
-		}
-
-		window.addEventListener("online", handleOnline);
-		window.addEventListener("offline", handleOffline);
-
-		return () => {
-			window.removeEventListener("online", handleOnline);
-			window.removeEventListener("offline", handleOffline);
-		};
-	}, []);
-
-	// Persist a lightweight session snapshot
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			try {
-				await saveSessionSnapshot({
-					sessionId,
-					tableName,
-					openedAt,
-					hourlyRate,
-					orderId,
-					items: items.map((i) => ({
-						productId: i.productId,
-						name: i.name,
-						category: i.category,
-						unitPrice: i.unitPrice,
-						quantity: i.quantity,
-						lineTotal: i.lineTotal,
-						taxRate: i.taxRate,
-					})),
-				});
-			} catch {
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [sessionId, tableName, openedAt, hourlyRate, orderId, items]);
 
 	const { subtotal, taxTotal, itemsTotal } = useMemo(() => computeTotals(items), [items]);
 
@@ -316,9 +237,6 @@ export function SessionClient({
 
 	function handleAddProduct(productId: string) {
 		// ... existing handleAddProduct ...
-		if (isOfflineClosingQueued) {
-			return;
-		}
 		const product = productList.find((p) => p.id === productId);
 		if (!product) return;
 
@@ -348,6 +266,7 @@ export function SessionClient({
 					category: product.category,
 					unitPrice: product.price,
 					quantity: targetQty,
+					servedQuantity: 0,
 					lineTotal: round2(product.price * targetQty),
 					taxRate: product.taxRate,
 				},
@@ -355,18 +274,21 @@ export function SessionClient({
 		});
 
 		startTransition(() => {
-			void syncAddItem(orderId, productId, targetQty, supabase, () => setHasQueuedOps(true));
+			void syncAddItem(orderId, productId, targetQty, supabase);
 		});
 	}
 
 	function handleChangeQuantity(productId: string, nextQty: number) {
 		// ... existing handleChangeQuantity ...
-		if (isOfflineClosingQueued) {
-			return;
-		}
 		setItems((prev) => {
 			const existing = prev.find((i) => i.productId === productId);
 			if (!existing) return prev;
+
+			// Protection: Cannot reduce below served quantity
+			if (nextQty < existing.servedQuantity) {
+				return prev;
+			}
+
 			if (nextQty <= 0) {
 				return prev.filter((i) => i.productId !== productId);
 			}
@@ -378,7 +300,7 @@ export function SessionClient({
 		});
 
 		startTransition(() => {
-			void syncUpdateQuantity(orderId, productId, nextQty, supabase, () => setHasQueuedOps(true));
+			void syncUpdateQuantity(orderId, productId, nextQty, supabase);
 		});
 	}
 
@@ -528,18 +450,6 @@ export function SessionClient({
 							{isPending && (
 								<span className="text-[11px] text-neutral-400">Syncing…</span>
 							)}
-							{(!isOnline || hasQueuedOps) && (
-								<span className="text-[11px] text-amber-300">
-									{isOnline
-										? "Offline changes will sync automatically."
-										: "Offline – cart changes are queued and will sync when back online."}
-								</span>
-							)}
-							{isOfflineClosingQueued && (
-								<span className="text-[11px] text-emerald-300">
-									Offline payment queued – cart edits are paused until the server confirms closure.
-								</span>
-							)}
 						</div>
 					</div>
 					{stockWarning && (
@@ -564,7 +474,11 @@ export function SessionClient({
 									<button
 										type="button"
 										onClick={() => handleChangeQuantity(i.productId, i.quantity - 1)}
-										className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-900 text-base font-semibold text-neutral-50 shadow-sm shadow-black/40 transition hover:bg-neutral-50 hover:text-neutral-900 active:scale-95"
+										disabled={i.quantity <= i.servedQuantity}
+										className={`flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-neutral-900 text-base font-semibold shadow-sm shadow-black/40 transition active:scale-95 ${i.quantity <= i.servedQuantity
+											? "text-neutral-600 cursor-not-allowed border-neutral-800"
+											: "text-neutral-50 hover:bg-neutral-50 hover:text-neutral-900"
+											}`}
 									>
 										-
 									</button>
@@ -641,15 +555,58 @@ export function SessionClient({
 							<span>{formatCurrency(grandTotal)}</span>
 						</div>
 					</div>
+
+					{/* Send to Kitchen Action */}
+					{/* 
+						Smart Send Button:
+						- Enabled if there are items AND (status is OPEN OR there are new items to send).
+						- We filter out TABLE_TIME from the count strictly speaking, but for now raw length is fine 
+						  as long as we track it consistently. Actually, let's just use raw items length.
+					*/}
+					<button
+						disabled={totalQuantity <= submittedCount || items.length === 0}
+						onClick={() => {
+							import("../actions").then(async ({ sendOrderToKitchen }) => {
+								const res = await sendOrderToKitchen(sessionId);
+								if (res.success) {
+									setSubmittedCount(totalQuantity); // Optimistic update
+									router.refresh();
+									// Simple toast/alert for now
+									const btn = document.getElementById('kitchen-btn');
+									if (btn) {
+										const originalText = btn.innerText;
+										btn.innerText = "Sent!";
+										setTimeout(() => btn.innerText = "Send Order to Kitchen", 2000);
+									}
+								} else {
+									alert("Failed to send: " + res.error);
+								}
+							});
+						}}
+						id="kitchen-btn"
+						className={`w-full flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-bold transition-all ${(totalQuantity <= submittedCount || items.length === 0)
+							? "bg-neutral-800 border-neutral-700 text-neutral-500 cursor-not-allowed"
+							: "bg-blue-600/20 border-blue-500/30 text-blue-400 hover:bg-blue-600/30 active:scale-[0.98]"
+							}`}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+							<path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" />
+						</svg>
+						{(totalQuantity > submittedCount)
+							? (orderStatus === 'SERVED' ? "Send New Items" : "Send Order to Kitchen")
+							: (orderStatus === 'PREPARING' ? "Preparing..." :
+								orderStatus === 'READY' ? "Order Ready" :
+									items.length === 0 ? "Add Items to Start" : "Order Sent")
+						}
+					</button>
 				</div>
 
 				<PayFormClient
 					sessionId={sessionId}
 					suggestedAmount={grandTotal}
 					errorCode={errorCode}
-					onOfflineQueued={() => setIsOfflineClosingQueued(true)}
 				/>
-			</section>
+			</section >
 
 			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
 				<div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -724,7 +681,7 @@ export function SessionClient({
 					))}
 				</div>
 			</section>
-		</div>
+		</div >
 	);
 }
 
@@ -736,7 +693,6 @@ async function syncAddItem(
 	productId: string,
 	targetQty: number,
 	supabase: ReturnType<typeof createSupabaseBrowserClient>,
-	onQueued?: () => void,
 ) {
 	try {
 		// Find existing line for this order + product.
@@ -772,13 +728,8 @@ async function syncAddItem(
 			});
 		}
 	} catch (error) {
-		console.error("Failed to sync add item, queueing offline op", error);
-		await queueOrderItemSetQuantity({
-			orderId,
-			productId,
-			nextQty: targetQty,
-		});
-		if (onQueued) onQueued();
+		console.error("Failed to sync add item", error);
+		alert("Failed to add item. Check connection.");
 	}
 }
 
@@ -790,7 +741,6 @@ async function syncUpdateQuantity(
 	productId: string,
 	nextQty: number,
 	supabase: ReturnType<typeof createSupabaseBrowserClient>,
-	onQueued?: () => void,
 ) {
 	try {
 		const { data: line } = await supabase
@@ -815,12 +765,7 @@ async function syncUpdateQuantity(
 			.update({ quantity: nextQty, line_total: lineTotal })
 			.eq("id", line.id);
 	} catch (error) {
-		console.error("Failed to sync quantity change, queueing offline op", error);
-		await queueOrderItemSetQuantity({
-			orderId,
-			productId,
-			nextQty,
-		});
-		if (onQueued) onQueued();
+		console.error("Failed to sync quantity change", error);
+		alert("Failed to update quantity. Check connection.");
 	}
 }

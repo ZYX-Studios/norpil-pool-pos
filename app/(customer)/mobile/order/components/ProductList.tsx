@@ -16,9 +16,12 @@ type ProductListProps = {
 };
 
 export function ProductList({ products, onAdd }: ProductListProps) {
-    const [activeCategory, setActiveCategory] = useState("FOOD");
+    // Derive unique categories from products, sorted alphabetically
+    const categories = Array.from(new Set(products.map(p => p.category))).sort();
 
-    const categories = ["FOOD", "DRINK", "OTHER"];
+    // Default to first category if available
+    const [activeCategory, setActiveCategory] = useState(categories[0] || "FOOD");
+
     const filteredProducts = products.filter(p => p.category === activeCategory);
 
     return (

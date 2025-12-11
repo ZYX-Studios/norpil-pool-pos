@@ -49,7 +49,9 @@ export async function closeSessionAndRecordPayment(
 
 	// If the order is already paid or closed, we treat this as a no-op so that
 	// replayed operations do not double-close the session.
-	if (order.status && order.status !== "OPEN") {
+	// We allow active flow statuses (OPEN, PREPARING, READY, SERVED).
+	const activeStatuses = ["OPEN", "PREPARING", "READY", "SERVED"];
+	if (order.status && !activeStatuses.includes(order.status)) {
 		return;
 	}
 

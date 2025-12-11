@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-12-09T16:05:39.419Z",
+  "type": "lookup",
+  "sessionId": "90cef856-0626-4ab1-ab59-c43305f4a604",
+  "orderId": "e4d5e510-db94-4d4c-b8d0-123fbb861b4c",
+  "status": "PREPARING"
+}
+{
+  "currentItemCount": 5,
+  "lastSubmitted": 4
+}
+{
+  "success": true
+}

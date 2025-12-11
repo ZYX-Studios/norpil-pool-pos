@@ -4,15 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { payOrderFormAction } from "./actions";
 import { processPaymentCode } from "../wallet-actions";
-import { queueSaleCreated } from "@/lib/offline/client";
+
 
 type PayFormClientProps = {
 	sessionId: string;
 	suggestedAmount: number;
 	errorCode?: string;
-	// Optional callback used by the session client to mark that an offline
-	// payment has been queued. This lets the cart freeze further edits locally.
-	onOfflineQueued?: () => void;
 };
 
 // Simple client-side payment form with a tablet-friendly keypad.
@@ -22,7 +19,6 @@ export function PayFormClient({
 	sessionId,
 	suggestedAmount,
 	errorCode,
-	onOfflineQueued,
 }: PayFormClientProps) {
 	const formRef = useRef<HTMLFormElement | null>(null);
 	const [amount, setAmount] = useState(() => Number(suggestedAmount).toFixed(2));
@@ -32,8 +28,6 @@ export function PayFormClient({
 	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "WALLET" | "OTHER">("CASH");
 	const [walletCode, setWalletCode] = useState("");
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const [isOnline, setIsOnline] = useState(true);
-	const [offlineInfo, setOfflineInfo] = useState<string | null>(null);
 	// We only render portal-based overlays once the component is mounted in the browser.
 	const [isMounted, setIsMounted] = useState(false);
 
@@ -101,26 +95,7 @@ export function PayFormClient({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [open, handleKeyPress]);
 
-	// Track basic connectivity so we can prevent submitting while offline.
-	useEffect(() => {
-		if (typeof window === "undefined") return;
 
-		function handleOnline() {
-			setIsOnline(true);
-		}
-
-		function handleOffline() {
-			setIsOnline(false);
-		}
-
-		window.addEventListener("online", handleOnline);
-		window.addEventListener("offline", handleOffline);
-
-		return () => {
-			window.removeEventListener("online", handleOnline);
-			window.removeEventListener("offline", handleOffline);
-		};
-	}, []);
 
 	// Mark that we are now safely running in the browser so portals can attach to document.body.
 	useEffect(() => {
@@ -150,11 +125,7 @@ export function PayFormClient({
 			<p className="mb-3 text-xs sm:text-sm text-neutral-200">
 				Choose method and confirm the cash received to close this table.
 			</p>
-			{offlineInfo && (
-				<div className="mb-3 rounded border border-amber-400/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-					{offlineInfo}
-				</div>
-			)}
+
 			{(errorCode === "amount" || validationError) && (
 				<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
 					{validationError || "Amount must be greater than zero."}
@@ -401,52 +372,30 @@ export function PayFormClient({
 										}
 										setValidationError(null);
 
-										if (isOnline) {
-											// For online flow we programmatically submit the original form.
-											// Using requestSubmit keeps the browser's native form handling.
-											if (method === "WALLET") {
-												setConfirmOpen(false);
-												// Handle Wallet Payment Manually
-												try {
-													const res = await processPaymentCode(sessionId, walletCode, suggestedAmount);
-													if (res.success) {
-														// Redirect handled in server action? No, it returns result.
-														// We need to redirect manually or rely on `processPaymentCode` doing it?
-														// `payOrderAction` redirects. 
-														// `processPaymentCode` returns object.
-														// We should reload to show closed state or redirect to Home.
-														window.location.href = "/pos";
-													} else {
-														setValidationError(res.error || "Wallet payment failed");
-													}
-												} catch (err: any) {
-													setValidationError(err.message || "An error occurred");
+										// For online flow we programmatically submit the original form.
+										// Using requestSubmit keeps the browser's native form handling.
+										if (method === "WALLET") {
+											setConfirmOpen(false);
+											// Handle Wallet Payment Manually
+											try {
+												const res = await processPaymentCode(sessionId, walletCode, suggestedAmount);
+												if (res.success) {
+													// Redirect handled in server action? No, it returns result.
+													// We need to redirect manually or rely on `processPaymentCode` doing it?
+													// `payOrderAction` redirects. 
+													// `processPaymentCode` returns object.
+													// We should reload to show closed state or redirect to Home.
+													window.location.href = "/pos";
+												} else {
+													setValidationError(res.error || "Wallet payment failed");
 												}
-											} else {
-												formRef.current?.requestSubmit();
+											} catch (err: any) {
+												setValidationError(err.message || "An error occurred");
 											}
-											return;
+										} else {
+											formRef.current?.requestSubmit();
 										}
-
-										// When offline we queue a sale_created operation instead of
-										// calling the server action. This lets the POS close the
-										// table locally and sync the payment when back online.
-										setConfirmOpen(false);
-										await queueSaleCreated({
-											sessionId,
-											method,
-											tenderedAmount: parsedAmount,
-											suggestedAmount,
-											capturedAt: new Date().toISOString(),
-										});
-										setOfflineInfo(
-											"Payment queued while offline. The session will be finalized on the server once the connection is restored.",
-										);
-										// Let the parent know that a closing payment has been queued
-										// so it can lock the cart UI to avoid double-charging.
-										if (onOfflineQueued) {
-											onOfflineQueued();
-										}
+										return;
 									}}
 									className="rounded-full bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-medium text-neutral-900 hover:bg-emerald-400 active:scale-[0.99] disabled:cursor-not-allowed"
 								>

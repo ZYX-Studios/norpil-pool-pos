@@ -15,7 +15,11 @@ type Product = {
     category: string;
 };
 
+import { useSearchParams } from "next/navigation";
+
 export default function OrderPageClient({ products }: { products: Product[] }) {
+    const searchParams = useSearchParams();
+    const tableIdentifier = searchParams.get("table") || undefined;
     const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
 
     function addToCart(product: Product) {
@@ -45,10 +49,15 @@ export default function OrderPageClient({ products }: { products: Product[] }) {
             <header>
                 <h1 className="text-2xl font-bold text-neutral-50">Order Food & Drinks</h1>
                 <p className="text-neutral-400">Select items to add to your order.</p>
+                {tableIdentifier && (
+                    <div className="mt-2 inline-block rounded-lg bg-emerald-500/20 px-3 py-1 text-sm font-medium text-emerald-400">
+                        Ordering for: {tableIdentifier.startsWith('Table') ? tableIdentifier : `Table ${tableIdentifier}`}
+                    </div>
+                )}
             </header>
 
             <ProductList products={products} onAdd={addToCart} />
-            <CartSheet items={cart} onRemove={removeFromCart} onClear={clearCart} />
+            <CartSheet items={cart} onRemove={removeFromCart} onClear={clearCart} tableIdentifier={tableIdentifier} />
         </div>
     );
 }

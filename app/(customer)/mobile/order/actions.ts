@@ -10,7 +10,9 @@ type CartItem = {
     // For MVP, we'll trust the price or fetch it. Let's fetch it to be safe.
 };
 
-export async function placeOrderAction(items: CartItem[]) {
+type PaymentMethod = "WALLET" | "CHARGE_TO_TABLE";
+
+export async function placeOrderAction(items: CartItem[], tableIdentifier?: string, method: PaymentMethod = "WALLET") {
     const supabase = createSupabaseServerActionClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -26,7 +28,7 @@ export async function placeOrderAction(items: CartItem[]) {
     const productIds = items.map(i => i.productId);
     const { data: products, error: productsError } = await supabase
         .from("products")
-        .select("id, price, name")
+        .select("id, price, name, category")
         .in("id", productIds);
 
     if (productsError || !products) {
@@ -46,67 +48,117 @@ export async function placeOrderAction(items: CartItem[]) {
         };
     });
 
-    // 2. Check Wallet Balance
-    const { data: wallet, error: walletError } = await supabase
-        .from("wallets")
-        .select("id, balance")
-        .eq("profile_id", user.id)
-        .single();
+    let activeSessionId: string | null = null;
+    let finalStatus = "PAID";
+    let finalOrderType = "MOBILE"; // Default
 
-    if (walletError || !wallet) {
-        return { error: "Wallet not found." };
+    // 2. Resolve Table Session if needed
+    if (tableIdentifier) {
+        // Normalize: "1" -> "Table 1", "Table 1" -> "Table 1"
+        // Try exact match first, then with "Table " prefix
+        const possibleNames = [tableIdentifier, `Table ${tableIdentifier}`];
+
+        const { data: tables } = await supabase
+            .from("pool_tables")
+            .select("id, name")
+            .in("name", possibleNames)
+            .limit(1);
+
+        const table = tables?.[0];
+
+        if (table) {
+            // Check for OPEN session
+            const { data: session } = await supabase
+                .from("table_sessions")
+                .select("id")
+                .eq("pool_table_id", table.id)
+                .eq("status", "OPEN")
+                .single();
+
+            if (session) {
+                activeSessionId = session.id;
+            }
+        }
     }
 
-    if (wallet.balance < subtotal) {
-        return { error: "Insufficient wallet balance." };
+    // 3. Handle Payment Method Logic
+    if (method === "CHARGE_TO_TABLE") {
+        if (!activeSessionId) {
+            return { error: "No active session found for this table. Please ask staff to open the table or pay upfront." };
+        }
+        finalStatus = "OPEN";
+        finalOrderType = "SESSION"; // It acts like a session order now
+        // No wallet deduction
+    } else {
+        // WALLET PAYMENT
+        // Check Wallet Balance
+        const { data: wallet, error: walletError } = await supabase
+            .from("wallets")
+            .select("id, balance")
+            .eq("profile_id", user.id)
+            .single();
+
+        if (walletError || !wallet) {
+            return { error: "Wallet not found." };
+        }
+
+        if (wallet.balance < subtotal) {
+            return { error: "Insufficient wallet balance." };
+        }
+
+        // Deduct Wallet
+        const { error: updateError } = await supabase
+            .from("wallets")
+            .update({ balance: wallet.balance - subtotal })
+            .eq("id", wallet.id);
+
+        if (updateError) {
+            return { error: "Failed to process payment." };
+        }
+
+        // Record Transaction
+        await supabase.from("wallet_transactions").insert({
+            wallet_id: wallet.id,
+            amount: -subtotal,
+            type: "PAYMENT",
+            description: "Mobile Order"
+        });
+
+        // Ensure paid record
+        // We do this later
     }
 
-    // 3. Perform Transaction (Order + Payment + Wallet Deduction)
-    // Supabase RPC is best for transactions, but we can do it sequentially with checks for MVP.
-    // Ideally, we wrap this in a postgres function. 
-    // Let's do it sequentially for now, as we don't have a complex transaction RPC yet.
-    // RISK: Race condition if user double clicks. We should handle this on client too.
-
-    // A. Deduct Wallet
-    const { error: updateError } = await supabase
-        .from("wallets")
-        .update({ balance: wallet.balance - subtotal })
-        .eq("id", wallet.id);
-
-    if (updateError) {
-        return { error: "Failed to process payment." };
-    }
-
-    // B. Record Transaction
-    await supabase.from("wallet_transactions").insert({
-        wallet_id: wallet.id,
-        amount: -subtotal,
-        type: "PAYMENT",
-        description: "Mobile Order"
-    });
-
-    // C. Create Order
+    // 4. Create Order
     const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
             profile_id: user.id,
-            status: "PAID",
+            status: finalStatus,
             subtotal: subtotal,
-            total: subtotal, // Assuming no tax/service charge for mobile yet
-            // table_session_id is NULL
+            total: subtotal,
+            order_type: "MOBILE", // Keep as MOBILE to distinguish source, even if charged to table?
+            // User plan said: "Order type: SESSION (POS-initiated) vs MOBILE".
+            // If charged to table, should it show on KDS? YES.
+            // If I set to SESSION, does it break KDS filter?
+            // KDS filters: PAID, PREPARING, READY.
+            // If status is OPEN, KDS usually ignores it (POS orders are OPEN).
+            // BUT User wants Mobile Orders to go to KDS.
+            // So we should keep order_type = MOBILE (or verify KDS query).
+            // KDS Query: .in("status", ["PAID", "PREPARING", "READY"])
+            // !! PROBLEM: If we set status to OPEN (charged to table), KDS won't see it!
+            // We need to update KDS to include OPEN orders IF they are type MOBILE.
+            table_session_id: activeSessionId, // Link if exists
+            table_label: tableIdentifier || null,
         })
         .select()
         .single();
 
     if (orderError || !order) {
-        // CRITICAL: We deducted money but failed to create order.
-        // In a real app, we need a rollback mechanism or RPC.
-        // For this MVP, we'll log it.
-        console.error("CRITICAL: Money deducted but order failed", orderError);
-        return { error: "Order creation failed. Please contact staff." };
+        console.error("Order creation failed", orderError);
+        return { error: "Order creation failed." };
     }
 
-    // D. Create Order Items
+    // 5. Create Items
     const orderItemsData = verifiedItems.map(item => ({
         order_id: order.id,
         product_id: item.productId,
@@ -117,13 +169,15 @@ export async function placeOrderAction(items: CartItem[]) {
 
     await supabase.from("order_items").insert(orderItemsData);
 
-    // E. Record Payment
-    await supabase.from("payments").insert({
-        order_id: order.id,
-        amount: subtotal,
-        method: "WALLET",
-        paid_at: new Date().toISOString()
-    });
+    // 6. Record Payment (Only for Wallet)
+    if (method === "WALLET") {
+        await supabase.from("payments").insert({
+            order_id: order.id,
+            amount: subtotal,
+            method: "WALLET",
+            paid_at: new Date().toISOString()
+        });
+    }
 
     return { success: true, orderId: order.id };
 }

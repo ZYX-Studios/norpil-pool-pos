@@ -23,6 +23,7 @@ export async function addItemAction(orderId: string, productId: string) {
 		.select("id, quantity, unit_price")
 		.eq("order_id", orderId)
 		.eq("product_id", productId)
+		.limit(1)
 		.maybeSingle();
 
 	if (existing?.id) {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 import { logoutAction } from "../auth/actions";
-import { PosSyncStatus } from "./PosSyncStatus";
+
 
 export default async function PosLayout({ children }: { children: React.ReactNode }) {
 	const { user, staff, authError } = await getCurrentUserWithStaff();
@@ -37,7 +37,6 @@ export default async function PosLayout({ children }: { children: React.ReactNod
 							This both triggers background syncs and reassures staff
 							that offline mode is working as expected.
 						*/}
-						<PosSyncStatus />
 						<Link
 							href="/admin"
 							className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs sm:text-sm font-medium hover:bg-white/10 hover:text-white"

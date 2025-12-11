@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SessionClient } from "./SessionClient";
-import { SessionOfflineFallback } from "./SessionOfflineFallback";
+
 
 export default async function SessionPage({
 	params,
@@ -16,21 +16,16 @@ export default async function SessionPage({
 	const sp = await searchParams;
 	const errorCode = sp?.error as string | undefined;
 
-	// If the session ID looks like a local-only ID (created while offline),
-	// we skip the server query entirely to avoid Postgres "invalid uuid" errors.
-	// Instead, we immediately render the offline fallback which loads the
-	// session from IndexedDB.
-	if (sessionId.startsWith("session_")) {
-		return <SessionOfflineFallback sessionId={sessionId} />;
-	}
+
 
 	try {
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate)")
+			.select("id, status, closed_at, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate)")
 			.eq("id", sessionId)
 			.maybeSingle();
+
 		if (sessionErr) {
 			throw sessionErr;
 		}
@@ -39,22 +34,73 @@ export default async function SessionPage({
 			return notFound();
 		}
 
-		// Load open order
-		const { data: order, error: orderErr } = await supabase
+		// Gracefully handle CLOSED sessions (redirect to home)
+		if (session.status === 'CLOSED' || session.closed_at) {
+			redirect('/pos');
+		}
+
+
+		// Load open order (robust handling for duplicates)
+		// We fetch ALL candidates to pick the "real" one and ignore empty duplicates created by bugs.
+		let { data: candidates, error: orderErr } = await supabase
 			.from("orders")
-			.select("id")
+			.select("id, status, created_at, last_submitted_item_count, order_items(id)") // fetch items count to score
 			.eq("table_session_id", sessionId)
-			.eq("status", "OPEN")
-			.maybeSingle();
+			.in("status", ["OPEN", "PREPARING", "READY", "SERVED", "PAID"])
+			.order("created_at", { ascending: false });
+
 		if (orderErr) {
 			throw orderErr;
 		}
+
+		let order = null;
+		if (candidates && candidates.length > 0) {
+			// Scoring: Has Items > Latest
+			// Actually, if we have a SERVED order with items and an OPEN order with no items (duplicate), we want the SERVED one.
+			// But if we have an OPEN order with NEW items and a SERVED order with OLD items... that implies two orders.
+			// System design assumes SINGLE order per session usually.
+			// Let's assume the "Main" order is the one with the most items, or the latest if            // Sort by has_items desc, then created_at desc
+			candidates.sort((a, b) => {
+				const aCount = a.order_items?.length || 0;
+				const bCount = b.order_items?.length || 0;
+				if (aCount !== bCount) return bCount - aCount; // More items first
+				return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // Newer first
+			});
+			order = candidates[0] as { id: string; status: string; created_at: string; order_items: any[]; last_submitted_item_count: number }; // assert type
+
+			// Optional: Identify empty duplicates to maybe cleanup? 
+			// Risky to auto-delete in production without being sure, but logging is good.
+			if (candidates.length > 1) {
+				console.warn(`[SessionPage] Multiple active orders found for session ${sessionId}. Selected ${order.id} (${order.status}, ${order.order_items?.length || 0} items).`);
+			}
+		}
+
+		// Self-healing: If session is OPEN but no order exists (orphan session), create one.
+		if (!order && session.status === 'OPEN') {
+			console.warn(`[SessionPage] Orphan session found (id=${sessionId}). creating missing order.`);
+			const { data: newOrder, error: createErr } = await supabase
+				.from("orders")
+				.insert({
+					table_session_id: sessionId,
+					status: "OPEN",
+				})
+				.select("id, status, created_at, last_submitted_item_count") // Select status to match type
+				.single();
+
+			if (createErr) {
+				console.error("[SessionPage] Failed to heal orphan session:", createErr);
+				throw createErr;
+			}
+			order = newOrder as { id: string; status: string; created_at: string; last_submitted_item_count: number };
+		}
+
+		// If we still don't have an order (and didn't correct it), then 404.
 		if (!order) return notFound();
 
 		// Load items with product info (including tax_rate for totals).
 		const { data: items, error: itemsErr } = await supabase
 			.from("order_items")
-			.select("id, product_id, quantity, unit_price, line_total, products(name, category, tax_rate)")
+			.select("id, product_id, quantity, served_quantity, unit_price, line_total, products(name, category, tax_rate)")
 			.eq("order_id", order.id)
 			.order("created_at", { ascending: true });
 		if (itemsErr) {
@@ -107,6 +153,7 @@ export default async function SessionPage({
 						category: i.products?.category as any,
 						unitPrice: Number(i.unit_price),
 						quantity: Number(i.quantity),
+						servedQuantity: Number(i.served_quantity || 0),
 						lineTotal: Number(i.line_total),
 						taxRate: Number(i.products?.tax_rate ?? 0),
 					}))}
@@ -119,6 +166,8 @@ export default async function SessionPage({
 						stock: stockMap.get(p.id as string) ?? 0,
 					}))}
 					errorCode={errorCode}
+					orderStatus={order.status}
+					lastSubmittedItemCount={order.last_submitted_item_count || 0}
 					pausedAt={session.paused_at}
 					accumulatedPausedTime={session.accumulated_paused_time}
 					isTableSession={!!(session as any).pool_tables}
@@ -134,26 +183,14 @@ export default async function SessionPage({
 				/>
 			</>
 		);
-	} catch (error) {
-		// When the device is offline or Supabase is unreachable, we render a
-		// client-side fallback that attempts to load a cached snapshot of the
-		// session from this device instead of showing a hard 404.
-		// Network / connectivity failures are expected in this path. For those
-		// we silently fall back to the offline snapshot without logging an
-		// error, and only log unexpected problems.
-		let message: string;
-		if (error instanceof Error && error.message) {
-			message = error.message;
-		} else if (error && typeof error === "object" && "message" in error && typeof (error as any).message === "string") {
-			message = (error as any).message as string;
-		} else {
-			message = String(error);
-		}
-		const lower = message.toLowerCase();
-		const isNetworkError = lower.includes("failed to fetch") || lower.includes("fetch failed");
-		if (!isNetworkError) {
-			console.error("Failed to load POS session page", error);
-		}
-		return <SessionOfflineFallback sessionId={sessionId} />;
+	} catch (error: any) {
+		console.error("Failed to load POS session page. Error details:", {
+			message: error?.message,
+			code: error?.code,
+			details: error?.details,
+			hint: error?.hint,
+			full: JSON.stringify(error, null, 2)
+		});
+		throw error;
 	}
 }
