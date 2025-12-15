@@ -21,7 +21,8 @@ export default async function AdminReservationsPage({ searchParams }: { searchPa
         .select(`
             *,
             pool_table:pool_tables(name),
-            profile:profiles(full_name)
+            profile:profiles(full_name),
+            order:orders(total)
         `, { count: 'exact' })
         .order("start_time", { ascending: false });
     // .range(start, end);
@@ -97,8 +98,8 @@ export default async function AdminReservationsPage({ searchParams }: { searchPa
                                             {res.payment_status}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-right font-mono text-white">
-                                        ₱{res.amount_paid}
+                                    <td className="px-6 py-4 font-mono text-white text-right">
+                                        ₱{res.order?.total || res.amount_paid || 0}
                                     </td>
                                 </tr>
                             ))
