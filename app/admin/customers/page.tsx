@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { PageHeader } from "../components/AdminComponents";
 
 export default async function CustomersPage({
     searchParams
@@ -61,44 +62,46 @@ export default async function CustomersPage({
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-neutral-50">Customers & Membership</h1>
-                    <p className="text-neutral-400">Manage customer profiles and membership settings.</p>
-                </div>
-            </div>
+        <div className="space-y-8">
+            <PageHeader title="Customers & Membership" description="Manage customer profiles and membership settings." />
 
             {/* Global Settings Card */}
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-                <form action={saveSettings} className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-neutral-300">
-                            Member Discount (% off)
-                        </label>
-                        <div className="flex items-center gap-3">
-                            <input
-                                type="number"
-                                name="discount"
-                                defaultValue={currentDiscount}
-                                min="0"
-                                max="100"
-                                step="any"
-                                className="w-full max-w-[120px] rounded-xl border border-white/10 bg-black/40 px-4 py-2.5 text-neutral-50 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            />
-                            <button
-                                type="submit"
-                                className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 active:scale-95"
-                            >
-                                Save
-                            </button>
+            <div className="rounded-3xl border border-white/5 bg-neutral-900/50 p-8 shadow-2xl overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-50" />
+                <div className="relative z-10">
+                    <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                        <span className="h-6 w-1 bg-indigo-500 rounded-full" />
+                        Membership Configuration
+                    </h3>
+                    <form action={saveSettings} className="flex flex-col gap-6 lg:flex-row lg:items-end">
+                        <div className="flex-1">
+                            <label className="mb-2 block text-sm font-medium text-neutral-400 uppercase tracking-wider">
+                                Member Discount (% off)
+                            </label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    name="discount"
+                                    defaultValue={currentDiscount}
+                                    min="0"
+                                    max="100"
+                                    step="any"
+                                    className="w-full max-w-[120px] rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-bold text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all shadow-inner"
+                                />
+                                <button
+                                    type="submit"
+                                    className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:scale-95 transition-all"
+                                >
+                                    Save Changes
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <p className="max-w-md text-xs text-neutral-400">
-                        This discount is automatically applied to pool table fees for any active member.
-                        Use the table below to manually upgrade or revoke membership status.
-                    </p>
-                </form>
+                        <p className="max-w-md text-sm text-neutral-400 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
+                            This discount is automatically applied to pool table fees for any active member.
+                            Use the table below to manually upgrade or revoke membership status.
+                        </p>
+                    </form>
+                </div>
             </div>
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -117,16 +120,16 @@ export default async function CustomersPage({
                 </form>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur">
+            <div className="overflow-hidden rounded-3xl border border-white/5 bg-neutral-900/50 shadow-2xl">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm text-neutral-400">
-                        <thead className="bg-white/5 text-xs uppercase tracking-wider text-neutral-300">
-                            <tr>
-                                <th className="px-6 py-4 font-medium">Name</th>
-                                <th className="px-6 py-4 font-medium">Phone</th>
-                                <th className="px-6 py-4 font-medium">Wallet</th>
-                                <th className="px-6 py-4 font-medium">Status</th>
-                                <th className="px-6 py-4 font-medium text-right">Action</th>
+                        <thead>
+                            <tr className="bg-white/5 border-b border-white/5">
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Name</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Phone</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Wallet</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Status</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">

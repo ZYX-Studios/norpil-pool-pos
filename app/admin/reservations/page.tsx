@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
+import { PageHeader } from "../components/AdminComponents";
 
 export default async function AdminReservationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
     const supabase = createSupabaseServerClient();
@@ -41,26 +42,22 @@ export default async function AdminReservationsPage({ searchParams }: { searchPa
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-white">Reservations</h1>
-                    <p className="text-neutral-400">View and manage table bookings</p>
-                </div>
-                <div className="text-sm text-neutral-400">
+            <PageHeader title="Reservations" description="View and manage table bookings">
+                <div className="text-sm text-neutral-400 bg-white/5 px-4 py-2 rounded-full border border-white/5">
                     Total: <span className="text-white font-bold">{count || 0}</span>
                 </div>
-            </div>
+            </PageHeader>
 
-            <div className="rounded-xl border border-white/10 bg-neutral-900/50 overflow-hidden">
+            <div className="rounded-3xl border border-white/5 bg-neutral-900/50 overflow-hidden shadow-2xl">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-white/5 text-neutral-400 font-medium">
-                        <tr>
-                            <th className="px-4 py-3">Date & Time</th>
-                            <th className="px-4 py-3">Customer</th>
-                            <th className="px-4 py-3">Table</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3">Payment</th>
-                            <th className="px-4 py-3 text-right">Amount</th>
+                    <thead>
+                        <tr className="bg-white/5 border-b border-white/5 text-neutral-400 font-medium">
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Date & Time</th>
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Customer</th>
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Table</th>
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Status</th>
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Payment</th>
+                            <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-right">Amount</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-neutral-300">
