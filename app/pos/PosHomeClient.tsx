@@ -10,6 +10,7 @@ import { CustomerSearchDialog } from "./components/CustomerSearchDialog";
 import { WalletTopUpDialog } from "./components/WalletTopUpDialog";
 import { KitchenDialog } from "./components/KitchenDialog";
 import { KitchenBadge } from "./components/KitchenBadge";
+import { WalkInDialog } from "./components/WalkInDialog";
 import type { CustomerResult } from "./wallet-actions";
 import { isBefore, parseISO, addMinutes } from "date-fns";
 
@@ -96,6 +97,7 @@ export function PosHomeClient({
 	const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
 	const [topUpOpen, setTopUpOpen] = useState(false);
 	const [kitchenOpen, setKitchenOpen] = useState(false);
+	const [walkInOpen, setWalkInOpen] = useState(false);
 
 	// Sync state with props when server data changes (e.g. after revalidatePath)
 	useEffect(() => {
@@ -257,7 +259,7 @@ export function PosHomeClient({
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
 							<path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
 						</svg>
-						Customers
+						Wallet Top-up
 					</button>
 				</div>
 			</div>
@@ -473,13 +475,10 @@ export function PosHomeClient({
 				<button
 					type="button"
 					onClick={() => {
-						const name = window.prompt("Enter customer name for walk-in order:");
-						if (name) {
-							if (isOnline) {
-								createWalkInSession(name);
-							} else {
-								alert("You are currently offline. Cannot create walk-in sessions.");
-							}
+						if (isOnline) {
+							setWalkInOpen(true);
+						} else {
+							alert("You are currently offline. Cannot create walk-in sessions.");
 						}
 					}}
 					className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/40 transition hover:bg-emerald-400 active:scale-95 sm:h-16 sm:w-auto sm:px-6"
@@ -524,6 +523,15 @@ export function PosHomeClient({
 			<KitchenDialog
 				isOpen={kitchenOpen}
 				onClose={() => setKitchenOpen(false)}
+			/>
+
+			<WalkInDialog
+				isOpen={walkInOpen}
+				onClose={() => setWalkInOpen(false)}
+				onConfirm={(name) => {
+					createWalkInSession(name);
+					setWalkInOpen(false);
+				}}
 			/>
 		</div>
 	);

@@ -65,9 +65,9 @@ export default function ReservationsPage() {
     const getResDate = (isoString: string) => new Date(isoString);
 
     return (
-        <div className="min-h-screen bg-neutral-950 pb-24">
+        <div className="pb-24">
             {/* Header */}
-            <div className="relative overflow-hidden bg-neutral-900 border-b border-white/5 px-6 py-8">
+            <div className="relative overflow-hidden bg-neutral-900/60 backdrop-blur-md border-b border-white/5 px-6 py-8">
                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-transparent opacity-50" />
                 <div className="relative z-10">
                     <h1 className="text-3xl font-bold text-neutral-50 mb-2 font-serif tracking-tight">
