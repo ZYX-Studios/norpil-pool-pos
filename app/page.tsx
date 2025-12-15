@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { Logo } from "@/app/components/ui/Logo";
 
 /**
  * Root page for the app.
@@ -33,7 +34,8 @@ export default async function Home() {
 		<div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 p-6 text-center">
 			<div className="space-y-8 max-w-sm w-full">
 				<div className="space-y-4">
-					<h1 className="text-4xl font-bold tracking-tight text-neutral-50">NORPIL BILLIARDS</h1>
+					<Logo className="mx-auto h-32 w-auto text-white" />
+					<h1 className="mt-6 text-4xl font-bold tracking-tight text-neutral-50">NORPIL BILLIARDS</h1>
 					<p className="text-lg text-neutral-400">Experience premium billiards, seamless ordering, and exclusive rewards.</p>
 				</div>
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/app/components/ui/Logo";
 import { logoutAction } from "@/app/auth/actions";
 import { LayoutDashboard, Users, ShoppingBag, Package, FileText, CalendarRange, Contact2, History, CreditCard, LogOut } from "lucide-react";
 
@@ -29,16 +30,14 @@ export function AdminHeader({ staff }: AdminHeaderProps) {
     ];
 
     return (
-        <header className="mb-6 flex flex-col gap-6 rounded-3xl border border-white/5 bg-neutral-900/80 px-6 py-5 shadow-2xl backdrop-blur-xl">
+        <header className="mb-8 flex flex-col gap-6 rounded-3xl border border-white/5 bg-neutral-900/80 px-8 py-6 shadow-2xl backdrop-blur-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 {/* Brand */}
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <span className="text-white font-bold text-lg">NB</span>
-                    </div>
+                <div className="flex items-center gap-4">
+                    <Logo className="h-16 w-16 text-white" />
                     <div>
-                        <div className="text-xs font-bold uppercase tracking-widest text-indigo-400">Norpil Billiards</div>
-                        <div className="text-lg font-bold text-white tracking-tight">Admin Portal</div>
+                        <div className="text-xs font-bold uppercase tracking-widest text-neutral-400">Norpil Billiards</div>
+                        <div className="text-xl font-bold text-white tracking-tight">Admin Portal</div>
                     </div>
                 </div>
 
@@ -76,7 +75,7 @@ export function AdminHeader({ staff }: AdminHeaderProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex items-center gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide -mx-2 px-2">
+            <nav className="flex items-center gap-1 overflow-x-auto pb-2 md:pb-0 scrollbar-hide [&::-webkit-scrollbar]:hidden -mx-2 px-2">
                 {links.map((link) => {
                     const Icon = link.icon;
                     const isActive = pathname === link.href;

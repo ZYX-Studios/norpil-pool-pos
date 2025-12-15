@@ -86,12 +86,12 @@ export default function OrderPageClient({ products: initialProducts }: { product
     const timeOptions = ["15 mins", "30 mins", "45 mins", "1 hour"];
 
     return (
-        <div className="p-6 pb-32 space-y-8 max-w-md mx-auto min-h-screen">
+        <div className="p-6 pb-32 space-y-6 max-w-md mx-auto pt-8 min-h-screen">
             <header className="space-y-4">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-2xl font-bold text-neutral-50">Order Food & Drinks</h1>
-                        <p className="text-neutral-400 text-sm">Select items to add to your order.</p>
+                        <h1 className="text-2xl font-bold tracking-tight text-white">Order Food & Drinks</h1>
+                        <p className="text-neutral-400 text-sm mt-1">Select items to add to your order.</p>
                     </div>
                 </div>
 
@@ -101,9 +101,9 @@ export default function OrderPageClient({ products: initialProducts }: { product
                         <button
                             onClick={() => setMode("DINE_IN")}
                             className={cn(
-                                "py-2 text-xs font-medium rounded-xl transition-all",
+                                "py-2 text-xs font-semibold rounded-xl transition-all",
                                 mode === "DINE_IN"
-                                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                                    ? "bg-white text-black shadow-lg shadow-white/10"
                                     : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
                             )}
                         >
@@ -112,9 +112,9 @@ export default function OrderPageClient({ products: initialProducts }: { product
                         <button
                             onClick={() => setMode("WALK_IN")}
                             className={cn(
-                                "py-2 text-xs font-medium rounded-xl transition-all",
+                                "py-2 text-xs font-semibold rounded-xl transition-all",
                                 mode === "WALK_IN"
-                                    ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20"
+                                    ? "bg-white text-black shadow-lg shadow-white/10"
                                     : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
                             )}
                         >
@@ -123,9 +123,9 @@ export default function OrderPageClient({ products: initialProducts }: { product
                         <button
                             onClick={() => setMode("ADVANCE")}
                             className={cn(
-                                "py-2 text-xs font-medium rounded-xl transition-all",
+                                "py-2 text-xs font-semibold rounded-xl transition-all",
                                 mode === "ADVANCE"
-                                    ? "bg-purple-500 text-white shadow-lg shadow-purple-500/20"
+                                    ? "bg-white text-black shadow-lg shadow-white/10"
                                     : "text-neutral-400 hover:text-neutral-200 hover:bg-white/5"
                             )}
                         >
@@ -140,7 +140,7 @@ export default function OrderPageClient({ products: initialProducts }: { product
                 <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                     {mode === "DINE_IN" && (
                         <div className="space-y-3">
-                            <h3 className="text-xs text-neutral-400 uppercase tracking-widest font-semibold ml-1">Select Your Table</h3>
+                            <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Select Your Table</h3>
                             <div className="grid grid-cols-3 gap-3">
                                 {availableTables.map(t => {
                                     const tName = t.name.replace('Table ', '');
@@ -152,7 +152,7 @@ export default function OrderPageClient({ products: initialProducts }: { product
                                             className={cn(
                                                 "aspect-square rounded-xl border flex flex-col items-center justify-center p-2 transition-all active:scale-95",
                                                 isSelected
-                                                    ? "bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]"
+                                                    ? "bg-white/10 border-white/30 text-white shadow-lg shadow-white/10"
                                                     : "bg-neutral-900 border-white/5 text-neutral-400 hover:bg-white/5 hover:border-white/10"
                                             )}
                                         >
@@ -167,14 +167,14 @@ export default function OrderPageClient({ products: initialProducts }: { product
 
                     {mode === "WALK_IN" && (
                         <div className="space-y-3">
-                            <div className="bg-amber-900/20 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
-                                <div className="p-2 bg-amber-500/20 rounded-full text-amber-400">
+                            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 flex items-start gap-3">
+                                <div className="p-2 bg-white/5 rounded-full text-white">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-bold text-neutral-100">Walk-in Order</h4>
+                                    <h4 className="text-sm font-bold text-white">Walk-in Order</h4>
                                     <p className="text-xs text-neutral-400 mt-1">Ordering from the bar or for pickup? We'll call your name when ready.</p>
                                 </div>
                             </div>
@@ -183,16 +183,16 @@ export default function OrderPageClient({ products: initialProducts }: { product
 
                     {mode === "ADVANCE" && (
                         <div className="space-y-3">
-                            <h3 className="text-xs text-neutral-400 uppercase tracking-widest font-semibold ml-1">When are you arriving?</h3>
+                            <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">When are you arriving?</h3>
                             <div className="grid grid-cols-4 gap-2">
                                 {timeOptions.map(time => (
                                     <button
                                         key={time}
                                         onClick={() => setAdvanceTime(time)}
                                         className={cn(
-                                            "py-3 rounded-xl border text-sm font-medium transition-all active:scale-95",
+                                            "py-3 rounded-xl border text-sm font-semibold transition-all active:scale-95",
                                             advanceTime === time
-                                                ? "bg-purple-500/10 border-purple-500 text-purple-400 shadow-[0_0_15px_-3px_rgba(168,85,247,0.3)]"
+                                                ? "bg-white/10 border-white/30 text-white shadow-lg shadow-white/10"
                                                 : "bg-neutral-900 border-white/5 text-neutral-400 hover:bg-white/5 hover:border-white/10"
                                         )}
                                     >
@@ -200,14 +200,14 @@ export default function OrderPageClient({ products: initialProducts }: { product
                                     </button>
                                 ))}
                             </div>
-                            <div className="bg-purple-900/20 border border-purple-500/20 rounded-xl p-4 flex items-start gap-3">
-                                <div className="p-2 bg-purple-500/20 rounded-full text-purple-400">
+                            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 flex items-start gap-3">
+                                <div className="p-2 bg-white/5 rounded-full text-white">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h4 className="text-sm font-bold text-neutral-100">Advance Order</h4>
+                                    <h4 className="text-sm font-bold text-white">Advance Order</h4>
                                     <p className="text-xs text-neutral-400 mt-1">We'll prepare your drinks so they're ready when you arrive. Payment required upfront.</p>
                                 </div>
                             </div>
@@ -218,9 +218,9 @@ export default function OrderPageClient({ products: initialProducts }: { product
 
             {/* If table is pre-selected via URL, show strict badge */}
             {tableIdentifier && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                    <span className="font-medium text-emerald-400">You are ordering for {tableIdentifier}</span>
+                <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.5)] animate-pulse"></div>
+                    <span className="font-semibold text-white">You are ordering for {tableIdentifier}</span>
                 </div>
             )}
 

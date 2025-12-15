@@ -24,30 +24,38 @@ export default async function WalletPage() {
 
     return (
         <PullToRefresh>
-            <div className="p-6 space-y-6 max-w-md mx-auto min-h-[80vh]">
-                <h1 className="text-2xl font-bold text-neutral-50">My Wallet</h1>
+            <div className="p-6 space-y-6 max-w-md mx-auto pt-8 min-h-[80vh]">
+                <h1 className="text-2xl font-bold tracking-tight text-white">My Wallet</h1>
 
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 shadow-lg shadow-emerald-500/20 backdrop-blur">
-                    <p className="text-sm text-emerald-200/80">Current Balance</p>
-                    <p className="text-4xl font-bold mt-1 text-emerald-400">
-                        ₱{wallet?.balance?.toLocaleString(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}
-                    </p>
-                    <div className="mt-6">
-                        <TopUpButton />
+                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-800 p-6 shadow-2xl shadow-black/40">
+                    {/* Refined texture */}
+                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.15] bg-repeat bg-[length:100px_100px]"></div>
+
+                    {/* Subtle glow */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.03] rounded-full blur-3xl"></div>
+
+                    <div className="relative z-10">
+                        <p className="text-xs font-semibold text-neutral-500 mb-2 tracking-wider uppercase">Balance</p>
+                        <p className="text-4xl font-bold text-white tracking-tight">
+                            ₱{wallet?.balance?.toLocaleString(undefined, { minimumFractionDigits: 2 }) ?? "0.00"}
+                        </p>
+                        <div className="mt-6">
+                            <TopUpButton />
+                        </div>
                     </div>
                 </div>
 
                 <div className="space-y-4">
-                    <h2 className="font-semibold text-lg text-neutral-200">Recent Transactions</h2>
+                    <h2 className="font-bold text-lg text-white tracking-tight">Recent Transactions</h2>
                     <div className="space-y-3 pb-10">
                         {transactions.length > 0 ? (
                             transactions.map((tx: any) => (
-                                <div key={tx.id} className="flex justify-between items-center rounded-xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur">
+                                <div key={tx.id} className="flex justify-between items-center rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 shadow-sm backdrop-blur-sm">
                                     <div>
-                                        <p className="font-medium capitalize text-neutral-200">{tx.type.toLowerCase()}</p>
+                                        <p className="font-semibold capitalize text-white text-sm">{tx.type.toLowerCase()}</p>
                                         <p className="text-xs text-neutral-400">{new Date(tx.created_at).toLocaleDateString()}</p>
                                     </div>
-                                    <span className={tx.amount > 0 ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                                    <span className={tx.amount > 0 ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
                                         {tx.amount > 0 ? "+" : ""}₱{Math.abs(tx.amount).toLocaleString()}
                                     </span>
                                 </div>

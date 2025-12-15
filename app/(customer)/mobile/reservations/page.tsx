@@ -68,9 +68,9 @@ export default function ReservationsPage() {
         <div className="pb-24">
             {/* Header */}
             <div className="relative overflow-hidden bg-neutral-900/60 backdrop-blur-md border-b border-white/5 px-6 py-8">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-transparent opacity-50" />
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] via-transparent to-transparent opacity-50" />
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-bold text-neutral-50 mb-2 font-serif tracking-tight">
+                    <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">
                         Reserve a Table
                     </h1>
                     <p className="text-neutral-400 max-w-sm text-sm leading-relaxed">
@@ -85,8 +85,8 @@ export default function ReservationsPage() {
                 {!loadingReservations && myReservations.length > 0 && (
                     <div className="animate-in slide-in-from-bottom-4 fade-in duration-500">
                         <div className="flex items-center gap-2 mb-4">
-                            <Ticket className="h-4 w-4 text-emerald-400" />
-                            <h2 className="text-sm font-bold text-white uppercase tracking-wider">Your Upcoming Bookings</h2>
+                            <Ticket className="h-4 w-4 text-white" />
+                            <h2 className="font-bold text-lg text-white tracking-tight">Your Upcoming Bookings</h2>
                         </div>
                         <div className="grid gap-3">
                             {myReservations.map((res) => {
@@ -99,11 +99,11 @@ export default function ReservationsPage() {
                                     <div key={res.id} className={cn(
                                         "relative overflow-hidden rounded-2xl border p-5 shadow-lg transition-all",
                                         isPlaying
-                                            ? "bg-emerald-900/20 border-emerald-500/50 shadow-emerald-900/20"
-                                            : "bg-neutral-900/80 border-emerald-500/20 shadow-emerald-900/10"
+                                            ? "bg-white/10 border-white/30 shadow-white/10"
+                                            : "bg-neutral-900/80 border-white/10 shadow-black/20"
                                     )}>
                                         {isPlaying && (
-                                            <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-black text-[10px] font-bold uppercase tracking-wider rounded-bl-xl">
+                                            <div className="absolute top-0 right-0 px-3 py-1 bg-white text-black text-[10px] font-bold uppercase tracking-wider rounded-bl-xl">
                                                 Playing Now
                                             </div>
                                         )}
@@ -112,12 +112,12 @@ export default function ReservationsPage() {
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <span className={cn(
                                                         "font-bold text-lg",
-                                                        isPlaying ? "text-white" : "text-emerald-400"
+                                                        isPlaying ? "text-white" : "text-white"
                                                     )}>
                                                         {(res.pool_table as any)?.name}
                                                     </span>
                                                     {!isPlaying && isToday(startDate) && (
-                                                        <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                                        <span className="bg-white/10 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20">
                                                             TODAY
                                                         </span>
                                                     )}
@@ -127,13 +127,13 @@ export default function ReservationsPage() {
                                                     <span className="text-neutral-600">•</span>
                                                     <span>{format(startDate, "h:mm a")}</span>
                                                     {isPlaying && activeSession.opened_at && (
-                                                        <span className="text-emerald-400 text-xs ml-1">(Started {format(new Date(activeSession.opened_at), "h:mm a")})</span>
+                                                        <span className="text-white text-xs ml-1">(Started {format(new Date(activeSession.opened_at), "h:mm a")})</span>
                                                     )}
                                                 </div>
                                             </div>
                                             {!isPlaying && (
-                                                <div className="bg-emerald-500/10 p-2 rounded-full">
-                                                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                                                <div className="bg-white/10 p-2 rounded-full">
+                                                    <CheckCircle2 className="h-5 w-5 text-white" />
                                                 </div>
                                             )}
                                         </div>
@@ -148,19 +148,19 @@ export default function ReservationsPage() {
 
                 {/* Date Selection */}
                 <div>
-                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3 ml-1">
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">
                         Select Date
                     </label>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <CalendarIcon className="h-5 w-5 text-amber-500" />
+                            <CalendarIcon className="h-5 w-5 text-white" />
                         </div>
                         <input
                             type="date"
                             value={date}
                             min={new Date().toISOString().split('T')[0]}
                             onChange={(e) => setDate(e.target.value)}
-                            className="w-full bg-neutral-900/50 text-white rounded-2xl border border-white/10 pl-11 pr-4 py-4 shadow-sm focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 focus:outline-none transition-all appearance-none"
+                            className="w-full bg-neutral-900/50 text-white rounded-2xl border border-white/10 pl-11 pr-4 py-4 shadow-sm focus:border-white/30 focus:ring-1 focus:ring-white/30 focus:outline-none transition-all appearance-none"
                         />
                     </div>
                 </div>
@@ -173,18 +173,18 @@ export default function ReservationsPage() {
                             href={`/mobile/reservations/${table.id}?date=${date}`}
                             className="block group"
                         >
-                            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/60 p-5 transition-all duration-300 hover:bg-neutral-900/80 hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-900/10">
+                            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/60 p-5 transition-all duration-300 hover:bg-neutral-900/80 hover:border-white/20 hover:shadow-lg hover:shadow-white/5">
                                 {/* Hover Effect Background */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/0 to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/0 to-white/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                                 <div className="relative flex items-center justify-between">
                                     <div className="flex-1 min-w-0 pr-4">
                                         <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-lg font-bold text-neutral-50 truncate group-hover:text-amber-500 transition-colors">
+                                            <h3 className="text-lg font-bold text-white truncate group-hover:text-white transition-colors">
                                                 {table.name}
                                             </h3>
                                             <div className="px-2.5 py-1 bg-neutral-800 rounded-lg border border-white/5">
-                                                <span className="text-amber-500 font-bold text-sm">₱{table.hourly_rate}</span>
+                                                <span className="text-white font-bold text-sm">₱{table.hourly_rate}</span>
                                                 <span className="text-neutral-500 text-xs ml-0.5">/hr</span>
                                             </div>
                                         </div>
@@ -201,7 +201,7 @@ export default function ReservationsPage() {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-neutral-400 group-hover:bg-amber-500 group-hover:text-neutral-900 transition-all transform group-hover:translate-x-1">
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 text-neutral-400 group-hover:bg-white group-hover:text-black transition-all transform group-hover:translate-x-1">
                                         <ChevronRight className="h-5 w-5" />
                                     </div>
                                 </div>

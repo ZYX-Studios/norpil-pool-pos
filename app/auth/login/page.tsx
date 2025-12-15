@@ -1,4 +1,5 @@
 import { loginAction } from "../actions";
+import { Logo } from "@/app/components/ui/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-neutral-950 via-neutral-900 to-black text-neutral-50">
 			<div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/60 backdrop-blur">
-				<div className="mb-4 text-center">
+				<div className="mb-6 text-center">
+					<Logo className="mx-auto mb-4 h-16 w-auto text-white" />
 					<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">Norpil Billiards</div>
-					<h1 className="mt-1 text-lg font-semibold text-neutral-50">Staff Sign In</h1>
-					<p className="mt-1 text-xs text-neutral-400">Use your email and password to access the POS.</p>
+					<h1 className="mt-1 text-lg font-semibold text-neutral-50">Sign In</h1>
+					<p className="mt-1 text-xs text-neutral-400">Use your email and password to access our App.</p>
 				</div>
 				{error === "invalid" && (
 					<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
