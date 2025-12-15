@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { getReportData } from "../../admin/reports/data";
 import { PrintPageLayout } from "./components/PrintPageLayout";
 import { ExecutiveSummary } from "./components/ExecutiveSummary";
@@ -41,7 +42,31 @@ export default async function PrintPage({
         );
     }
 
-    const data = await getReportData(start, end);
+    // Use Service Role to bypass RLS for internal report generation
+    // We check multiple variable names to handle prefixes or typos
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.NEXT_PUBLIC_SUPABSE_SERVICE_ROLE_KEY;
+
+    let data;
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && serviceKey) {
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            serviceKey,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false,
+                },
+            }
+        );
+        data = await getReportData(start, end, supabaseAdmin);
+    } else {
+        // Fallback to default (might miss data due to RLS)
+        console.warn("Missing Service Role Key. Falling back to anon client.");
+        data = await getReportData(start, end);
+    }
 
     // Format dates for display
     const startDate = new Date(start).toLocaleDateString("en-US", {

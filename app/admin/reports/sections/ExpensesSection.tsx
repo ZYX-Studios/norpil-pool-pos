@@ -1,6 +1,7 @@
 "use client";
 
-import { createExpense } from "../actions";
+import { Trash2 } from "lucide-react";
+import { createExpense, deleteExpense } from "../actions";
 import { formatCurrency, formatPercent } from "../format";
 import { Card } from "@/app/components/ui/Card";
 import {
@@ -207,16 +208,30 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 								expenseArray.map((row: any) => (
 									<div
 										key={row.id}
-										className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-white/5"
+										className="group flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-white/5"
 									>
-										<span className="text-neutral-400 w-20">
-											{new Date(row.expense_date as string).toLocaleDateString()}
-										</span>
-										<span className="flex-1 truncate px-2">
-											{row.category as string}
-											{row.note ? ` – ${row.note}` : ""}
-										</span>
-										<span>{formatCurrency(Number(row.amount ?? 0))}</span>
+										<div className="flex items-center flex-1 min-w-0">
+											<span className="text-neutral-400 w-20 shrink-0">
+												{new Date(row.expense_date as string).toLocaleDateString()}
+											</span>
+											<span className="truncate px-2">
+												{row.category as string}
+												{row.note ? ` – ${row.note}` : ""}
+											</span>
+										</div>
+										<div className="flex items-center gap-3">
+											<span>{formatCurrency(Number(row.amount ?? 0))}</span>
+											<form action={deleteExpense}>
+												<input type="hidden" name="id" value={row.id} />
+												<button
+													type="submit"
+													className="text-neutral-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all p-1"
+													title="Delete expense"
+												>
+													<Trash2 className="h-4 w-4" />
+												</button>
+											</form>
+										</div>
 									</div>
 								))
 							) : (
@@ -229,7 +244,3 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 		</div>
 	);
 }
-
-
-
-

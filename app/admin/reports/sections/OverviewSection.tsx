@@ -8,6 +8,7 @@ interface OverviewSectionProps {
 	totalExpenses: number;
 	netProfit: number;
 	netMargin: number;
+	trendPct?: number; // New prop
 }
 
 /**
@@ -25,6 +26,7 @@ export function OverviewSection({
 	totalExpenses,
 	netProfit,
 	netMargin,
+	trendPct,
 }: OverviewSectionProps) {
 	return (
 		<div className="space-y-3">
@@ -37,7 +39,12 @@ export function OverviewSection({
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<StatCard label="Gross sales" value={formatCurrency(totalRevenue)} />
+				<StatCard
+					label="Gross sales"
+					value={formatCurrency(totalRevenue)}
+					trend={trendPct}
+					trendLabel="vs previous period"
+				/>
 				<StatCard label="Total transactions" value={totalTransactions} />
 				<StatCard label="Average ticket" value={formatCurrency(averageTicket)} />
 			</div>

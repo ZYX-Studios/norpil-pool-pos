@@ -38,19 +38,14 @@ export interface ReportData {
 			other: number;
 		}
 	} | null;
+	previousTotal?: number;
+	trendPct?: number;
+	hourly?: any[] | null;
 }
 
-/**
- * Fetches all the raw data the reports views need for a given date range.
- *
- * We:
- * - Reuse the existing SQL helpers (total_revenue, revenue_by_category, etc.)
- * - Return simple arrays so UI sections stay easy to reason about
- * - Keep this as the single source of truth for reporting queries
- */
-export async function getReportData(start: string, end: string): Promise<ReportData> {
-	const supabase = createSupabaseServerClient();
+// ... getReportData function ...
 
+async function fetchTransactionsWithDetails(supabase: any, start: string, end: string) {
 	// Compute end-exclusive date for range filtering (end + 1 day).
 	const endDate = new Date(end);
 	endDate.setDate(endDate.getDate() + 1);
@@ -58,25 +53,7 @@ export async function getReportData(start: string, end: string): Promise<ReportD
 		endDate.getDate(),
 	).padStart(2, "0")}`;
 
-	const [
-		{ data: total },
-		{ data: byCategory },
-		{ data: byMethod },
-		{ data: txPayments },
-		{ data: txDeposits },
-		{ data: daily },
-		{ data: byTable },
-		{ data: byShift },
-		{ data: drinkMargins },
-		{ data: categoryMargins },
-		{ data: expenses },
-		{ data: monthly },
-		{ data: topCustomers },
-		{ data: walletLiability },
-	] = await Promise.all([
-		supabase.rpc("total_revenue", { p_start: start, p_end: end }),
-		supabase.rpc("revenue_by_category", { p_start: start, p_end: end }),
-		supabase.rpc("revenue_by_method", { p_start: start, p_end: end }),
+	const [{ data: txPayments }, { data: txDeposits }] = await Promise.all([
 		// 1. Fetch Sales (Payments)
 		supabase
 			.from("payments")
@@ -96,15 +73,6 @@ export async function getReportData(start: string, end: string): Promise<ReportD
 			.gte("created_at", start)
 			.lt("created_at", endExclusive)
 			.order("created_at", { ascending: false }),
-		supabase.rpc("daily_revenue", { p_start: start, p_end: end }),
-		supabase.rpc("revenue_by_table", { p_start: start, p_end: end }),
-		supabase.rpc("revenue_by_shift", { p_start: start, p_end: end }),
-		supabase.rpc("margin_by_drink_type", { p_start: start, p_end: end }),
-		supabase.rpc("margin_by_category", { p_start: start, p_end: end }),
-		supabase.rpc("get_expenses", { p_start: start, p_end: end }),
-		supabase.rpc("monthly_financial_summary", { p_start: start, p_end: end }),
-		supabase.rpc("get_top_customers", { p_start: start, p_end: end }),
-		supabase.rpc("get_wallet_liability"),
 	]);
 
 	// Merge and sort transactions
@@ -134,52 +102,176 @@ export async function getReportData(start: string, end: string): Promise<ReportD
 		})),
 	].sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime());
 
-	// Calculate Financials
-	const salesRevenue = Number(total ?? 0);
-	const totalExpenses = (expenses as any[] ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
+	return { data: combinedTx };
+}
 
-	const walletUsage = payments
-		.filter((p: any) => p.method === 'WALLET')
-		.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+/**
+ * Fetches all the raw data the reports views need for a given date range.
+ *
+ * We:
+ * - Reuse the existing SQL helpers (total_revenue, revenue_by_category, etc.)
+ * - Return simple arrays so UI sections stay easy to reason about
+ * - Keep this as the single source of truth for reporting queries
+ */
 
-	const cashSales = payments
-		.filter((p: any) => p.method === 'CASH')
-		.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
 
-	const gcashSales = payments
-		.filter((p: any) => p.method === 'GCASH')
-		.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+/**
+ * Fetches all the raw data the reports views need for a given date range.
+ *
+ * We:
+ * - Reuse the existing SQL helpers (total_revenue, revenue_by_category, etc.)
+ * - Return simple arrays so UI sections stay easy to reason about
+ * - Keep this as the single source of truth for reporting queries
+ */
+export async function getReportData(startStr: string, endStr: string, supabaseClient?: any): Promise<ReportData> {
+	const supabase = supabaseClient ?? createSupabaseServerClient();
+	const start = new Date(startStr);
+	const end = new Date(endStr);
 
-	// Any other method (CARD, etc)
-	const otherSales = payments
-		.filter((p: any) => !['WALLET', 'CASH', 'GCASH'].includes(p.method))
-		.reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+	// Calculate Previous Period (Same Duration)
+	const durationMs = end.getTime() - start.getTime();
+	const prevEnd = new Date(start.getTime() - 86400000); // 1 day before start
+	const prevStart = new Date(prevEnd.getTime() - durationMs);
 
-	const walletDeposits = deposits
-		.reduce((sum: number, d: any) => sum + Number(d.amount), 0);
+	// Helper to format date as YYYY-MM-DD for RPC
+	const toProDate = (d: Date) => d.toISOString().split('T')[0];
 
-	const cashCollected = (salesRevenue - walletUsage) + walletDeposits;
+	// Run RPCs in parallel
+	const [
+		{ data: totalRevenue },
+		{ data: prevRevenue }, // Comparison
+		{ data: byCategory },
+		{ data: _byMethodRpc }, // unused, we override it below
+		{ data: byShift },
+		{ data: combinedTx },
+		{ data: daily },
+		{ data: hourly }, // New
+		{ data: drinkMargins },
+		{ data: categoryMargins },
+		{ data: expenses },
+		{ data: monthly },
+		{ data: byTable },
+		{ data: topCustomers },
+		{ data: walletLiability },
+	] = await Promise.all([
+		supabase.rpc("total_revenue", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("total_revenue", { p_start: toProDate(prevStart), p_end: toProDate(prevEnd) }),
+		supabase.rpc("revenue_by_category", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("revenue_by_method", { p_start: startStr, p_end: endStr }), // Corrected: RPC call for byMethod
+		supabase.rpc("revenue_by_shift", { p_start: startStr, p_end: endStr }),
+		fetchTransactionsWithDetails(supabase, startStr, endStr), // Helper function for complex tx query
+		supabase.rpc("daily_revenue", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("revenue_by_hour", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("margin_by_drink_type", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("margin_by_category", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("get_expenses", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("monthly_financial_summary", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("revenue_by_table", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("get_top_customers", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("get_wallet_liability"),
+	]);
+
+	// Derive byMethod from combinedTx to ensure consistency with the table 
+	// (and avoid RPC logic that strictly filters by order status)
+	// We replace the RPC result with client-side aggregation of the full transaction list we just fetched.
+
+	const byMethodMap = new Map<string, number>();
+	(combinedTx as any[] ?? []).forEach((tx: any) => {
+		const method = tx.method || 'UNKNOWN';
+		const amount = Number(tx.amount || 0);
+		byMethodMap.set(method, (byMethodMap.get(method) || 0) + amount);
+	});
+
+	const byMethod = Array.from(byMethodMap.entries()).map(([method, revenue]) => ({
+		method,
+		revenue
+	}));
+
+	const total = Math.round(Number(totalRevenue ?? 0));
+	const prev = Math.round(Number(prevRevenue ?? 0));
+
+	// Calculate Trend %
+	let trendPct = 0;
+	if (prev > 0) {
+		trendPct = ((total - prev) / prev) * 100;
+	} else if (total > 0) {
+		trendPct = 100; // 0 to something is 100% growth effectively (or infinite)
+	}
+
+	// Financials Calculation (Sales vs Cash)
+	const salesRevenue = total; // Gross Sales (Accrual)
+
+	// Calculate Cash Collected (Cash + Gcash + Deposits)
+	// We need to fetch deposits separately or derive them.
+	// Currently `revenue_by_method` gives us Payment Methods (Cash, Gcash, Wallet, etc) for SALES.
+	// It does NOT include Wallet Deposits (which are Money In but not Sales).
+	// We need to fetch Total Deposits for the period.
+
+	// Re-using the tx list to find deposits is inefficient if list is paginated, 
+	// but here fetchTransactionsWithDetails returns ALL for the period? 
+	// Yes, `fetchTransactionsWithDetails` seems to fetch all without limit (based on code reading previously).
+	// Let's optimize: checking `tx` array for DEPOSIT type.
+
+	// Optimization: Derive walletDeposits from byMethod RPC (which bypasses RLS) 
+	// rather than combinedTx (which might miss deposits due to RLS).
+	const walletDeposits = (byMethod as any[] ?? [])
+		.filter((m: any) => m.method === 'WALLET_TOPUP')
+		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+
+	// Calculate specific sums for breakdown
+	const cashSales = (byMethod as any[] ?? [])
+		.filter((m: any) => m.method === "CASH")
+		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+	const gcashSales = (byMethod as any[] ?? [])
+		.filter((m: any) => m.method === "GCASH")
+		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+	const otherSales = (byMethod as any[] ?? [])
+		.filter(
+			(m: any) =>
+				m.method !== "CASH" &&
+				m.method !== "GCASH" &&
+				m.method !== "WALLET" &&
+				m.method !== "WALLET_TOPUP",
+		)
+		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+
+	const walletUsage = (byMethod as any[] ?? [])
+		.filter((m: any) => m.method === 'WALLET')
+		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+
+	const cashCollected = cashSales + gcashSales + walletDeposits + otherSales;
+
+	// Expenses
+	const totalExpenses = (expenses as any[] ?? []).reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+
 	const netProfit = salesRevenue - totalExpenses;
 	const cashFlow = cashCollected - totalExpenses;
 
-	// Calculate Category Breakdown
-	const catMap = new Map((byCategory ?? []).map((c: any) => [c.category, Number(c.revenue)]));
+	// Categories
+	const catMap = new Map<string, number>();
+	(byCategory as any[] ?? []).forEach((c: any) => {
+		catMap.set(c.category, Number(c.revenue));
+	});
+
+	// Explicit Category Mapping
 	const poolSales = catMap.get('TABLE_TIME') ?? 0;
 	const foodSales = catMap.get('FOOD') ?? 0;
 	const drinkSales = catMap.get('DRINK') ?? 0;
-	// Calculate 'other' by subtracting known categories from total, or summing unknown categories
-	// To be safe, let's sum remaining categories
-	const otherCategorySales = (byCategory ?? [])
-		.filter((c: any) => !['TABLE_TIME', 'FOOD', 'DRINK'].includes(c.category))
-		.reduce((sum: number, c: any) => sum + Number(c.revenue), 0);
+
+	// Calculate "Other" category (Everything else)
+	const knownCategories = poolSales + foodSales + drinkSales;
+	const otherCategorySales = Math.max(0, salesRevenue - knownCategories);
 
 
 	return {
-		total: total as number | null,
-		byCategory: (byCategory as any[] | null) ?? [],
-		byMethod: (byMethod as any[] | null) ?? [],
+		total,
+		previousTotal: prev,
+		trendPct,
 		tx: combinedTx,
 		daily: (daily as any[] | null) ?? [],
+		hourly: (hourly as any[] | null) ?? [],
+		byCategory: (byCategory as any[] | null) ?? [],
+		byMethod: (byMethod as any[] | null) ?? [],
 		byTable: (byTable as any[] | null) ?? [],
 		byShift: (byShift as any[] | null) ?? [],
 		drinkMargins: (drinkMargins as any[] | null) ?? [],

@@ -55,6 +55,29 @@ export async function createExpense(formData: FormData) {
 	});
 }
 
+export async function deleteExpense(formData: FormData) {
+	const supabase = createSupabaseServerActionClient();
+	const id = formData.get("id");
+
+	if (!id || typeof id !== "string") return;
+
+	const { error } = await supabase.from("expenses").delete().eq("id", id);
+
+	if (error) {
+		console.error("Failed to delete expense:", error);
+		return;
+	}
+
+	revalidatePath("/admin/reports");
+
+	await logAction({
+		actionType: "DELETE_EXPENSE",
+		entityType: "expense",
+		entityId: id,
+		details: {},
+	});
+}
+
 
 
 

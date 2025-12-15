@@ -13,6 +13,7 @@ import { DateRangePicker } from "@/app/components/ui/DateRangePicker";
 import { DownloadReportButton } from "./pdf/DownloadReportButton";
 import { MonthlyMetrics } from "./components/MonthlyMetrics";
 import { MonthlyFinancials } from "./components/MonthlyFinancials";
+import { DailyTrendChart } from "./components/DailyTrendChart";
 
 type View = "summary" | "daily" | "monthly" | "expenses";
 
@@ -93,6 +94,15 @@ export default async function ReportsPage({
 	const netProfit = totalRevenue - totalExpenses;
 	const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
+	// Calculate wallet metrics for Monthly view (if needed locally, though MonthlyMetrics takes props)
+	// data.walletLiability is returned by getReportData in data.ts
+	const walletLiability = data.walletLiability ?? 0;
+
+	// Ensure walletDeposits is calculated correctly if not present in data
+	const walletDeposits = (data.tx ?? [])
+		.filter((t: any) => t.method === 'WALLET_TOPUP')
+		.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+
 	const tabs = [
 		{ id: "summary", label: "Summary" },
 		{ id: "daily", label: "Daily detail" },
@@ -130,6 +140,7 @@ export default async function ReportsPage({
 						totalExpenses={totalExpenses}
 						netProfit={netProfit}
 						netMargin={netMargin}
+						trendPct={data.trendPct}
 					/>
 					<ShiftsAndBeveragesSection
 						byShift={data.byShift ?? []}
@@ -141,17 +152,10 @@ export default async function ReportsPage({
 
 			{view === "daily" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-					<OverviewSection
-						totalRevenue={totalRevenue}
-						totalTransactions={totalTransactions}
-						averageTicket={averageTicket}
-						totalExpenses={totalExpenses}
-						netProfit={netProfit}
-						netMargin={netMargin}
-					/>
 					<SalesAndMarginsSection
 						totalRevenue={totalRevenue}
 						daily={data.daily ?? []}
+						hourly={data.hourly ?? []}
 						byCategory={data.byCategory ?? []}
 						byMethod={data.byMethod ?? []}
 						categoryMargins={data.categoryMargins ?? []}
@@ -166,15 +170,12 @@ export default async function ReportsPage({
 
 			{view === "monthly" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-					<MonthlyFinancials data={data.financials ?? null} />
+					<MonthlyFinancials data={data.financials} />
+					<DailyTrendChart dailyData={data.daily ?? []} />
 					<MonthlyMetrics
 						topCustomers={data.topCustomers ?? []}
-						walletLiability={data.walletLiability ?? 0}
-						walletDeposits={
-							(data.tx ?? [])
-								.filter((t: any) => t.method === 'WALLET_TOPUP')
-								.reduce((sum: number, t: any) => sum + Number(t.amount), 0)
-						}
+						walletLiability={walletLiability}
+						walletDeposits={walletDeposits}
 					/>
 					<MonthlyDetailSection
 						dailyRevenue={data.daily ?? []}
@@ -185,21 +186,9 @@ export default async function ReportsPage({
 
 			{view === "expenses" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
-					<OverviewSection
-						totalRevenue={totalRevenue}
-						totalTransactions={totalTransactions}
-						averageTicket={averageTicket}
-						totalExpenses={totalExpenses}
-						netProfit={netProfit}
-						netMargin={netMargin}
-					/>
 					<ExpensesSection startDate={start} expenses={data.expenses ?? []} />
 				</div>
 			)}
 		</div>
 	);
 }
-
-
-
-

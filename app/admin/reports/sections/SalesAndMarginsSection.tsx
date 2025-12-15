@@ -5,6 +5,8 @@ import { Card } from "@/app/components/ui/Card";
 import {
 	Area,
 	AreaChart,
+	Bar,
+	BarChart,
 	Cell,
 	Pie,
 	PieChart,
@@ -17,6 +19,7 @@ import {
 interface SalesAndMarginsSectionProps {
 	totalRevenue: number;
 	daily: any[];
+	hourly: any[]; // New prop
 	byCategory: any[];
 	byMethod: any[];
 	categoryMargins: any[];
@@ -32,6 +35,7 @@ interface SalesAndMarginsSectionProps {
 export function SalesAndMarginsSection({
 	totalRevenue,
 	daily,
+	hourly,
 	byCategory,
 	byMethod,
 	categoryMargins,
@@ -59,11 +63,22 @@ export function SalesAndMarginsSection({
 		};
 	});
 
-	// Prepare data for the area chart
+	// Prepare data for the area chart (Multi-day)
 	const dailyData = (daily ?? []).map((row: any) => ({
 		date: new Date(row.day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
 		revenue: Number(row.revenue ?? 0),
 	}));
+
+	// Prepare data for hourly chart (Single day)
+	const hourlyData = (hourly ?? []).map((row: any) => ({
+		hour: row.hour,
+		label: `${String(row.hour).padStart(2, '0')}:00`,
+		revenue: Number(row.revenue ?? 0),
+	}));
+
+	// Determine if we are viewing a single day (approximated by checking if daily data is 1 or 0 rows, 
+	// BUT daily RPC returns generate_series for range. If range is 1 day, daily has 1 row.)
+	const isSingleDay = dailyData.length <= 1;
 
 	// Colors for the pie chart - vibrant palette
 	const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
@@ -79,54 +94,87 @@ export function SalesAndMarginsSection({
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-				{/* Revenue trend across the date range */}
+				{/* Revenue trend across the date range OR Hourly breakdown */}
 				<Card className="md:col-span-2">
 					<div className="mb-4 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
-						Revenue trend
+						{isSingleDay ? "Hourly Sales" : "Revenue trend"}
 					</div>
 					<div className="h-64 w-full">
 						<ResponsiveContainer width="100%" height="100%">
-							<AreaChart data={dailyData}>
-								<defs>
-									<linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-										<stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-										<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-									</linearGradient>
-								</defs>
-								<XAxis
-									dataKey="date"
-									stroke="#525252"
-									fontSize={10}
-									tickLine={false}
-									axisLine={false}
-								/>
-								<YAxis
-									stroke="#525252"
-									fontSize={10}
-									tickLine={false}
-									axisLine={false}
-									tickFormatter={(value) => `$${value}`}
-								/>
-								<Tooltip
-									contentStyle={{
-										backgroundColor: "#000000",
-										borderColor: "#333333",
-										color: "#ffffff",
-										fontSize: "12px",
-										borderRadius: "4px",
-										boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-									}}
-									itemStyle={{ color: "#10b981" }}
-									formatter={(value: number) => [formatCurrency(value), "Revenue"]}
-								/>
-								<Area
-									type="monotone"
-									dataKey="revenue"
-									stroke="#10b981"
-									fillOpacity={1}
-									fill="url(#colorRevenue)"
-								/>
-							</AreaChart>
+							{isSingleDay ? (
+								<BarChart data={hourlyData}>
+									<XAxis
+										dataKey="label"
+										stroke="#525252"
+										fontSize={10}
+										tickLine={false}
+										axisLine={false}
+										interval={2} // Show every 3rd hour to avoid crowding
+									/>
+									<YAxis
+										stroke="#525252"
+										fontSize={10}
+										tickLine={false}
+										axisLine={false}
+										tickFormatter={(value) => `$${value}`}
+									/>
+									<Tooltip
+										contentStyle={{
+											backgroundColor: "#000000",
+											borderColor: "#333333",
+											color: "#ffffff",
+											fontSize: "12px",
+											borderRadius: "4px",
+											boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+										}}
+										cursor={{ fill: "rgba(255,255,255,0.05)" }}
+										formatter={(value: number) => [formatCurrency(value), "Revenue"]}
+									/>
+									<Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+								</BarChart>
+							) : (
+								<AreaChart data={dailyData}>
+									<defs>
+										<linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+											<stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+											<stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+										</linearGradient>
+									</defs>
+									<XAxis
+										dataKey="date"
+										stroke="#525252"
+										fontSize={10}
+										tickLine={false}
+										axisLine={false}
+									/>
+									<YAxis
+										stroke="#525252"
+										fontSize={10}
+										tickLine={false}
+										axisLine={false}
+										tickFormatter={(value) => `$${value}`}
+									/>
+									<Tooltip
+										contentStyle={{
+											backgroundColor: "#000000",
+											borderColor: "#333333",
+											color: "#ffffff",
+											fontSize: "12px",
+											borderRadius: "4px",
+											boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+										}}
+										itemStyle={{ color: "#10b981" }}
+										formatter={(value: number) => [formatCurrency(value), "Revenue"]}
+									/>
+									<Area
+										type="monotone"
+										dataKey="revenue"
+										stroke="#10b981"
+										fillOpacity={1}
+										fill="url(#colorRevenue)"
+									/>
+								</AreaChart>
+							)}
 						</ResponsiveContainer>
 					</div>
 				</Card>
