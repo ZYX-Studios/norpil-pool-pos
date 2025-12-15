@@ -19,7 +19,8 @@ type OrderItem = {
 type Order = {
     id: string;
     created_at: string;
-    status: string; // 'PAID' | 'PREPARING' | 'READY' | 'SERVED'
+    sent_at?: string; // New field for actual submission time
+    status: string; // 'PAID' | 'PREPARING' | 'READY' | 'SERVED' | 'SUBMITTED'
     order_type: string;
     table_label?: string;
     profiles?: {
@@ -37,7 +38,7 @@ type Order = {
 export function KitchenBoard() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [isConnected, setIsConnected] = useState(false);
-    const supabase = createSupabaseBrowserClient();
+    const [supabase] = useState(() => createSupabaseBrowserClient());
 
     // Fetch initial state
     async function fetchOrders() {
@@ -57,8 +58,9 @@ export function KitchenBoard() {
                     product:products(name, category)
                 )
             `)
-            .or("status.in.(PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)")
-            .order("created_at", { ascending: true });
+            .or("status.in.(SUBMITTED,PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)")
+            .order("sent_at", { ascending: true, nullsFirst: false })
+            .order("created_at", { ascending: true }); // Fallback for old orders
 
         if (!error && data) {
             // Client-side filtering because Supabase deep filtering on joined tables is tricky/limited
@@ -140,7 +142,7 @@ export function KitchenBoard() {
     // Grouping
     // We intentionally exclude PAID/SERVED from "New" to avoid resurfacing old orders.
     // If a "Pay First" workflow is needed later, we need a separate logic (e.g. check if items were prepped).
-    const newOrders = orders.filter(o => o.status === "OPEN" || o.status === "PAID" || (o.status as any) === "NEW");
+    const newOrders = orders.filter(o => o.status === "SUBMITTED" || o.status === "OPEN" || o.status === "PAID" || (o.status as any) === "NEW");
     const prepOrders = orders.filter(o => o.status === "PREPARING");
     const readyOrders = orders.filter(o => o.status === "READY");
 
@@ -224,7 +226,10 @@ function Column({
 function OrderCard({ order, onAction, actionLabel }: { order: Order; onAction: () => void; actionLabel: string }) {
     // Force re-render of timer every minute? 
     // Usually handled by a separate Timer component or interval in parent, but for simple MVP:
-    const elapsed = formatDistanceToNow(new Date(order.created_at), { addSuffix: true });
+    // Prefer sent_at, fallback to created_at
+    const startTime = order.sent_at ? new Date(order.sent_at) : new Date(order.created_at);
+    // Use formatDistanceToNow but ensure we handle invalid dates gracefully if needed
+    const elapsed = formatDistanceToNow(startTime, { addSuffix: true });
 
     // Determine Card Style
     const isAdvance = order.table_label?.startsWith("Advance");

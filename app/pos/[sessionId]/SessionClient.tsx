@@ -251,7 +251,7 @@ export function SessionClient(props: SessionClientProps & {
 			const existing = prev.find((i) => i.productId === productId);
 			if (existing) {
 				return prev.map((i) =>
-					i.productId === productId
+					i.id === existing.id
 						? { ...i, quantity: targetQty, lineTotal: round2(targetQty * i.unitPrice) }
 						: i,
 				);
@@ -290,10 +290,10 @@ export function SessionClient(props: SessionClientProps & {
 			}
 
 			if (nextQty <= 0) {
-				return prev.filter((i) => i.productId !== productId);
+				return prev.filter((i) => i.id !== existing.id);
 			}
 			return prev.map((i) =>
-				i.productId === productId
+				i.id === existing.id
 					? { ...i, quantity: nextQty, lineTotal: round2(nextQty * i.unitPrice) }
 					: i,
 			);

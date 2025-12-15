@@ -11,12 +11,40 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
         // Initial fetch
         const fetchCount = async () => {
             // Match KDS Filter Logic: PREPARING, READY, PAID, or (OPEN + MOBILE)
-            const { count } = await supabase
+            // We must fetch data to filter out "Table Time" only orders or fully served orders, 
+            // just like the KitchenBoard does.
+            const { data } = await supabase
                 .from("orders")
-                .select("*", { count: "exact", head: true })
-                .or("status.in.(PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)");
+                .select(`
+                    id,
+                    status,
+                    order_type,
+                    order_items (
+                        quantity,
+                        served_quantity,
+                        product:products(category)
+                    )
+                `)
+                .or("status.in.(SUBMITTED,PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)");
 
-            setCount(count || 0);
+            if (!data) {
+                setCount(0);
+                return;
+            }
+
+            // Client-side filtering to match KitchenBoard exactly
+            const activeOrders = data.filter((order: any) => {
+                const validItems = (order.order_items || []).filter((item: any) => {
+                    const isTableTime = item.product?.category === 'TABLE_TIME';
+                    if (isTableTime) return false;
+
+                    const remainingQty = (item.quantity || 0) - (item.served_quantity || 0);
+                    return remainingQty > 0;
+                });
+                return validItems.length > 0;
+            });
+
+            setCount(activeOrders.length);
         };
 
         fetchCount();

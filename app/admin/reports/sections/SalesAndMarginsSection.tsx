@@ -33,6 +33,7 @@ export function SalesAndMarginsSection({
 	totalRevenue,
 	daily,
 	byCategory,
+	byMethod,
 	categoryMargins,
 }: SalesAndMarginsSectionProps) {
 	// Helper lookups for category-level margin %.
@@ -191,6 +192,73 @@ export function SalesAndMarginsSection({
 										{formatCurrency(row.value)}
 									</span>
 								</div>
+							</div>
+						))}
+					</div>
+				</Card>
+			</div>
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+				{/* Revenue by Method - New Addition */}
+				<Card>
+					<div className="mb-4 text-sm font-medium uppercase tracking-[0.18em] text-neutral-400">
+						By Payment
+					</div>
+					<div className="h-48 w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<PieChart>
+								<Pie
+									data={(byMethod ?? []).map((row: any) => ({
+										name: row.method === 'WALLET' ? 'Wallet' : row.method === 'CHARGE_TO_TABLE' ? 'Charge to Table' : 'Other',
+										value: Number(row.revenue ?? 0)
+									}))}
+									cx="50%"
+									cy="50%"
+									innerRadius={60}
+									outerRadius={80}
+									paddingAngle={2}
+									dataKey="value"
+									startAngle={90}
+									endAngle={-270}
+									stroke="none"
+								>
+									{(byMethod ?? []).map((entry: any, index: number) => (
+										<Cell
+											key={`cell-method-${index}`}
+											fill={entry.method === 'WALLET' ? '#10b981' : '#f59e0b'}
+											stroke="none"
+										/>
+									))}
+								</Pie>
+								<Tooltip
+									contentStyle={{
+										backgroundColor: "#000000",
+										borderColor: "#333333",
+										color: "#ffffff",
+										fontSize: "12px",
+										borderRadius: "4px",
+										boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+									}}
+									itemStyle={{ color: "#e5e5e5" }}
+									formatter={(value: number) => formatCurrency(value)}
+								/>
+							</PieChart>
+						</ResponsiveContainer>
+					</div>
+					<div className="mt-4 space-y-2">
+						{(byMethod ?? []).map((row: any, index: number) => (
+							<div key={row.method} className="flex items-center justify-between text-sm">
+								<div className="flex items-center gap-2">
+									<div
+										className="h-2 w-2 rounded-full"
+										style={{ backgroundColor: row.method === 'WALLET' ? '#10b981' : '#f59e0b' }}
+									/>
+									<span className="text-neutral-300">
+										{row.method === 'WALLET' ? 'Wallet' : 'Charge to Table'}
+									</span>
+								</div>
+								<span className="text-neutral-200">
+									{formatCurrency(Number(row.revenue ?? 0))}
+								</span>
 							</div>
 						))}
 					</div>

@@ -38,6 +38,8 @@ export async function closeSessionAndRecordPayment(
 			.from("orders")
 			.select("id, status, subtotal, tax_total, service_charge, discount_amount, total")
 			.eq("table_session_id", sessionId)
+			.order("created_at", { ascending: false })
+			.limit(1)
 			.maybeSingle(),
 	]);
 

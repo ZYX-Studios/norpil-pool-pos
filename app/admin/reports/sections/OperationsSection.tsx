@@ -23,7 +23,33 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 		const order = t.orders;
 		const tableSession = order?.table_sessions;
 		const poolTable = tableSession?.pool_tables;
-		const tableName = poolTable?.name ?? "Unknown Table";
+
+		let tableName = poolTable?.name;
+
+		if (!tableName) {
+			// Check for table session customer name (Walk-in name)
+			if (tableSession?.customer_name) {
+				tableName = `Walk-in: ${tableSession.customer_name}`;
+			}
+			// Check for reservation linked to this order
+			else if (order?.reservations?.[0]) {
+				const reservation = order.reservations[0];
+				if (reservation?.pool_tables?.name) {
+					tableName = `Res: ${reservation.pool_tables.name}`;
+				}
+			}
+			// Check for profile name (Mobile Order)
+			else if (order?.profiles?.full_name) {
+				tableName = `Mobile: ${order.profiles.full_name}`;
+			}
+			// Top-up Mock handling (already handled by data.ts passing a fake table_session, but good to be safe)
+			else if (t.method === 'WALLET_TOPUP') {
+				// The data.ts mock passes it as table_sessions.pool_tables.name, which is caught above.
+				// But acts as fallback if needed.
+			}
+		}
+
+		tableName = tableName ?? "Walk-in / Unknown";
 
 		return {
 			id: t.id,

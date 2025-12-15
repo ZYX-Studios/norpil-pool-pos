@@ -30,7 +30,9 @@ type ActionType =
     | "DELETE_INVENTORY_ITEM"
     | "ADJUST_INVENTORY_ITEM"
     | "WALLET_TOPUP"
-    | "CHECK_IN_RESERVATION";
+    | "CHECK_IN_RESERVATION"
+    | "START_SHIFT"
+    | "END_SHIFT";
 
 interface LogParams {
     actionType: ActionType;

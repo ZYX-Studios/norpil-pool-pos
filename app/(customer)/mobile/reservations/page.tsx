@@ -44,7 +44,7 @@ export default function ReservationsPage() {
                 .select(`
                     *,
                     pool_table:pool_tables(name),
-                    table_sessions(id, closed_at)
+                    table_sessions(id, closed_at, opened_at)
                 `)
                 .eq("profile_id", user.id)
                 .in("status", ["CONFIRMED", "PENDING"]) // Removed INVALID 'PAID' status
@@ -126,6 +126,9 @@ export default function ReservationsPage() {
                                                     <span>{format(startDate, "MMM d, yyyy")}</span>
                                                     <span className="text-neutral-600">•</span>
                                                     <span>{format(startDate, "h:mm a")}</span>
+                                                    {isPlaying && activeSession.opened_at && (
+                                                        <span className="text-emerald-400 text-xs ml-1">(Started {format(new Date(activeSession.opened_at), "h:mm a")})</span>
+                                                    )}
                                                 </div>
                                             </div>
                                             {!isPlaying && (

@@ -564,7 +564,11 @@ export async function sendOrderToKitchen(sessionId: string) {
 
 	const { error } = await supabase
 		.from("orders")
-		.update({ status: "PREPARING", last_submitted_item_count: currentItemCount })
+		.update({
+			status: "SUBMITTED",
+			last_submitted_item_count: currentItemCount,
+			sent_at: new Date().toISOString()
+		})
 		.eq("id", order.id);
 
 	if (error) {

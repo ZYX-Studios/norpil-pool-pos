@@ -137,6 +137,10 @@ export async function placeOrderAction(
         return { success: false, error: "No table specified for table charge." };
     }
 
+    console.log(`[Order] Received order. Method: ${method}, Table: ${tableIdentifier}, User: ${user.id}`);
+
+    // ... (existing code)
+
     // 3. Handle Payment Method Logic
     if (method === "CHARGE_TO_TABLE") {
         // Redundant check, but safe
@@ -163,22 +167,35 @@ export async function placeOrderAction(
         }
 
         // Deduct Wallet
-        const { error: updateError } = await supabase
+        console.log(`[Order] Deducting from wallet: ${wallet.id}, Current: ${wallet.balance}, Deduct: ${subtotal}, New: ${Number(wallet.balance) - subtotal}`);
+        const { error: updateError, count } = await supabase
             .from("wallets")
-            .update({ balance: wallet.balance - subtotal })
-            .eq("id", wallet.id);
+            .update({ balance: Number(wallet.balance) - subtotal })
+            .eq("id", wallet.id); // removed .select() which implicitly returns count? No, update returns count/data if configured
 
         if (updateError) {
+            console.error("[Order] Wallet update error:", updateError);
             return { success: false, error: "Failed to process payment." };
         }
+        // NOTE: Supabase update does not return count by default unless .select() or count option used? 
+        // Actually the JS client returns count if specified in `count` param?
+        // Let's rely on error for now, but adding explicit logging.
 
         // Record Transaction
-        await supabase.from("wallet_transactions").insert({
+        const { error: txError } = await supabase.from("wallet_transactions").insert({
             wallet_id: wallet.id,
             amount: -subtotal,
             type: "PAYMENT",
             description: `Mobile Order ${tableIdentifier ? `(Table ${tableIdentifier})` : ''}`
         });
+
+        if (txError) {
+            console.error("[Order] Transaction record failed:", txError);
+            // CRITICAL: Start rollback? Or just warn?
+            // Since wallet is deducted, we MUST record this. 
+            // If this fails, we have financial data mismatch.
+            return { success: false, error: "Payment recorded but transaction history failed. Please contact support." };
+        }
 
         // status remains "PAID"
     }

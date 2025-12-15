@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createInventoryItem } from "./actions";
 import { InventoryEditDialog } from "./InventoryEditDialog";
 import { InventoryDeleteButton } from "./InventoryDeleteButton";
+import { InventoryAddForm } from "./InventoryAddForm";
 
 type InventoryItemRow = {
 	id: string;
@@ -119,67 +119,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
 
 			{/*
 				Quick add form for new inventory items.
-				We keep this minimal: name, optional SKU, a simple unit string,
-				and an optional unit cost so margins can use real COGS early on.
+				Now extracted to a client component to support autocomplete logic.
 			*/}
-			<div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur">
-				<h2 className="mb-3 text-lg font-semibold">Add Inventory Item</h2>
-				<form action={createInventoryItem} className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-					<input
-						name="name"
-						placeholder="Name"
-						className="rounded border px-4 py-3 text-base sm:col-span-2"
-						required
-					/>
-					<input
-						name="sku"
-						placeholder="SKU (optional)"
-						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-1"
-					/>
-					<select
-						name="unit"
-						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50 sm:col-span-1"
-						defaultValue="PCS"
-					>
-						<option value="PCS">PCS</option>
-						<option value="BOTTLE">BOTTLE</option>
-						<option value="CAN">CAN</option>
-						<option value="ML">ML</option>
-						<option value="L">L</option>
-						<option value="GRAM">GRAM</option>
-						<option value="KG">KG</option>
-					</select>
-					<input
-						name="unit_cost"
-						type="number"
-						step="0.01"
-						min="0"
-						placeholder="Unit cost"
-						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
-					/>
-					<input
-						name="min_stock"
-						type="number"
-						step="0.01"
-						min="0"
-						placeholder="Min Stock"
-						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
-					/>
-					<input
-						name="max_stock"
-						type="number"
-						step="0.01"
-						min="0"
-						placeholder="Max Stock"
-						className="rounded border border-white/20 bg-black/40 px-4 py-3 text-base text-neutral-50"
-					/>
-					<div className="sm:col-span-5">
-						<button type="submit" className="rounded bg-neutral-900 px-4 py-3 text-base font-medium text-white hover:bg-neutral-800">
-							Add
-						</button>
-					</div>
-				</form>
-			</div>
+			<InventoryAddForm existingItemNames={items.map((i) => i.name)} />
 
 			<div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm shadow-black/40 backdrop-blur overflow-x-auto">
 				<table className="w-full min-w-[720px] text-base">

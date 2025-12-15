@@ -11,6 +11,8 @@ import { ExpensesSection } from "./sections/ExpensesSection";
 import { Tabs } from "@/app/components/ui/Tabs";
 import { DateRangePicker } from "@/app/components/ui/DateRangePicker";
 import { DownloadReportButton } from "./pdf/DownloadReportButton";
+import { MonthlyMetrics } from "./components/MonthlyMetrics";
+import { MonthlyFinancials } from "./components/MonthlyFinancials";
 
 type View = "summary" | "daily" | "monthly" | "expenses";
 
@@ -164,6 +166,16 @@ export default async function ReportsPage({
 
 			{view === "monthly" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+					<MonthlyFinancials data={data.financials ?? null} />
+					<MonthlyMetrics
+						topCustomers={data.topCustomers ?? []}
+						walletLiability={data.walletLiability ?? 0}
+						walletDeposits={
+							(data.tx ?? [])
+								.filter((t: any) => t.method === 'WALLET_TOPUP')
+								.reduce((sum: number, t: any) => sum + Number(t.amount), 0)
+						}
+					/>
 					<MonthlyDetailSection
 						dailyRevenue={data.daily ?? []}
 						expenses={data.expenses ?? []}

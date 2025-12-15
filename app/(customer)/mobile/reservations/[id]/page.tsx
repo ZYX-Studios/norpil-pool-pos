@@ -35,6 +35,7 @@ export default function ReservationBookingPage(props: PageProps) {
     const [wallet, setWallet] = useState<Wallet | null>(null);
     const [reservations, setReservations] = useState<any[]>([]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [duration, setDuration] = useState(1);
     const [loading, setLoading] = useState(false);
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
@@ -115,23 +116,46 @@ export default function ReservationBookingPage(props: PageProps) {
     };
 
     const isSlotAvailable = (timeStr: string) => {
-        const [hours] = timeStr.split(":").map(Number);
+        const [startHours] = timeStr.split(":").map(Number);
         const slotStart = new Date(date);
-        slotStart.setHours(hours, 0, 0, 0);
-        const slotEnd = addHours(slotStart, 1);
+        slotStart.setHours(startHours, 0, 0, 0);
 
-        // Check if slot is in the past
-        if (isBefore(slotStart, new Date())) return false;
+        // We need to check if ALL slots for the duration are available
+        for (let i = 0; i < duration; i++) {
+            const checkStart = addHours(slotStart, i);
+            const checkEnd = addHours(checkStart, 1);
 
-        // Check overlap
-        return !reservations.some(res => {
-            const resStart = new Date(res.start_time);
-            const resEnd = new Date(res.end_time);
-            return (
-                (slotStart >= resStart && slotStart < resEnd) ||
-                (slotEnd > resStart && slotEnd <= resEnd)
-            );
-        });
+            // Check if slot is in the past
+            if (isBefore(checkStart, new Date())) return false;
+
+            // Check overlap for this specific hour
+            const hasOverlap = reservations.some(res => {
+                const resStart = new Date(res.start_time);
+                const resEnd = new Date(res.end_time);
+                return (
+                    (checkStart >= resStart && checkStart < resEnd) ||
+                    (checkEnd > resStart && checkEnd <= resEnd)
+                );
+            });
+
+            if (hasOverlap) return false;
+        }
+
+        // Also check if submitting would go beyond closing time (22:00)
+        // If start is 21:00 and duration is 2 hours -> ends at 23:00 which is > 22:00
+        // But maybe we allow playing past 10pm if they book at 9pm? 
+        // Based on generateTimeSlots (10-22), let's assume 22:00 is closing.
+        // If current logic allows booking 21:00 (ends 22:00), then booking 21:00 for 2 hours (ends 23:00) might be invalid if strict closing.
+        // Let's assume strict closing at 22:00 for new bookings logic consistency? 
+        // Or just let them book if slots exist.
+        // The generateTimeSlots goes up to 21:00 (i < 22). 21:00-22:00 is last slot.
+        // If duration is 2, and time is 21:00 -> 21:00-23:00.
+        // Let's restrict to operating hours for now to be safe.
+        // Last slot start is 21:00.
+        const closingHour = 22;
+        if (startHours + duration > closingHour) return false;
+
+        return true;
     };
 
     const handleBook = async () => {
@@ -147,11 +171,11 @@ export default function ReservationBookingPage(props: PageProps) {
         const [hours] = selectedTime!.split(":").map(Number);
         const startTime = new Date(date);
         startTime.setHours(hours, 0, 0, 0);
-        const endTime = addHours(startTime, 1);
+        const endTime = addHours(startTime, duration);
 
         // Calculate amount (ensure it's a number)
         // @ts-ignore
-        const amount = Number(table.hourly_rate);
+        const amount = Number(table.hourly_rate) * duration;
 
         // @ts-ignore
         if (wallet.balance < amount) {
@@ -296,9 +320,37 @@ export default function ReservationBookingPage(props: PageProps) {
                         {/* Divider */}
                         <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">Duration</h3>
+                                <div className="flex bg-neutral-800/50 p-1 rounded-lg border border-white/5">
+                                    {[1, 2, 3].map((d) => (
+                                        <button
+                                            key={d}
+                                            onClick={() => {
+                                                setDuration(d);
+                                                setSelectedTime(null);
+                                            }}
+                                            className={cn(
+                                                "px-3 py-1 rounded-md text-xs font-bold transition-all",
+                                                duration === d
+                                                    ? "bg-amber-500 text-neutral-900 shadow-lg"
+                                                    : "text-neutral-400 hover:text-white"
+                                            )}
+                                        >
+                                            {d}h
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="h-px bg-white/5" />
+
                         {/* Time Slots */}
                         <div className="space-y-3">
-                            <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider text-center">Select Time</h3>
+                            <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider text-center">Select Start Time</h3>
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                                 {timeSlots.map(time => {
                                     const available = isSlotAvailable(time);
@@ -328,9 +380,9 @@ export default function ReservationBookingPage(props: PageProps) {
                             <div className="animate-in slide-in-from-bottom-4 fade-in duration-300">
                                 <div className="mt-8 bg-neutral-950/50 rounded-2xl p-5 border border-white/5 space-y-4">
                                     <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                                        <span className="text-neutral-400 font-medium">Total for 1 hour</span>
+                                        <span className="text-neutral-400 font-medium">Total for {duration} hour{duration > 1 ? 's' : ''}</span>
                                         {/* @ts-ignore */}
-                                        <span className="text-2xl font-bold text-white">₱{table.hourly_rate}</span>
+                                        <span className="text-2xl font-bold text-white">₱{Number(table.hourly_rate) * duration}</span>
                                     </div>
 
                                     {wallet ? (
@@ -343,14 +395,14 @@ export default function ReservationBookingPage(props: PageProps) {
                                                 <span className={cn(
                                                     "font-mono font-medium",
                                                     // @ts-ignore
-                                                    wallet.balance < table.hourly_rate ? "text-red-400" : "text-emerald-400"
+                                                    wallet.balance < (table.hourly_rate * duration) ? "text-red-400" : "text-emerald-400"
                                                 )}>
                                                     ₱{wallet.balance.toFixed(2)}
                                                 </span>
                                             </div>
 
                                             {/* @ts-ignore */}
-                                            {wallet.balance < table.hourly_rate && (
+                                            {wallet.balance < (table.hourly_rate * duration) && (
                                                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
                                                     <p className="text-red-400 text-sm font-medium">Insufficient Funds</p>
                                                 </div>
@@ -360,7 +412,7 @@ export default function ReservationBookingPage(props: PageProps) {
                                                 className="w-full h-12 text-base font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-900 shadow-lg shadow-amber-900/20 border-0"
                                                 onClick={handleBook}
                                                 // @ts-ignore
-                                                disabled={loading || wallet.balance < table.hourly_rate}
+                                                disabled={loading || wallet.balance < (table.hourly_rate * duration)}
                                             >
                                                 {/* @ts-ignore */}
                                                 {loading ? "Processing..." : "Confirm & Pay"}
@@ -387,11 +439,11 @@ export default function ReservationBookingPage(props: PageProps) {
                             <p className="text-neutral-400 text-sm">
                                 You are about to book <span className="text-amber-400 font-medium">{(table as any)?.name}</span> for
                                 <br />
-                                <span className="text-white font-medium">{format(date, "MMM d")} at {selectedTime}</span>
+                                <span className="text-white font-medium">{format(date, "MMM d")} at {selectedTime} ({duration} hrs)</span>
                             </p>
                             <div className="bg-white/5 rounded-xl p-4 mt-4">
                                 <span className="block text-xs uppercase tracking-wider text-neutral-500 mb-1">Total Payment</span>
-                                <span className="text-2xl font-bold text-white">₱{(table as any)?.hourly_rate}</span>
+                                <span className="text-2xl font-bold text-white">₱{(table as any)?.hourly_rate * duration}</span>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
