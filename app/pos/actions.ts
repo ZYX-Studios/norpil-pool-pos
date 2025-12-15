@@ -13,11 +13,12 @@ export type OpenTableData = {
 	isMoneyGame: boolean;
 	betAmount?: number;
 	customerName?: string;
+	profileId?: string;
 };
 
 export async function openTableAction(data: OpenTableData) {
 	const supabase = createSupabaseServerClient();
-	const { poolTableId, sessionType, targetDurationMinutes, isMoneyGame, betAmount, customerName } = data;
+	const { poolTableId, sessionType, targetDurationMinutes, isMoneyGame, betAmount, customerName, profileId } = data;
 
 	try {
 		// Find an existing OPEN session for this table (idempotency safeguard)
@@ -47,6 +48,7 @@ export async function openTableAction(data: OpenTableData) {
 				is_money_game: isMoneyGame,
 				bet_amount: betAmount,
 				customer_name: customerName,
+				profile_id: profileId,
 			})
 			.select("id")
 			.single();

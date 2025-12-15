@@ -33,7 +33,8 @@ type ActionType =
     | "WALLET_TOPUP"
     | "CHECK_IN_RESERVATION"
     | "START_SHIFT"
-    | "END_SHIFT";
+    | "END_SHIFT"
+    | "MEMBERSHIP_UPGRADE";
 
 interface LogParams {
     actionType: ActionType;

@@ -40,6 +40,7 @@ export default function ReservationBookingPage(props: PageProps) {
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [memberDiscountPercent, setMemberDiscountPercent] = useState(0);
 
     const supabase = createSupabaseBrowserClient();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -57,13 +58,34 @@ export default function ReservationBookingPage(props: PageProps) {
             setCurrentUser(user);
 
             if (user) {
+                // Fetch Wallet (original trusted method)
                 const { data: walletData } = await supabase
                     .from("wallets")
                     .select("*")
                     .eq("profile_id", user.id)
                     .single();
                 if (walletData) setWallet(walletData);
+
+                // Fetch Profile (for membership)
+                const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("is_member")
+                    .eq("id", user.id)
+                    .single();
+
+                if (profile) {
+                    setCurrentUser({ ...user, is_member: profile.is_member });
+                }
             }
+
+            // Fetch Member Discount Setting
+            const { data: discountSetting } = await supabase
+                .from("app_settings")
+                .select("value")
+                .eq("key", "member_discount_percentage")
+                .single();
+            const memberDiscount = Number(discountSetting?.value ?? 0);
+            setMemberDiscountPercent(memberDiscount);
 
             const tableId = (await params).id;
             if (tableId) {
@@ -175,7 +197,12 @@ export default function ReservationBookingPage(props: PageProps) {
 
         // Calculate amount (ensure it's a number)
         // @ts-ignore
-        const amount = Number(table.hourly_rate) * duration;
+        // Calculate amount
+        let hourlyRate = Number(table.hourly_rate);
+        if (currentUser?.is_member && memberDiscountPercent > 0) {
+            hourlyRate = hourlyRate * ((100 - memberDiscountPercent) / 100);
+        }
+        const amount = hourlyRate * duration;
 
         // @ts-ignore
         if (wallet.balance < amount) {
@@ -263,6 +290,12 @@ export default function ReservationBookingPage(props: PageProps) {
                             {/* @ts-ignore */}
                             <h2 className="text-3xl font-bold text-white font-serif tracking-tight">{table.name}</h2>
                             <p className="text-neutral-400 text-sm">Select a date and time to reserve</p>
+                            {currentUser?.is_member && memberDiscountPercent > 0 && (
+                                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1">
+                                    <span className="text-xs font-bold text-emerald-400">STAR MEMBER</span>
+                                    <span className="text-[10px] text-emerald-300">({memberDiscountPercent}% Off)</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Date Selection */}
@@ -381,8 +414,19 @@ export default function ReservationBookingPage(props: PageProps) {
                                 <div className="mt-8 bg-neutral-950/50 rounded-2xl p-5 border border-white/5 space-y-4">
                                     <div className="flex justify-between items-center pb-4 border-b border-white/5">
                                         <span className="text-neutral-400 font-medium">Total for {duration} hour{duration > 1 ? 's' : ''}</span>
-                                        {/* @ts-ignore */}
-                                        <span className="text-2xl font-bold text-white">₱{Number(table.hourly_rate) * duration}</span>
+                                        <div className="text-right">
+                                            {currentUser?.is_member && memberDiscountPercent > 0 && (
+                                                <div className="text-xs text-neutral-500 line-through">
+                                                    ₱{Number(table.hourly_rate) * duration}
+                                                </div>
+                                            )}
+                                            {/* @ts-ignore */}
+                                            <span className="text-2xl font-bold text-white">
+                                                ₱{(currentUser?.is_member && memberDiscountPercent > 0
+                                                    ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
+                                                    : Number(table.hourly_rate)) * duration}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {wallet ? (
@@ -395,7 +439,9 @@ export default function ReservationBookingPage(props: PageProps) {
                                                 <span className={cn(
                                                     "font-mono font-medium",
                                                     // @ts-ignore
-                                                    wallet.balance < (table.hourly_rate * duration) ? "text-red-400" : "text-emerald-400"
+                                                    wallet.balance < ((currentUser?.is_member && memberDiscountPercent > 0
+                                                        ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
+                                                        : Number(table.hourly_rate)) * duration) ? "text-red-400" : "text-emerald-400"
                                                 )}>
                                                     ₱{wallet.balance.toFixed(2)}
                                                 </span>
@@ -420,7 +466,14 @@ export default function ReservationBookingPage(props: PageProps) {
                                         </div>
                                     ) : (
                                         <div className="text-center py-4">
-                                            <Link href="/auth/login" className="text-amber-500 hover:underline">Log in to pay</Link>
+                                            {currentUser ? (
+                                                <div className="text-neutral-400">
+                                                    <p>No wallet found for this account.</p>
+                                                    <p className="text-xs mt-1">Please contact support or try reloading.</p>
+                                                </div>
+                                            ) : (
+                                                <Link href="/auth/login" className="text-amber-500 hover:underline">Log in to pay</Link>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -443,7 +496,11 @@ export default function ReservationBookingPage(props: PageProps) {
                             </p>
                             <div className="bg-white/5 rounded-xl p-4 mt-4">
                                 <span className="block text-xs uppercase tracking-wider text-neutral-500 mb-1">Total Payment</span>
-                                <span className="text-2xl font-bold text-white">₱{(table as any)?.hourly_rate * duration}</span>
+                                <span className="text-2xl font-bold text-white">
+                                    ₱{(currentUser?.is_member && memberDiscountPercent > 0
+                                        ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
+                                        : Number(table.hourly_rate)) * duration}
+                                </span>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">

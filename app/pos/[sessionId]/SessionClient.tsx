@@ -46,6 +46,8 @@ type SessionClientProps = {
 	pausedAt?: string | null;
 	accumulatedPausedTime?: number;
 	isTableSession?: boolean;
+	isMember?: boolean;
+	discountPercent?: number;
 };
 
 // Helper to keep money values to 2 decimal places.
@@ -156,6 +158,8 @@ export function SessionClient(props: SessionClientProps & {
 
 		orderStatus = "OPEN",
 		lastSubmittedItemCount = 0,
+		isMember = false,
+		discountPercent = 0,
 	} = props;
 	// ... component state ...
 	const router = useRouter();
@@ -403,6 +407,13 @@ export function SessionClient(props: SessionClientProps & {
 							</div>
 						)}
 					</div>
+					{isMember && discountPercent > 0 && (
+						<div className="mb-3 -mt-2 flex items-center gap-2">
+							<span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 border border-emerald-500/30">
+								Member Price ({discountPercent}% Off)
+							</span>
+						</div>
+					)}
 					{isTableSession && (
 						<div className="space-y-3">
 							<ClientTimer

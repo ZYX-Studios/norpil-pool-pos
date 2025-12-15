@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { CustomerSearchDialog } from "./components/CustomerSearchDialog";
+import type { CustomerResult } from "./wallet-actions";
 
 type SessionType = 'OPEN' | 'FIXED';
 
@@ -13,6 +15,7 @@ interface StartSessionDialogProps {
         targetDurationMinutes: number | undefined;
         isMoneyGame: boolean;
         betAmount: number | undefined;
+        profileId?: string;
     }) => void;
     tableName: string;
     hourlyRate: number;
@@ -26,6 +29,9 @@ export function StartSessionDialog({
     hourlyRate,
 }: StartSessionDialogProps) {
     const [customerName, setCustomerName] = useState('');
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
+    const [searchOpen, setSearchOpen] = useState(false);
+
     const [sessionType, setSessionType] = useState<SessionType>('OPEN');
     const [targetDurationMinutes, setTargetDurationMinutes] = useState<number>(60);
     const [isMoneyGame, setIsMoneyGame] = useState(false);
@@ -41,6 +47,7 @@ export function StartSessionDialog({
             targetDurationMinutes: sessionType === 'FIXED' ? targetDurationMinutes : undefined,
             isMoneyGame,
             betAmount: isMoneyGame ? Number(betAmount) : undefined,
+            profileId: selectedCustomer?.id,
         });
         // Reset state? Or let parent handle unmount/close
     };
@@ -70,18 +77,50 @@ export function StartSessionDialog({
                     </div>
 
                     <div className="space-y-4">
-                        {/* Customer Name */}
+                        {/* Customer Selection */}
                         <div>
                             <label className="mb-1 block text-sm font-medium text-neutral-400">
-                                Customer Name (Optional)
+                                Customer
                             </label>
-                            <input
-                                type="text"
-                                value={customerName}
-                                onChange={(e) => setCustomerName(e.target.value)}
-                                className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white placeholder-neutral-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                placeholder="Enter identifier..."
-                            />
+                            {selectedCustomer ? (
+                                <div className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2">
+                                    <div>
+                                        <div className="font-semibold text-emerald-400">{selectedCustomer.full_name}</div>
+                                        {selectedCustomer.wallet?.balance !== undefined && (
+                                            <div className="text-xs text-emerald-300/70">
+                                                Wallet: ₱{selectedCustomer.wallet.balance.toFixed(2)}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedCustomer(null);
+                                            setCustomerName("");
+                                        }}
+                                        className="ml-2 text-neutral-400 hover:text-white"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={customerName}
+                                        onChange={(e) => setCustomerName(e.target.value)}
+                                        className="flex-1 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white placeholder-neutral-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                        placeholder="Guest Name (Optional)"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchOpen(true)}
+                                        className="rounded-lg bg-neutral-800 px-3 py-2 text-sm font-medium text-neutral-300 hover:bg-neutral-700 border border-white/10"
+                                    >
+                                        Find Member
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Session Type */}
@@ -94,8 +133,8 @@ export function StartSessionDialog({
                                     type="button"
                                     onClick={() => setSessionType('OPEN')}
                                     className={`rounded-md py-2 text-sm font-medium transition ${sessionType === 'OPEN'
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
                                         }`}
                                 >
                                     Open Time
@@ -104,8 +143,8 @@ export function StartSessionDialog({
                                     type="button"
                                     onClick={() => setSessionType('FIXED')}
                                     className={`rounded-md py-2 text-sm font-medium transition ${sessionType === 'FIXED'
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-neutral-400 hover:text-white hover:bg-white/5'
                                         }`}
                                 >
                                     Fixed Time
@@ -131,8 +170,8 @@ export function StartSessionDialog({
                                             type="button"
                                             onClick={() => setTargetDurationMinutes(mins)}
                                             className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${targetDurationMinutes === mins
-                                                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                                                    : 'border-white/10 bg-white/5 text-neutral-400 hover:bg-white/10'
+                                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                                : 'border-white/10 bg-white/5 text-neutral-400 hover:bg-white/10'
                                                 }`}
                                         >
                                             {mins / 60}h
@@ -219,6 +258,16 @@ export function StartSessionDialog({
                     </div>
                 </form>
             </div>
-        </div>
+
+            <CustomerSearchDialog
+                isOpen={searchOpen}
+                onClose={() => setSearchOpen(false)}
+                onSelectCustomer={(c) => {
+                    setSelectedCustomer(c);
+                    setCustomerName(c.full_name || "");
+                    setSearchOpen(false);
+                }}
+            />
+        </div >
     );
 }

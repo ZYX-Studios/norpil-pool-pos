@@ -22,7 +22,7 @@ export default async function SessionPage({
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, status, closed_at, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate)")
+			.select("id, status, closed_at, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate), profile_id, profiles(is_member)")
 			.eq("id", sessionId)
 			.maybeSingle();
 
@@ -133,9 +133,27 @@ export default async function SessionPage({
 			stockMap.set(pid, Number.isFinite(qty) ? qty : 0);
 		}
 
-		const hourlyRate = Number(
+		// Load Global Settings for Member Discount
+		const { data: memberSetting } = await supabase
+			.from("app_settings")
+			.select("value")
+			.eq("key", "member_discount_percentage")
+			.single();
+
+		const discountPercent = Number(memberSetting?.value ?? 0);
+		const isMember = (session as any).profiles?.is_member ?? false;
+
+		let hourlyRate = Number(
 			session.override_hourly_rate ?? (session as any).pool_tables?.hourly_rate ?? 0,
 		);
+
+		// Apply Member Discount (only if no override is set? Or always? Usually on base rate.)
+		// Assumption: Override implies manual control, so valid overrides might skip discount.
+		// However, simpler logic: If it's the base table rate, apply discount. If override is present, use override.
+		// Re-reading: "override_hourly_rate" is usually null unless set manually.
+		if (!session.override_hourly_rate && isMember && discountPercent > 0) {
+			hourlyRate = hourlyRate * ((100 - discountPercent) / 100);
+		}
 
 		return (
 			<>
@@ -143,6 +161,8 @@ export default async function SessionPage({
 					sessionId={sessionId}
 					tableName={(session as any).pool_tables?.name ?? (session as any).customer_name ?? "Walk-in"}
 					customerName={(session as any).customer_name}
+					isMember={isMember}
+					discountPercent={isMember ? discountPercent : 0}
 					openedAt={session.opened_at as string}
 					hourlyRate={hourlyRate}
 					orderId={order.id as string}
