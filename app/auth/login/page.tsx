@@ -8,71 +8,78 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 	const error = sp?.error as string | undefined;
 
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-neutral-950 via-neutral-900 to-black text-neutral-50">
-			<div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/60 backdrop-blur">
-				<div className="mb-6 text-center">
-					<Logo className="mx-auto mb-4 h-16 w-auto text-white" />
-					<div className="text-xs font-medium uppercase tracking-[0.18em] text-neutral-400">Norpil Billiards</div>
-					<h1 className="mt-1 text-lg font-semibold text-neutral-50">Sign In</h1>
-					<p className="mt-1 text-xs text-neutral-400">Use your email and password to access our App.</p>
+		<div className="flex min-h-screen flex-col items-center justify-center bg-[#050505] p-8 text-white selection:bg-white/20">
+			<div className="flex w-full max-w-[320px] flex-col animate-in fade-in zoom-in-95 duration-1000 fill-mode-both">
+
+				{/* Header Section */}
+				<div className="mb-16 flex flex-col items-center text-center">
+					<div className="mb-8">
+						<Logo className="h-24 w-24 text-white opacity-90" />
+					</div>
+					<h1 className="text-3xl font-bold leading-tight tracking-tight text-white/95">
+						Welcome to<br />Norpil Billiards.
+					</h1>
+					<p className="mt-4 text-[13px] font-medium leading-relaxed text-neutral-400/80">
+						The ultimate pool experience awaits.<br />
+						Please sign in to continue.
+					</p>
 				</div>
-				{error === "invalid" && (
-					<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-						Invalid email or password.
+
+				{/* Error Handling */}
+				{error && (
+					<div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-xs font-medium text-red-200">
+						{error === "invalid" && "Invalid email or password."}
+						{error === "missing" && "Please enter both email and password."}
 					</div>
 				)}
-				{error === "missing" && (
-					<div className="mb-3 rounded border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-						Please enter both email and password.
+
+				<form action={loginAction} className="flex flex-col gap-5">
+					<div className="space-y-4">
+						<div className="relative group">
+							<input
+								name="email"
+								type="email"
+								autoComplete="email"
+								required
+								defaultValue={sp?.email as string | undefined}
+								placeholder="Email address"
+								className="w-full border-b border-white/20 bg-transparent py-4 text-base text-white placeholder:text-neutral-600 focus:border-white focus:outline-none transition-colors"
+							/>
+						</div>
+						<div className="relative group">
+							<input
+								name="password"
+								type="password"
+								autoComplete="current-password"
+								required
+								placeholder="Password"
+								className="w-full border-b border-white/20 bg-transparent py-4 text-base text-white placeholder:text-neutral-600 focus:border-white focus:outline-none transition-colors"
+							/>
+						</div>
 					</div>
-				)}
-				<form action={loginAction} className="space-y-3">
-					<div>
-						<label className="mb-1 block text-xs text-neutral-200">Email</label>
-						<input
-							name="email"
-							type="email"
-							autoComplete="email"
-							className="w-full rounded border border-white/15 bg-black/40 px-3 py-2 text-xs text-neutral-50"
-							required
-							defaultValue={sp?.email as string | undefined}
-						/>
+
+					<div className="mt-4">
+						<button
+							type="submit"
+							className="w-full rounded-full bg-white h-12 text-sm font-bold text-black hover:bg-neutral-200 active:scale-[0.98] transition-all"
+						>
+							Continue
+						</button>
 					</div>
-					<div>
-						<label className="mb-1 block text-xs text-neutral-200">Password</label>
-						<input
-							name="password"
-							type="password"
-							autoComplete="current-password"
-							className="w-full rounded border border-white/15 bg-black/40 px-3 py-2 text-xs text-neutral-50"
-							required
-						/>
-					</div>
-					<button
-						type="submit"
-						className="mt-2 w-full rounded-full bg-neutral-50 px-3 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200"
-					>
-						Sign in
-					</button>
 				</form>
-				<div className="mt-4 text-center">
-					<p className="text-[11px] text-neutral-400">
+
+				<div className="mt-12 text-center">
+					<p className="text-xs text-neutral-600 font-medium">
 						Don't have an account?{" "}
-						<a href="/auth/signup" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+						<a
+							href="/auth/signup"
+							className="text-white hover:text-neutral-300 transition-colors"
+						>
 							Sign up
 						</a>
 					</p>
 				</div>
-				<p className="mt-3 text-[11px] text-neutral-500">
-					Your access level (Admin / POS only) is controlled by your staff role.
-				</p>
 			</div>
 		</div>
 	);
 }
-
-
-
-
-
-

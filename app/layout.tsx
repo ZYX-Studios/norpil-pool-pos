@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
 	subsets: ["latin"],
 });
 
+import { SplashScreen } from "@/app/components/ui/SplashScreen";
+
 export const metadata: Metadata = {
 	title: "Norpil Billiards POS",
 	description: "Point of sale system for Norpil Billiards pool hall.",
@@ -28,6 +30,7 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+				<SplashScreen />
 				{/* 
 					Register the service worker once on the client. 
 					This keeps offline behavior consistent across all routes.
