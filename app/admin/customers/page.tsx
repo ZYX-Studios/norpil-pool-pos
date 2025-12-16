@@ -2,12 +2,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { PageHeader } from "../components/AdminComponents";
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
 
 export default async function CustomersPage({
     searchParams
 }: {
     searchParams: Promise<{ q?: string }>;
 }) {
+    const { staff: currentStaff } = await getCurrentUserWithStaff();
+    if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
     const sp = await searchParams;
     const query = sp.q || "";
     const supabase = createSupabaseServerClient();

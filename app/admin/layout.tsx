@@ -10,7 +10,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 	if (!user || authError === "supabase_unreachable") {
 		redirect("/auth/login");
 	}
-	if (staff?.role !== "ADMIN") {
+	// Check if user has permission to access admin area
+	const allowedRoles = ["ADMIN", "CASHIER"];
+	if (!staff?.role || !allowedRoles.includes(staff.role)) {
 		redirect("/pos");
 	}
 

@@ -4,8 +4,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/app/components/ui/Button";
 import { PageHeader } from "../components/AdminComponents";
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
 
 export default async function AdminReservationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+    const { staff: currentStaff } = await getCurrentUserWithStaff();
+    if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
     const supabase = createSupabaseServerClient();
     const resolvedParams = await searchParams;
 

@@ -3,7 +3,13 @@ import LogsTable from "./LogsTable";
 
 export const dynamic = "force-dynamic";
 
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
+
 export default async function LogsPage() {
+    const { staff: currentStaff } = await getCurrentUserWithStaff();
+    if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
     const supabase = createSupabaseServerClient();
 
     // Fetch logs

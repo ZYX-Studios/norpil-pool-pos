@@ -43,11 +43,17 @@ function parseView(raw: unknown): View {
 	return "summary";
 }
 
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
+
 export default async function ReportsPage({
 	searchParams,
 }: {
 	searchParams: Promise<Record<string, string | string[]>>;
 }) {
+	const { staff: currentStaff } = await getCurrentUserWithStaff();
+	if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
 	const { start: todayStart, end: todayEnd } = getTodayRange();
 	const { start: monthStart, end: monthEnd } = getMonthRange();
 	const sp = await searchParams;

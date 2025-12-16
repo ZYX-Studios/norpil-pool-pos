@@ -2,6 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { updateStaffAction, deleteStaffAction } from "./actions";
 import { PromoteStaffForm } from "./PromoteStaffForm";
 import { DeleteStaffButton } from "./DeleteStaffButton";
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,9 @@ type StaffRow = {
 };
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
+	const { staff: currentStaff } = await getCurrentUserWithStaff();
+	if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
 	const supabase = createSupabaseServerClient();
 	const { data } = await supabase
 		.from("staff")

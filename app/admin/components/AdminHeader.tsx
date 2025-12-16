@@ -18,16 +18,18 @@ interface AdminHeaderProps {
 export function AdminHeader({ staff }: AdminHeaderProps) {
     const pathname = usePathname();
 
-    const links = [
-        { href: "/admin", label: "Overview", icon: LayoutDashboard },
-        { href: "/admin/reservations", label: "Reservations", icon: CalendarRange },
-        { href: "/admin/products", label: "Products", icon: ShoppingBag },
-        { href: "/admin/inventory", label: "Inventory", icon: Package },
-        { href: "/admin/customers", label: "Customers", icon: Users },
-        { href: "/admin/staff", label: "Staff", icon: Contact2 },
-        { href: "/admin/reports", label: "Reports", icon: FileText },
-        { href: "/admin/logs", label: "Logs", icon: History },
+    const allLinks = [
+        { href: "/admin", label: "Overview", icon: LayoutDashboard, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/reservations", label: "Reservations", icon: CalendarRange, roles: ["ADMIN"] },
+        { href: "/admin/products", label: "Products", icon: ShoppingBag, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/inventory", label: "Inventory", icon: Package, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/customers", label: "Customers", icon: Users, roles: ["ADMIN"] },
+        { href: "/admin/staff", label: "Staff", icon: Contact2, roles: ["ADMIN"] },
+        { href: "/admin/reports", label: "Reports", icon: FileText, roles: ["ADMIN"] },
+        { href: "/admin/logs", label: "Logs", icon: History, roles: ["ADMIN"] },
     ];
+
+    const links = allLinks.filter(link => staff?.role && link.roles.includes(staff.role));
 
     return (
         <header className="mb-8 flex flex-col gap-6 rounded-3xl border border-white/5 bg-neutral-900/80 px-8 py-6 shadow-2xl backdrop-blur-xl">

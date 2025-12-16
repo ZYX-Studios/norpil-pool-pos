@@ -1,6 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createTableAction, updateTableAction, toggleTableActiveAction } from "./actions";
 import { TableDeleteButton } from "./TableDeleteButton";
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,9 @@ type PoolTable = {
 };
 
 export default async function TablesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
+	const { staff: currentStaff } = await getCurrentUserWithStaff();
+	if (currentStaff?.role !== "ADMIN") redirect("/admin");
+
 	const supabase = createSupabaseServerClient();
 
 	const { data } = await supabase
