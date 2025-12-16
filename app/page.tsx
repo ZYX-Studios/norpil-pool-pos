@@ -55,7 +55,7 @@ export default async function Home() {
 				</div>
 
 				<div className="pt-8 text-sm text-neutral-500">
-					<p>Open daily from 10:00 AM - 2:00 AM</p>
+					<p>Open daily from 10:00 AM - 3:00 AM</p>
 				</div>
 			</div>
 		</div>

@@ -130,17 +130,39 @@ export default function ReservationBookingPage(props: PageProps) {
 
     const generateTimeSlots = () => {
         const slots = [];
-        // Open from 10 AM to 10 PM
-        for (let i = 10; i < 22; i++) {
-            slots.push(`${i}:00`);
+        // Open from 10 AM to 3 AM (next day)
+        // 10 to 24 (midnight) + 1, 2, 3
+        // We can represent this as 10 to 27
+        for (let i = 10; i < 27; i++) {
+            let hour = i;
+            if (hour >= 24) hour -= 24;
+            slots.push(`${hour}:00`);
         }
         return slots;
     };
 
     const isSlotAvailable = (timeStr: string) => {
         const [startHours] = timeStr.split(":").map(Number);
+
+        // Handle late night hours (0, 1, 2) being technically "next day" relative to start date
+        // But for selection purposes, if we select 1AM, it implies 1AM of the NEXT day if we are viewing "Today" logic?
+        // Actually, the UI usually shows a date. If I pick Jan 1, and I see 1:00, does it mean Jan 1 01:00 or Jan 1 Night (Jan 2 01:00)?
+        // Conventions usually mean "Operating Day".
+        // However, `date` state is set to 00:00:00.
+        // If we select "01:00", `new Date(date)` + setHours(1) = Jan 1 01:00.
+        // If our operating hours are 10am to 3am, "01:00" on the list likely means "Late Night" (next calendar day).
+        // Let's adjust the date parsing logic to handle "Operating Day".
+
         const slotStart = new Date(date);
-        slotStart.setHours(startHours, 0, 0, 0);
+        let adjustedHours = startHours;
+
+        // If hour is 0, 1, 2 (and we are in the context of 10am start), treat as next day
+        // This is a heuristic: If operating hours are 10am-3am, anything < 10 is "next day"
+        if (adjustedHours < 10) {
+            slotStart.setDate(slotStart.getDate() + 1);
+        }
+
+        slotStart.setHours(adjustedHours, 0, 0, 0);
 
         // We need to check if ALL slots for the duration are available
         for (let i = 0; i < duration; i++) {
@@ -163,19 +185,13 @@ export default function ReservationBookingPage(props: PageProps) {
             if (hasOverlap) return false;
         }
 
-        // Also check if submitting would go beyond closing time (22:00)
-        // If start is 21:00 and duration is 2 hours -> ends at 23:00 which is > 22:00
-        // But maybe we allow playing past 10pm if they book at 9pm? 
-        // Based on generateTimeSlots (10-22), let's assume 22:00 is closing.
-        // If current logic allows booking 21:00 (ends 22:00), then booking 21:00 for 2 hours (ends 23:00) might be invalid if strict closing.
-        // Let's assume strict closing at 22:00 for new bookings logic consistency? 
-        // Or just let them book if slots exist.
-        // The generateTimeSlots goes up to 21:00 (i < 22). 21:00-22:00 is last slot.
-        // If duration is 2, and time is 21:00 -> 21:00-23:00.
-        // Let's restrict to operating hours for now to be safe.
-        // Last slot start is 21:00.
-        const closingHour = 22;
-        if (startHours + duration > closingHour) return false;
+        // Closing time check
+        // Operating Hours: 10:00 - 03:00 (next day)
+        // If we treat 10:00 as hour 10, and 03:00 as hour 27.
+        const checkLimitHour = adjustedHours < 10 ? adjustedHours + 24 : adjustedHours;
+        const closingHour = 27; // 3 AM next day
+
+        if (checkLimitHour + duration > closingHour) return false;
 
         return true;
     };
@@ -192,6 +208,12 @@ export default function ReservationBookingPage(props: PageProps) {
 
         const [hours] = selectedTime!.split(":").map(Number);
         const startTime = new Date(date);
+
+        // Handle next-day logic for 00:00 - 02:00
+        if (hours < 10) {
+            startTime.setDate(startTime.getDate() + 1);
+        }
+
         startTime.setHours(hours, 0, 0, 0);
         const endTime = addHours(startTime, duration);
 
