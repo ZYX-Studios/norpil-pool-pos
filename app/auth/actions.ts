@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
 import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 
@@ -75,6 +76,50 @@ export async function signupAction(formData: FormData) {
 		// Email confirmation required
 		redirect("/auth/verify-email");
 	}
+}
+
+export async function forgotPasswordAction(formData: FormData) {
+	const email = String(formData.get("email") || "").trim();
+	const supabase = createSupabaseServerActionClient();
+	const origin = (await headers()).get("origin");
+
+	if (!email) {
+		redirect("/auth/forgot-password?error=missing");
+	}
+
+	const { error } = await supabase.auth.resetPasswordForEmail(email, {
+		redirectTo: `${origin}/auth/callback?next=/auth/update-password`,
+	});
+
+	if (error) {
+		console.error("Forgot password error:", error);
+		redirect("/auth/forgot-password?error=invalid");
+	}
+
+	redirect("/auth/forgot-password?success=true");
+}
+
+export async function updatePasswordAction(formData: FormData) {
+	const password = String(formData.get("password") || "");
+	const confirmPassword = String(formData.get("confirmPassword") || "");
+
+	if (!password || !confirmPassword) {
+		redirect("/auth/update-password?error=missing");
+	}
+
+	if (password !== confirmPassword) {
+		redirect("/auth/update-password?error=match");
+	}
+
+	const supabase = createSupabaseServerActionClient();
+	const { error } = await supabase.auth.updateUser({ password });
+
+	if (error) {
+		console.error("Update password error:", error);
+		redirect("/auth/update-password?error=update-failed");
+	}
+
+	redirect("/auth/login?success=password-updated");
 }
 
 

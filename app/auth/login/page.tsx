@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
 	const sp = await searchParams;
 	const error = sp?.error as string | undefined;
+	const success = sp?.success as string | undefined;
 
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center bg-[#050505] p-8 text-white selection:bg-white/20">
@@ -25,6 +26,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 					</p>
 				</div>
 
+				{/* Error Handling */}
+				{success && (
+					<div className="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-center text-xs font-medium text-green-200">
+						{success === "password-updated" && "Your password has been successfully updated."}
+					</div>
+				)}
 				{/* Error Handling */}
 				{error && (
 					<div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-xs font-medium text-red-200">
@@ -55,6 +62,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 								placeholder="Password"
 								className="w-full border-b border-white/20 bg-transparent py-4 text-base text-white placeholder:text-neutral-600 focus:border-white focus:outline-none transition-colors"
 							/>
+						</div>
+						<div className="flex justify-end px-1">
+							<a href="/auth/forgot-password" className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors font-medium">
+								Forgot password?
+							</a>
 						</div>
 					</div>
 
