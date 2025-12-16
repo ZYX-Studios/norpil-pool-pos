@@ -94,7 +94,7 @@ export async function openTableAction(data: OpenTableData) {
 	}
 }
 
-export async function createWalkInSession(customerName: string) {
+export async function createWalkInSession(customerName: string, profileId?: string) {
 	const supabase = createSupabaseServerClient();
 
 	try {
@@ -105,9 +105,11 @@ export async function createWalkInSession(customerName: string) {
 				pool_table_id: null,
 				customer_name: customerName,
 				status: "OPEN",
+				profile_id: profileId,
 			})
 			.select("id")
 			.single();
+
 
 		if (sessionErr || !session) {
 			throw sessionErr ?? new Error("Failed to create walk-in session.");
@@ -141,13 +143,13 @@ export async function createWalkInSession(customerName: string) {
 	}
 }
 
-export async function updateSessionCustomerName(sessionId: string, name: string) {
+export async function updateSessionCustomerName(sessionId: string, name: string, profileId?: string) {
 	const supabase = createSupabaseServerClient();
 
 	try {
 		const { error } = await supabase
 			.from("table_sessions")
-			.update({ customer_name: name })
+			.update({ customer_name: name, profile_id: profileId || null })
 			.eq("id", sessionId);
 
 		if (error) {

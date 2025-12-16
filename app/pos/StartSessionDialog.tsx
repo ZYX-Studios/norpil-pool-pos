@@ -262,9 +262,9 @@ export function StartSessionDialog({
             <CustomerSearchDialog
                 isOpen={searchOpen}
                 onClose={() => setSearchOpen(false)}
-                onSelectCustomer={(c) => {
-                    setSelectedCustomer(c);
-                    setCustomerName(c.full_name || "");
+                onSelectCustomer={(res) => {
+                    if (res.fullCustomer) setSelectedCustomer(res.fullCustomer);
+                    setCustomerName(res.name);
                     setSearchOpen(false);
                 }}
             />

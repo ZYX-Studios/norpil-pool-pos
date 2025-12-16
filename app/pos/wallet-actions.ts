@@ -152,69 +152,37 @@ export type PaymentCodeResult = {
     new_balance?: number;
 };
 
-export async function processPaymentCode(sessionId: string, code: string, amount: number): Promise<PaymentCodeResult> {
+export async function processPaymentCode(sessionId: string, code: string, amount: number, profileId?: string) {
     const supabase = createSupabaseServerClient();
 
+    // Check wallet
+    const { data: wallet } = await supabase.from("wallets").select("id, balance, profile_id").eq("payment_code", code).single();
+
+    if (!wallet) return { success: false, error: "Invalid Code" };
+    if (wallet.balance < amount) return { success: false, error: "Insufficient Balance" };
+
+    // Deduct from wallet
+    const { error: deductErr } = await supabase.rpc("deduct_wallet_balance", { p_wallet_id: wallet.id, p_amount: amount });
+    if (deductErr) return { success: false, error: "Wallet Deduction Failed" };
+
     try {
-        // 1. Get Session Order ID
-        const { data: session, error: sessionErr } = await supabase
-            .from("table_sessions")
-            .select("orders(id)")
-            .eq("id", sessionId)
-            .single();
-
-        if (sessionErr || !session || !session.orders?.[0]?.id) {
-            throw new Error("Session or Order not found");
-        }
-
-        const orderId = session.orders[0].id;
-
-        // 2. Call RPC to process wallet logic (verify code, deduct balance, link order)
-        // This is an atomic operation.
-        const { data: result, error: rpcErr } = await supabase
-            .rpc("process_wallet_payment", {
-                p_code: code,
-                p_amount: amount,
-                p_order_id: orderId
-            });
-
-        if (rpcErr) throw rpcErr;
-
-        // result is a JSON object { success, error, user_id, customer_name, new_balance }
-        const res = result as any;
-
-        if (!res.success) {
-            return { success: false, error: res.error || "Payment failed" };
-        }
-
-        // 3. Close Session (using shared logic)
-        // This records the payment in `payments` table and updates stats.
-        // The wallet deduction happened above.
-
         await closeSessionAndRecordPayment(supabase, {
             sessionId,
             method: "WALLET",
-            tenderedAmount: amount
+            tenderedAmount: amount,
+            profileId: wallet.profile_id // Wallet owner is the payer
         });
 
-        // 4. Log Action
         await logAction({
             actionType: "PAY_ORDER",
             entityType: "table_session",
             entityId: sessionId,
-            details: { method: "WALLET", amount, code_used: true }
+            details: { method: "WALLET", tenderedAmount: amount, walletId: wallet.id }
         });
 
         revalidatePath("/pos");
-
-        return {
-            success: true,
-            customer_name: res.customer_name,
-            new_balance: res.new_balance
-        };
-
-    } catch (error: any) {
-        console.error("Wallet Payment Failed:", error);
-        return { success: false, error: error.message };
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
     }
 }

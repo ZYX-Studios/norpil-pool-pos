@@ -147,6 +147,15 @@ export default async function SessionPage({
 			session.override_hourly_rate ?? (session as any).pool_tables?.hourly_rate ?? 0,
 		);
 
+		// Load existing payments sum to determine partial status
+		const { data: existingPayments } = await supabase
+			.from("payments")
+			.select("amount")
+			.eq("order_id", order.id);
+
+		const totalPaid = (existingPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
+
+
 		// Apply Member Discount (only if no override is set? Or always? Usually on base rate.)
 		// Assumption: Override implies manual control, so valid overrides might skip discount.
 		// However, simpler logic: If it's the base table rate, apply discount. If override is present, use override.
@@ -200,6 +209,7 @@ export default async function SessionPage({
 						const status = Array.isArray(r) ? r[0]?.payment_status : r?.payment_status;
 						return status === 'PAID';
 					})()}
+					totalPaid={totalPaid}
 				/>
 			</>
 		);

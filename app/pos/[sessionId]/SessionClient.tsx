@@ -7,6 +7,7 @@ import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateSessionCustomerName, pauseSession, resumeSession, releaseTable } from "../actions";
+import { CustomerSearchDialog } from "../components/CustomerSearchDialog";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
 
@@ -133,6 +134,7 @@ export function SessionClient(props: SessionClientProps & {
 	isMoneyGame?: boolean;
 	betAmount?: number;
 	isPrepaid?: boolean;
+	totalPaid?: number;
 
 	orderStatus?: string;
 	lastSubmittedItemCount?: number;
@@ -160,7 +162,9 @@ export function SessionClient(props: SessionClientProps & {
 		lastSubmittedItemCount = 0,
 		isMember = false,
 		discountPercent = 0,
+		totalPaid = 0,
 	} = props;
+	const [renameSearchOpen, setRenameSearchOpen] = useState(false);
 	// ... component state ...
 	const router = useRouter();
 	const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -379,14 +383,7 @@ export function SessionClient(props: SessionClientProps & {
 									</div>
 									{customerName && (
 										<button
-											onClick={() => {
-												const newName = window.prompt("Update customer name:", customerName);
-												if (newName && newName !== customerName) {
-													startTransition(async () => {
-														await updateSessionCustomerName(sessionId, newName);
-													});
-												}
-											}}
+											onClick={() => setRenameSearchOpen(true)}
 											className="rounded-full p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
 										>
 											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -615,9 +612,22 @@ export function SessionClient(props: SessionClientProps & {
 				<PayFormClient
 					sessionId={sessionId}
 					suggestedAmount={grandTotal}
+					totalPaid={totalPaid ?? 0}
 					errorCode={errorCode}
 				/>
 			</section >
+
+			<CustomerSearchDialog
+				isOpen={renameSearchOpen}
+				onClose={() => setRenameSearchOpen(false)}
+				onSelectCustomer={(res) => {
+					startTransition(async () => {
+						await updateSessionCustomerName(sessionId, res.name, res.id);
+						setRenameSearchOpen(false);
+					});
+				}}
+			/>
+
 
 			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
 				<div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

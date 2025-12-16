@@ -507,10 +507,12 @@ export function PosHomeClient({
 			<CustomerSearchDialog
 				isOpen={customerSearchOpen}
 				onClose={() => setCustomerSearchOpen(false)}
-				onSelectCustomer={(customer) => {
-					setSelectedCustomer(customer);
-					setCustomerSearchOpen(false);
-					setTopUpOpen(true);
+				onSelectCustomer={(res) => {
+					if (res.fullCustomer) {
+						setSelectedCustomer(res.fullCustomer);
+						setCustomerSearchOpen(false);
+						setTopUpOpen(true);
+					}
 				}}
 			/>
 
@@ -528,8 +530,8 @@ export function PosHomeClient({
 			<WalkInDialog
 				isOpen={walkInOpen}
 				onClose={() => setWalkInOpen(false)}
-				onConfirm={(name) => {
-					createWalkInSession(name);
+				onConfirm={(name, profileId) => {
+					createWalkInSession(name, profileId);
 					setWalkInOpen(false);
 				}}
 			/>
