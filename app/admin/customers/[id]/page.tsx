@@ -121,6 +121,16 @@ export default async function CustomerDetailPage({
                                     )}
                                 </div>
                             </div>
+                            {profile.membership_number && (
+                                <div>
+                                    <div className="text-xs text-neutral-500">Membership Number</div>
+                                    <div className="mt-1">
+                                        <span className="text-lg font-mono font-bold text-neutral-100 tracking-[0.25em]">
+                                            {profile.membership_number}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <div className="text-xs text-neutral-500">Joined</div>
                                 <div className="text-neutral-200">

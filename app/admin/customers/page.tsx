@@ -16,7 +16,7 @@ export default async function CustomersPage() {
     // Fetch ALL profiles (client-side filtering)
     const { data: profiles, error } = await supabase
         .from("profiles")
-        .select("id, full_name, phone_number, is_member, created_at, ranking, wallets(balance)")
+        .select("id, full_name, phone_number, is_member, membership_number, created_at, ranking, wallets(balance)")
         .order("full_name", { ascending: true });
 
     // Fetch Settings

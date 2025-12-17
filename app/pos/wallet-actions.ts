@@ -11,6 +11,7 @@ export type CustomerResult = {
     phone_number: string | null;
     avatar_url: string | null;
     email?: string | null; // From auth.users if possible
+    membership_number?: string | null; // Unique membership number (NP-XXXXX)
     wallet: {
         id: string;
         balance: number;
@@ -40,6 +41,7 @@ export async function searchCustomers(query: string): Promise<CustomerResult[]> 
         phone_number: r.phone_number,
         avatar_url: r.avatar_url,
         email: r.email,
+        membership_number: r.membership_number,
         wallet: r.wallet_id ? {
             id: r.wallet_id,
             balance: Number(r.balance)

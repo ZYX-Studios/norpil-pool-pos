@@ -52,7 +52,7 @@ export function CustomerSearchDialog({ isOpen, onClose, onSelectCustomer }: Cust
                 <div className="space-y-4">
                     <input
                         type="text"
-                        placeholder="Search by name, phone, or email..."
+                        placeholder="Search by name, phone, email, or member #..."
                         className="w-full rounded-xl border border-neutral-700 bg-neutral-800 p-4 text-lg text-white placeholder-neutral-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -93,7 +93,14 @@ export function CustomerSearchDialog({ isOpen, onClose, onSelectCustomer }: Cust
                                     </div>
                                     <div>
                                         <p className="font-semibold text-neutral-200">{customer.full_name ?? "Unknown"}</p>
-                                        <p className="text-sm text-neutral-400">{customer.phone_number ?? (customer.email ?? "No contact info")}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm text-neutral-400">{customer.phone_number ?? (customer.email ?? "No contact info")}</p>
+                                            {customer.membership_number && (
+                                                <span className="text-xs font-mono text-neutral-400 tracking-wider">
+                                                    {customer.membership_number}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="text-right">

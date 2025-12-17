@@ -9,6 +9,7 @@ interface Customer {
     phone_number: string | null;
     ranking: number | null;
     is_member: boolean;
+    membership_number?: string | null;
     wallets?: { balance: number }[] | null;
 }
 
@@ -30,7 +31,7 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
 
             const rank = customer.ranking;
             // Show customers with no rank OR customers within the selected rank range
-            const matchesRank = !rank || (rank >= minRank && rank <= maxRank);
+            const matchesRank = rank === null || rank === undefined || (rank >= minRank && rank <= maxRank);
 
             return matchesSearch && matchesRank;
         });
@@ -93,6 +94,7 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                             <tr className="bg-white/5 border-b border-white/5">
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Name</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Phone</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Member #</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Rank</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Wallet</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Status</th>
@@ -111,13 +113,21 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                                         {profile.phone_number || "—"}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {profile.ranking ? (
-                                            <span className="inline-flex items-center rounded-lg bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-400 border border-orange-500/20 font-mono">
-                                                {Number(profile.ranking).toFixed(1)}
+                                        {profile.membership_number ? (
+                                            <span className="font-mono text-sm text-neutral-200 tracking-[0.2em]">
+                                                {profile.membership_number}
                                             </span>
                                         ) : (
-                                            <span className="text-neutral-600">-</span>
+                                            <span className="text-neutral-600">—</span>
                                         )}
+                                    </td>
+                                    <td className="px-6 py-4">{profile.ranking ? (
+                                        <span className="inline-flex items-center rounded-lg bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-400 border border-orange-500/20 font-mono">
+                                            {Number(profile.ranking).toFixed(1)}
+                                        </span>
+                                    ) : (
+                                        <span className="text-neutral-600">-</span>
+                                    )}
                                     </td>
                                     <td className="px-6 py-4 font-mono text-emerald-400">
                                         ₱{Number(profile.wallets?.[0]?.balance || 0).toLocaleString()}
@@ -150,7 +160,7 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                             ))}
                             {filteredCustomers.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
                                         No customers found matching your filters.
                                     </td>
                                 </tr>

@@ -7,6 +7,8 @@ interface PlayerCardProps {
         ranking: number | null;
         created_at: string;
         avatar_url: string | null;
+        membership_number?: string | null;
+        is_member?: boolean;
     } | null;
     walletBalance: number;
 }
@@ -53,9 +55,15 @@ export function PlayerCard({ profile, walletBalance }: PlayerCardProps) {
                             <Logo className="h-5 w-5 text-white/70" />
                             <span className="text-[9px] font-bold tracking-[0.25em] text-white/50 uppercase">Norpil Billiards</span>
                         </div>
-                        <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10">
-                            <span className="text-[8px] font-bold text-white/60 tracking-widest uppercase">Member</span>
-                        </div>
+                        {profile?.membership_number ? (
+                            <div className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10">
+                                <span className="text-[10px] font-mono font-bold text-white/80 tracking-[0.15em]">{profile.membership_number}</span>
+                            </div>
+                        ) : (
+                            <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10">
+                                <span className="text-[8px] font-bold text-white/60 tracking-widest uppercase">{profile?.is_member ? 'Member' : 'Guest'}</span>
+                            </div>
+                        )}
                     </div>
 
                     {/* Main Player Section */}

@@ -49,6 +49,13 @@ export default async function ProfilePage() {
                         updateAction={updateProfileName}
                     />
                     <p className="text-sm text-neutral-400 mt-1">{user.email}</p>
+                    {profile?.membership_number && (
+                        <div className="mt-2">
+                            <span className="text-sm font-mono text-neutral-400 tracking-[0.2em]">
+                                {profile.membership_number}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
