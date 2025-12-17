@@ -5,35 +5,19 @@ import { PageHeader } from "../components/AdminComponents";
 import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 import { redirect } from "next/navigation";
 
-export default async function CustomersPage({
-    searchParams
-}: {
-    searchParams: Promise<{ q?: string; rank?: string }>;
-}) {
+import { CustomerTable } from "./CustomerTable";
+
+export default async function CustomersPage() {
     const { staff: currentStaff } = await getCurrentUserWithStaff();
     if (currentStaff?.role !== "ADMIN") redirect("/admin");
 
-    const sp = await searchParams;
-    const query = sp.q || "";
-    const rank = sp.rank || "";
     const supabase = createSupabaseServerClient();
 
-    // Search profiles
-    let profileQuery = supabase
+    // Fetch ALL profiles (client-side filtering)
+    const { data: profiles, error } = await supabase
         .from("profiles")
         .select("id, full_name, phone_number, is_member, created_at, ranking, wallets(balance)")
-        .order("full_name", { ascending: true })
-        .limit(50);
-
-    if (query) {
-        profileQuery = profileQuery.ilike("full_name", `%${query}%`);
-    }
-
-    if (rank) {
-        profileQuery = profileQuery.eq("ranking", rank);
-    }
-
-    const { data: profiles, error } = await profileQuery;
+        .order("full_name", { ascending: true });
 
     // Fetch Settings
     const { data: discountSetting } = await supabase
@@ -114,109 +98,10 @@ export default async function CustomersPage({
                 </div>
             </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold text-neutral-50">Customer List</h2>
-                <form className="flex gap-2">
-                    <input
-                        type="text"
-                        name="q"
-                        defaultValue={query}
-                        placeholder="Search name..."
-                        className="w-full min-w-[250px] rounded-xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-neutral-50 focus:border-emerald-500 focus:outline-none"
-                    />
-                    <select
-                        name="rank"
-                        defaultValue={rank}
-                        className="rounded-xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-neutral-50 focus:border-emerald-500 focus:outline-none appearance-none"
-                    >
-                        <option value="">All Ranks</option>
-                        {[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0].map((val) => (
-                            <option key={val} value={val.toFixed(1)} className="bg-neutral-900">
-                                {val.toFixed(1)}
-                            </option>
-                        ))}
-                    </select>
-                    <button type="submit" className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20">
-                        Search
-                    </button>
-                </form>
-            </div>
-
-            <div className="overflow-hidden rounded-3xl border border-white/5 bg-neutral-900/50 shadow-2xl">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-neutral-400">
-                        <thead>
-                            <tr className="bg-white/5 border-b border-white/5">
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Name</th>
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Phone</th>
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Rank</th>
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Wallet</th>
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Status</th>
-                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {profiles?.map((profile: any) => (
-                                <tr key={profile.id} className="hover:bg-white/5">
-                                    <td className="px-6 py-4 font-medium text-neutral-200">
-                                        <Link href={`/admin/customers/${profile.id}`} className="hover:text-emerald-400 hover:underline">
-                                            {profile.full_name || "Guest"}
-                                        </Link>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {profile.phone_number || "—"}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {profile.ranking ? (
-                                            <span className="inline-flex items-center rounded-lg bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-400 border border-orange-500/20 font-mono">
-                                                {Number(profile.ranking).toFixed(1)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-neutral-600">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-emerald-400">
-                                        ₱{Number(profile.wallets?.balance || 0).toLocaleString()}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {profile.is_member ? (
-                                            <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-2.5 py-1 text-xs font-medium text-indigo-300 border border-indigo-500/30">
-                                                Member
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center rounded-full bg-neutral-500/10 px-2.5 py-1 text-xs font-medium text-neutral-400 border border-neutral-500/20">
-                                                Standard
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <form action={toggleMembership} className="inline-block">
-                                            <input type="hidden" name="id" value={profile.id} />
-                                            <input type="hidden" name="currentState" value={String(profile.is_member)} />
-                                            <button
-                                                type="submit"
-                                                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${profile.is_member
-                                                    ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                                                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                                    }`}
-                                            >
-                                                {profile.is_member ? "Revoke" : "Upgrade"}
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            ))}
-                            {(!profiles || profiles.length === 0) && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-neutral-500">
-                                        No customers found.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <CustomerTable
+                customers={profiles || []}
+                toggleMembership={toggleMembership}
+            />
         </div>
     );
 }
