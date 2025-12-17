@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
 		root: __dirname,
 	},
 	serverExternalPackages: ["puppeteer"],
+	images: {
+		remotePatterns: [
+			{
+				protocol: 'https',
+				hostname: 'wafmycddsldscayemwpp.supabase.co',
+				pathname: '/storage/v1/object/public/**',
+			},
+		],
+	},
 };
 
 export default nextConfig;

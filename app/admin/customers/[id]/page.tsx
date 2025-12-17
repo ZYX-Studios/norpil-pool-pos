@@ -37,6 +37,15 @@ export default async function CustomerDetailPage({
         .order("created_at", { ascending: false })
         .limit(20);
 
+    // Calculate total topups (deposits)
+    const { data: allDeposits } = await supabase
+        .from("wallet_transactions")
+        .select("amount")
+        .eq("wallet_id", profile.wallets?.id)
+        .eq("type", "DEPOSIT");
+
+    const totalTopups = allDeposits?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
+
     // Fetch Recent Sessions
     const { data: sessions } = await supabase
         .from("table_sessions")
@@ -50,6 +59,16 @@ export default async function CustomerDetailPage({
         const supabase = createSupabaseServerClient();
         await supabase.from("profiles")
             .update({ is_member: !profile.is_member })
+            .eq("id", id);
+        revalidatePath(`/admin/customers/${id}`);
+    }
+
+    async function updateRanking(formData: FormData) {
+        "use server";
+        const supabase = createSupabaseServerClient();
+        const ranking = formData.get("ranking");
+        await supabase.from("profiles")
+            .update({ ranking: ranking ? Number(ranking) : null })
             .eq("id", id);
         revalidatePath(`/admin/customers/${id}`);
     }
@@ -70,8 +89,8 @@ export default async function CustomerDetailPage({
                         <button
                             type="submit"
                             className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${profile.is_member
-                                    ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                                ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                                 }`}
                         >
                             {profile.is_member ? "Revoke Membership" : "Upgrade to Member"}
@@ -108,16 +127,55 @@ export default async function CustomerDetailPage({
                                     {new Date(profile.created_at).toLocaleDateString()}
                                 </div>
                             </div>
+                            <div>
+                                <div className="text-xs text-neutral-500 mb-2">Skill Ranking</div>
+                                <form action={updateRanking} className="flex items-center gap-2">
+                                    <select
+                                        name="ranking"
+                                        defaultValue={profile.ranking || ""}
+                                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    >
+                                        <option value="">Not Rated</option>
+                                        <option value="1.0">1.0</option>
+                                        <option value="1.5">1.5</option>
+                                        <option value="2.0">2.0</option>
+                                        <option value="2.5">2.5</option>
+                                        <option value="3.0">3.0</option>
+                                        <option value="3.5">3.5</option>
+                                        <option value="4.0">4.0</option>
+                                        <option value="4.5">4.5</option>
+                                        <option value="5.0">5.0</option>
+                                        <option value="5.5">5.5</option>
+                                        <option value="6.0">6.0</option>
+                                        <option value="6.5">6.5</option>
+                                        <option value="7.0">7.0</option>
+                                    </select>
+                                    <button
+                                        type="submit"
+                                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 transition"
+                                    >
+                                        Save
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
                         <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-neutral-400">Wallet</h3>
-                        <div className="flex items-baseline justify-between">
-                            <div className="text-3xl font-bold text-emerald-400">
-                                ₱{Number(profile.wallets?.balance || 0).toLocaleString()}
+                        <div className="space-y-4">
+                            <div className="flex items-baseline justify-between">
+                                <div className="text-3xl font-bold text-emerald-400">
+                                    ₱{Number(profile.wallets?.balance || 0).toLocaleString()}
+                                </div>
+                                <div className="text-xs text-neutral-500">Current Balance</div>
                             </div>
-                            <div className="text-xs text-neutral-500">Current Balance</div>
+                            <div className="pt-4 border-t border-white/10">
+                                <div className="text-xs text-neutral-500">Total Topups</div>
+                                <div className="text-xl font-bold text-white mt-1">
+                                    ₱{totalTopups.toLocaleString()}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

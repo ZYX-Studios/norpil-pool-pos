@@ -2,6 +2,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { logoutAction } from "@/app/auth/actions";
 import { ReservationsList } from "@/app/components/ReservationsList";
+import { AvatarUpload } from "./components/AvatarUpload";
+import { revalidatePath } from "next/cache";
+import { ProfileNameEdit } from "./components/ProfileNameEdit";
 
 export default async function ProfilePage() {
     const supabase = createSupabaseServerClient();
@@ -15,17 +18,37 @@ export default async function ProfilePage() {
         .eq("id", user.id)
         .single();
 
+    async function updateProfileName(formData: FormData) {
+        "use server";
+        const supabase = createSupabaseServerClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const fullName = formData.get("full_name");
+        await supabase.from("profiles")
+            .update({ full_name: fullName })
+            .eq("id", user.id);
+
+        revalidatePath("/mobile/profile");
+        revalidatePath("/mobile/home");
+    }
+
     return (
         <div className="p-6 space-y-6 max-w-md mx-auto pt-8">
             <h1 className="text-2xl font-bold tracking-tight text-white">My Profile</h1>
 
             <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-5 shadow-lg shadow-black/20 backdrop-blur-sm">
-                <div className="w-16 h-16 bg-white/10 border border-white/20 text-white rounded-full flex items-center justify-center text-2xl font-bold shadow-inner">
-                    {profile?.full_name?.[0] ?? user.email?.[0]?.toUpperCase() ?? "U"}
-                </div>
-                <div>
-                    <h2 className="font-bold text-lg text-white">{profile?.full_name ?? "Guest User"}</h2>
-                    <p className="text-sm text-neutral-400">{user.email}</p>
+                <AvatarUpload
+                    userId={user.id}
+                    currentAvatarUrl={profile?.avatar_url}
+                    userName={profile?.full_name ?? user.email ?? "User"}
+                />
+                <div className="flex-1">
+                    <ProfileNameEdit
+                        currentName={profile?.full_name ?? ""}
+                        updateAction={updateProfileName}
+                    />
+                    <p className="text-sm text-neutral-400 mt-1">{user.email}</p>
                 </div>
             </div>
 
