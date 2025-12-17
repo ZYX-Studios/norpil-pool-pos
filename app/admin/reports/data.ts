@@ -58,7 +58,7 @@ async function fetchTransactionsWithDetails(supabase: any, start: string, end: s
 		supabase
 			.from("payments")
 			.select(
-				"id, amount, method, paid_at, orders:order_id(id, total, table_sessions:table_session_id(id, customer_name, pool_tables:pool_table_id(name)), reservations(pool_tables:pool_table_id(name)), profiles:profile_id(full_name))",
+				"id, amount, method, paid_at, orders:order_id(id, status, total, table_sessions:table_session_id(id, customer_name, pool_tables:pool_table_id(name)), reservations(pool_tables:pool_table_id(name)), profiles:profile_id(full_name))",
 			)
 			.gte("paid_at", start)
 			.lt("paid_at", endExclusive)
@@ -76,11 +76,26 @@ async function fetchTransactionsWithDetails(supabase: any, start: string, end: s
 	]);
 
 	// Merge and sort transactions
-	const payments = (txPayments as any[]) ?? [];
+	const rawPayments = (txPayments as any[]) ?? [];
 	const deposits = (txDeposits as any[]) ?? [];
 
+	const payments = rawPayments
+		.filter((p) => {
+			const status = p.orders?.status;
+			return status !== "VOIDED" && status !== "CANCELLED";
+		})
+		.map((p) => ({
+			...p,
+			// Cap the displayed amount at the Order Total to avoid showing "90,000" for a "300" sale.
+			// This matches the "Gross Sales" calculation.
+			formattedAmount: p.orders?.total ? Math.min(Number(p.amount), Number(p.orders.total)) : Number(p.amount)
+		}));
+
 	const combinedTx = [
-		...payments,
+		...payments.map(p => ({
+			...p,
+			amount: p.formattedAmount
+		})),
 		...deposits.map((d) => ({
 			id: d.id,
 			amount: d.amount,

@@ -13,6 +13,7 @@ type Product = {
     name: string;
     price: number;
     category: string;
+    stock: number;
 };
 
 export default function OrderPageClient({ products: initialProducts }: { products: Product[] }) {
@@ -62,9 +63,13 @@ export default function OrderPageClient({ products: initialProducts }: { product
     }
 
     function addToCart(product: Product) {
+        if (product.stock <= 0) {
+            return;
+        }
         setCart(prev => {
             const existing = prev.find(item => item.product.id === product.id);
             if (existing) {
+                if (existing.quantity >= product.stock) return prev;
                 return prev.map(item =>
                     item.product.id === product.id
                         ? { ...item, quantity: item.quantity + 1 }

@@ -8,6 +8,7 @@ type Product = {
     name: string;
     price: number;
     category: string;
+    stock: number;
 };
 
 type ProductListProps = {
@@ -48,15 +49,31 @@ export function ProductList({ products, onAdd }: ProductListProps) {
                     <button
                         key={product.id}
                         onClick={() => onAdd(product)}
-                        className="flex flex-col items-start justify-between rounded-2xl border border-white/10 bg-white/5 p-4 text-left shadow-sm backdrop-blur transition-all active:scale-95 hover:bg-white/10"
+                        disabled={product.stock <= 0}
+                        className={cn(
+                            "flex flex-col items-start justify-between rounded-2xl border border-white/10 p-4 text-left shadow-sm backdrop-blur transition-all",
+                            product.stock <= 0
+                                ? "bg-white/5 opacity-50 cursor-not-allowed"
+                                : "bg-white/5 hover:bg-white/10 active:scale-95"
+                        )}
                     >
                         <div className="w-full">
                             <div className="font-semibold text-neutral-50 truncate">{product.name}</div>
-                            <div className="text-sm text-emerald-400 font-medium mt-1">
-                                ₱{product.price.toLocaleString()}
+                            <div className="flex items-center justify-between mt-1">
+                                <div className="text-sm text-emerald-400 font-medium">
+                                    ₱{product.price.toLocaleString()}
+                                </div>
+                                {product.stock <= 0 && (
+                                    <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
+                                        Sold Out
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <div className="mt-3 self-end bg-white/10 rounded-full p-1.5 text-neutral-300">
+                        <div className={cn(
+                            "mt-3 self-end rounded-full p-1.5",
+                            product.stock <= 0 ? "bg-white/5 text-neutral-500" : "bg-white/10 text-neutral-300"
+                        )}>
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                             </svg>
