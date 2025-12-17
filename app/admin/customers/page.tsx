@@ -8,24 +8,29 @@ import { redirect } from "next/navigation";
 export default async function CustomersPage({
     searchParams
 }: {
-    searchParams: Promise<{ q?: string }>;
+    searchParams: Promise<{ q?: string; rank?: string }>;
 }) {
     const { staff: currentStaff } = await getCurrentUserWithStaff();
     if (currentStaff?.role !== "ADMIN") redirect("/admin");
 
     const sp = await searchParams;
     const query = sp.q || "";
+    const rank = sp.rank || "";
     const supabase = createSupabaseServerClient();
 
     // Search profiles
     let profileQuery = supabase
         .from("profiles")
-        .select("id, full_name, phone_number, is_member, created_at, wallets(balance)")
+        .select("id, full_name, phone_number, is_member, created_at, ranking, wallets(balance)")
         .order("full_name", { ascending: true })
         .limit(50);
 
     if (query) {
         profileQuery = profileQuery.ilike("full_name", `%${query}%`);
+    }
+
+    if (rank) {
+        profileQuery = profileQuery.eq("ranking", rank);
     }
 
     const { data: profiles, error } = await profileQuery;
@@ -119,6 +124,18 @@ export default async function CustomersPage({
                         placeholder="Search name..."
                         className="w-full min-w-[250px] rounded-xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-neutral-50 focus:border-emerald-500 focus:outline-none"
                     />
+                    <select
+                        name="rank"
+                        defaultValue={rank}
+                        className="rounded-xl border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-neutral-50 focus:border-emerald-500 focus:outline-none appearance-none"
+                    >
+                        <option value="">All Ranks</option>
+                        {[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0].map((val) => (
+                            <option key={val} value={val.toFixed(1)} className="bg-neutral-900">
+                                {val.toFixed(1)}
+                            </option>
+                        ))}
+                    </select>
                     <button type="submit" className="rounded-xl bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20">
                         Search
                     </button>
@@ -132,6 +149,7 @@ export default async function CustomersPage({
                             <tr className="bg-white/5 border-b border-white/5">
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Name</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Phone</th>
+                                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Rank</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Wallet</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400">Status</th>
                                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-neutral-400 text-right">Action</th>
@@ -147,6 +165,15 @@ export default async function CustomersPage({
                                     </td>
                                     <td className="px-6 py-4">
                                         {profile.phone_number || "—"}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {profile.ranking ? (
+                                            <span className="inline-flex items-center rounded-lg bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-400 border border-orange-500/20 font-mono">
+                                                {Number(profile.ranking).toFixed(1)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-neutral-600">-</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 font-mono text-emerald-400">
                                         ₱{Number(profile.wallets?.balance || 0).toLocaleString()}

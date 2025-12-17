@@ -47,6 +47,7 @@ export async function signupAction(formData: FormData) {
 	const email = String(formData.get("email") || "").trim();
 	const password = String(formData.get("password") || "");
 	const fullName = String(formData.get("fullName") || "").trim();
+	const ranking = String(formData.get("ranking") || "");
 
 	if (!email || !password || !fullName) {
 		redirect("/auth/signup?error=missing");
@@ -60,6 +61,7 @@ export async function signupAction(formData: FormData) {
 		options: {
 			data: {
 				full_name: fullName,
+				ranking: ranking,
 			},
 		},
 	});

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/app/components/ui/Logo";
+import { PlayerCard } from "./components/PlayerCard";
 import { GlassCard } from "../components/GlassCard";
 import { UtensilsCrossed, CalendarClock, Wallet, ArrowRight, User } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,6 +10,8 @@ export default async function HomePage() {
 
     // Fetch wallet balance if user is logged in
     let walletBalance = 0;
+    let profile = null;
+
     if (user) {
         const { data: wallet } = await supabase
             .from("wallets")
@@ -17,30 +19,25 @@ export default async function HomePage() {
             .eq("profile_id", user.id)
             .single();
 
+        const { data: p } = await supabase
+            .from("profiles")
+            .select("full_name, ranking")
+            .eq("id", user.id)
+            .single();
+
         walletBalance = wallet?.balance ?? 0;
+        profile = p;
     }
 
     return (
         <div className="p-6 space-y-6 max-w-md mx-auto pt-8">
-            {/* Header Section */}
-            <header className="flex items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                    <div className="relative">
-                        <Logo className="h-14 w-14 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]" />
-                    </div>
-                    <div className="space-y-0.5">
-                        <p className="text-neutral-400 font-medium text-[10px] tracking-[0.15em] uppercase">Welcome to</p>
-                        <h1 className="text-2xl font-bold tracking-tight text-white leading-none">
-                            Norpil Billiards
-                        </h1>
-                    </div>
-                </div>
-                <Link href="/mobile/profile">
-                    <div className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-lg shadow-black/20 hover:bg-white/10 transition-colors">
-                        <User className="size-5 text-neutral-300" />
-                    </div>
-                </Link>
-            </header>
+            {/* Player Card Section */}
+            <div className="pb-2">
+                <PlayerCard
+                    profile={profile as any}
+                    walletBalance={walletBalance}
+                />
+            </div>
 
             {/* Quick Actions Grid */}
             <div className="grid grid-cols-2 gap-3">
