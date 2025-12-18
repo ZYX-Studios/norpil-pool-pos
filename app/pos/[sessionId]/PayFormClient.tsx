@@ -195,8 +195,8 @@ export function PayFormClient({
 					</div>
 
 					<div>
-						{method === "WALLET" ? (
-							<>
+						{method === "WALLET" && (
+							<div className="mb-3">
 								<label className="mb-1 block text-xs text-neutral-100">Payment Code</label>
 								<input
 									type="text"
@@ -207,31 +207,29 @@ export function PayFormClient({
 									maxLength={6}
 									required={method === "WALLET"}
 								/>
-							</>
-						) : (
-							<>
-								<label className="mb-1 block text-xs text-neutral-100">Payment Amount</label>
-								<div className="relative">
-									<input
-										name="tenderedAmount"
-										type="text"
-										inputMode="decimal"
-										value={amount}
-										onChange={(e) => setAmount(e.target.value)}
-										onFocus={() => { setOpen(true); setHasTypedOnKeypad(false); }}
-										className="w-full rounded border border-emerald-400/40 bg-black/40 px-3 py-2.5 text-sm text-neutral-50 pr-20 font-bold"
-										required
-									/>
-									<button
-										type="button"
-										onClick={() => { setOpen(true); setHasTypedOnKeypad(false); }}
-										className="absolute inset-y-0 right-1 my-1 rounded-full bg-emerald-500/20 px-3 text-[11px] sm:text-xs font-medium text-emerald-100 hover:bg-emerald-500/30"
-									>
-										Keypad
-									</button>
-								</div>
-							</>
+							</div>
 						)}
+
+						<label className="mb-1 block text-xs text-neutral-100">Payment Amount</label>
+						<div className="relative">
+							<input
+								name="tenderedAmount"
+								type="text"
+								inputMode="decimal"
+								value={amount}
+								onChange={(e) => setAmount(e.target.value)}
+								onFocus={() => { setOpen(true); setHasTypedOnKeypad(false); }}
+								className="w-full rounded border border-emerald-400/40 bg-black/40 px-3 py-2.5 text-sm text-neutral-50 pr-20 font-bold"
+								required
+							/>
+							<button
+								type="button"
+								onClick={() => { setOpen(true); setHasTypedOnKeypad(false); }}
+								className="absolute inset-y-0 right-1 my-1 rounded-full bg-emerald-500/20 px-3 text-[11px] sm:text-xs font-medium text-emerald-100 hover:bg-emerald-500/30"
+							>
+								Keypad
+							</button>
+						</div>
 					</div>
 				</div>
 

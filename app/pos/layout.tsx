@@ -21,12 +21,24 @@ export default async function PosLayout({ children }: { children: React.ReactNod
 		: { status: "NO_SHIFT" as const, activeShift: null, lastShift: null, lockedBy: undefined };
 
 	// 1. Check if terminal is locked by someone else
-	if (shiftState.status === "LOCKED_BY_OTHER" && shiftState.lockedBy) {
-		return <TerminalLocked lockerName={shiftState.lockedBy.name} />;
+	const isDev = process.env.NODE_ENV === "development";
+	const isLocked = shiftState.status === "LOCKED_BY_OTHER" && shiftState.lockedBy;
+
+	if (isLocked && !isDev) {
+		return <TerminalLocked lockerName={shiftState.lockedBy!.name} />;
 	}
 
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-black text-neutral-50 relative">
+			{/* DEV BYPASS BANNER */}
+			{isLocked && isDev && (
+				<div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center">
+					<p className="text-xs font-bold text-amber-500 tracking-wider">
+						🚧 DEV MODE: POS LOCK BYPASSED ({shiftState.lockedBy!.name}) 🚧
+					</p>
+				</div>
+			)}
+
 			{/* 2. Blocking Start Shift Overlay if valid user but no active shift */}
 			{shiftState.status === "NO_SHIFT" && authError !== "supabase_unreachable" && (
 				<StartShiftOverlay />
