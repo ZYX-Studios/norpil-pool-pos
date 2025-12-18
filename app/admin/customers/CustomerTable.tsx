@@ -10,7 +10,7 @@ interface Customer {
     ranking: number | null;
     is_member: boolean;
     membership_number?: string | null;
-    wallets?: { balance: number }[] | null;
+    wallets?: { balance: number } | { balance: number }[] | null;
 }
 
 interface CustomerTableProps {
@@ -130,7 +130,7 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                                     )}
                                     </td>
                                     <td className="px-6 py-4 font-mono text-emerald-400">
-                                        ₱{Number(profile.wallets?.[0]?.balance || 0).toLocaleString()}
+                                        ₱{Number((Array.isArray(profile.wallets) ? profile.wallets[0]?.balance : profile.wallets?.balance) || 0).toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4">
                                         {profile.is_member ? (
