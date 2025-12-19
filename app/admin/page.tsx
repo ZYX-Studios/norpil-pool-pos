@@ -11,7 +11,7 @@ export default async function AdminHome() {
 	const { staff } = await getCurrentUserWithStaff();
 	if (!staff) redirect("/auth/login");
 
-	const isAdmin = staff.role === "ADMIN";
+	const isAdmin = staff.role === "ADMIN" || staff.role === "OWNER";
 
 	return (
 		<div className="space-y-8">

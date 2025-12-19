@@ -5,7 +5,7 @@ type StaffRow = {
 	id: string;
 	user_id: string;
 	name: string;
-	role: "ADMIN" | "CASHIER" | "WAITER";
+	role: "ADMIN" | "CASHIER" | "WAITER" | "OWNER";
 };
 
 /**

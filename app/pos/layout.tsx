@@ -22,19 +22,20 @@ export default async function PosLayout({ children }: { children: React.ReactNod
 
 	// 1. Check if terminal is locked by someone else
 	const isDev = process.env.NODE_ENV === "development";
+	const canBypass = isDev || staff?.role === "ADMIN" || staff?.role === "OWNER";
 	const isLocked = shiftState.status === "LOCKED_BY_OTHER" && shiftState.lockedBy;
 
-	if (isLocked && !isDev) {
+	if (isLocked && !canBypass) {
 		return <TerminalLocked lockerName={shiftState.lockedBy!.name} />;
 	}
 
 	return (
 		<div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-black text-neutral-50 relative">
 			{/* DEV BYPASS BANNER */}
-			{isLocked && isDev && (
+			{isLocked && canBypass && (
 				<div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center">
 					<p className="text-xs font-bold text-amber-500 tracking-wider">
-						🚧 DEV MODE: POS LOCK BYPASSED ({shiftState.lockedBy!.name}) 🚧
+						🚧 OVERRIDE: POS LOCK BYPASSED ({shiftState.lockedBy!.name}) 🚧
 					</p>
 				</div>
 			)}

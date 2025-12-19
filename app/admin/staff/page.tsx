@@ -16,7 +16,7 @@ type StaffRow = {
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<Record<string, string | string[]>> }) {
 	const { staff: currentStaff } = await getCurrentUserWithStaff();
-	if (currentStaff?.role !== "ADMIN") redirect("/admin");
+	if (currentStaff?.role !== "ADMIN" && currentStaff?.role !== "OWNER") redirect("/admin");
 
 	const supabase = createSupabaseServerClient();
 	const { data } = await supabase
@@ -90,6 +90,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
 													defaultValue={s.role}
 													className="rounded border border-white/10 bg-black/40 px-3 py-2 text-base text-neutral-50 sm:col-span-1"
 												>
+													<option value="OWNER">OWNER</option>
 													<option value="ADMIN">ADMIN</option>
 													<option value="CASHIER">CASHIER</option>
 													<option value="WAITER">WAITER</option>

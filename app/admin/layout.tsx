@@ -11,7 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 		redirect("/auth/login");
 	}
 	// Check if user has permission to access admin area
-	const allowedRoles = ["ADMIN", "CASHIER"];
+	const allowedRoles = ["ADMIN", "CASHIER", "OWNER"];
 	if (!staff?.role || !allowedRoles.includes(staff.role)) {
 		redirect("/pos");
 	}

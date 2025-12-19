@@ -13,7 +13,7 @@ export default async function LogsPage({
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
     const { staff: currentStaff } = await getCurrentUserWithStaff();
-    if (currentStaff?.role !== "ADMIN") redirect("/admin");
+    if (currentStaff?.role !== "ADMIN" && currentStaff?.role !== "OWNER") redirect("/admin");
 
     const supabase = createSupabaseServerClient();
 

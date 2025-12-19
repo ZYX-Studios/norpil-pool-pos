@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 
 export default async function AdminReservationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
     const { staff: currentStaff } = await getCurrentUserWithStaff();
-    if (currentStaff?.role !== "ADMIN") redirect("/admin");
+    if (currentStaff?.role !== "ADMIN" && currentStaff?.role !== "OWNER") redirect("/admin");
 
     const supabase = createSupabaseServerClient();
     const resolvedParams = await searchParams;

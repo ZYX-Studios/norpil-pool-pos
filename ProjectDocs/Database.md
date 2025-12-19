@@ -162,3 +162,29 @@ User digital wallets.
 - `profile_id` (uuid): Owner of the wallet.
 - `balance` (numeric): Current balance.
 - `updated_at` (timestamptz): Last update.
+
+## Data Integrity & Hardening (Ironclad Rules)
+
+To ensure financial accuracy and prevent data corruption, strict database-level constraints and triggers are enforced. These rules supersede application-level logic.
+
+### 1. Unique Active Order Constraint
+**Rule**: A Session (`table_session_id`) can have only **ONE** active order at a time.
+- **Scope**: "Active" means any status *except* `PAID` or `VOIDED`.
+- **Rationale**: Prevents "Ghost Orders" where a glitch or race condition creates a second empty order that receives payment, leaving the real order unpaid.
+- **Allowed Workflows**:
+    - **Hangout**: You can release a table (session remains active) and continue adding items to the same open order.
+    - **Pay & Stay**: Once an order is fully `PAID`, it is no longer "Active". You are free to create a *new* order for the next round of drinks.
+
+### 2. Immutability Lock (The "Paid" Lock)
+**Rule**: Once an Order is `PAID`, its items (`order_items`) cannot be inserted, updated, or deleted.
+- **Mechanism**: Trigger `trg_lock_paid_order_items` on `order_items` table.
+- **Rationale**: Ensures historical financial records match exact inventory deductions. Prevents accidental modification of a closed bill.
+- **Correction Workflow**: If a mistake is found in a paid order, an Admin must first change the Order Status back to `OPEN` (logging the action) before edits can be made.
+
+### 3. Deletion Guard (The "Anti-Dine-and-Dash")
+**Rule**: An Order cannot be **Deleted** if it has reached a "Committed" status (`SUBMITTED`, `SERVED`, `PAID`) or has Payments attached.
+- **Mechanism**: Trigger `trg_prevent_order_deletion` on `orders` table.
+- **Rationale**:
+    - **Inventory**: Orders sent to the kitchen (`SUBMITTED`) usually imply ingredients were used. Deleting the order would create an inventory ghost (used but not recorded).
+    - **Financials**: Deleting an order with payments would orphan or delete the revenue record.
+- **Allowed Workflow**: Unwanted orders must be `VOIDED` (Status change) instead of Deleted, ensuring a paper trail. Clean (empty/unsent) `OPEN` orders can still be deleted.

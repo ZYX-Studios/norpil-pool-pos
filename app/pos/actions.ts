@@ -263,7 +263,7 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 			.from("table_sessions")
 			.select(`
 				*,
-				pool_table:pool_tables(hourly_rate),
+				pool_table:pool_tables(id, name, hourly_rate),
 				orders(id)
 			`)
 			.eq("id", sessionId)
@@ -375,17 +375,22 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 
 		// 4. Update session: release table, set customer name, and PAUSE the timer permanently (or effectively stop it)
 		// We set paused_at to NOW if it wasn't paused, so the time stops counting.
-		// Actually, since we are converting to walk-in, the `pool_table_id` becomes null.
-		// The `ClientTimer` logic checks `pausedAt`. If we set `pausedAt`, it shows "Paused".
-		// But for a released table, we want it to just show the final time or nothing?
-		// The user said "release should stop the timers".
-		// If we set `paused_at`, it stops.
+
+		const currentTableId = session.pool_table_id;
+		const currentTableName = session.pool_table?.name;
 
 		const updates: any = {
 			pool_table_id: null,
+			released_from_table_id: currentTableId, // Save the ID!
 			// If not already paused, pause it now to "stop" the timer.
 			paused_at: session.paused_at || new Date().toISOString()
 		};
+
+		// Ensure location_name is set to the table name if we have it
+		// This fixes the visual bug where it shows "Walk-in" or blank
+		if (currentTableName) {
+			updates.location_name = currentTableName;
+		}
 
 		if (customerName) {
 			updates.customer_name = customerName;

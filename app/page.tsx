@@ -25,6 +25,9 @@ export default async function Home() {
 			.single();
 
 		if (staff) {
+			if (staff.role === "OWNER") {
+				redirect("/owner");
+			}
 			redirect("/pos");
 		}
 	}

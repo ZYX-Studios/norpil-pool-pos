@@ -35,6 +35,7 @@ export function PromoteStaffForm() {
                         <option value="CASHIER">CASHIER</option>
                         <option value="WAITER">WAITER</option>
                         <option value="ADMIN">ADMIN</option>
+                        <option value="OWNER">OWNER</option>
                     </select>
                 </div>
                 <button

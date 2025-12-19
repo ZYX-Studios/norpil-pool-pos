@@ -20,15 +20,16 @@ export function AdminHeader({ staff }: AdminHeaderProps) {
 
     const allLinks = [
 
-        { href: "/admin", label: "Overview", icon: LayoutDashboard, roles: ["ADMIN", "CASHIER"] },
-        { href: "/admin/transactions", label: "Transactions", icon: ClipboardList, roles: ["ADMIN", "CASHIER"] },
-        { href: "/admin/reservations", label: "Reservations", icon: CalendarRange, roles: ["ADMIN"] },
-        { href: "/admin/products", label: "Products", icon: Package, roles: ["ADMIN", "CASHIER"] },
-        { href: "/admin/inventory", label: "Inventory", icon: ClipboardList, roles: ["ADMIN", "CASHIER"] },
-        { href: "/admin/customers", label: "Customers", icon: Users, roles: ["ADMIN"] },
-        { href: "/admin/staff", label: "Staff", icon: Contact2, roles: ["ADMIN"] },
-        { href: "/admin/reports", label: "Reports", icon: FileText, roles: ["ADMIN"] },
-        { href: "/admin/logs", label: "Logs", icon: History, roles: ["ADMIN"] },
+        { href: "/owner", label: "Dashboard", icon: LayoutDashboard, roles: ["OWNER"] },
+        { href: "/admin", label: "Overview", icon: LayoutDashboard, roles: ["ADMIN", "CASHIER", "OWNER"] },
+        { href: "/admin/transactions", label: "Transactions", icon: ClipboardList, roles: ["ADMIN", "CASHIER", "OWNER"] },
+        { href: "/admin/reservations", label: "Reservations", icon: CalendarRange, roles: ["ADMIN", "OWNER"] },
+        { href: "/admin/products", label: "Products", icon: Package, roles: ["ADMIN", "CASHIER", "OWNER"] },
+        { href: "/admin/inventory", label: "Inventory", icon: ClipboardList, roles: ["ADMIN", "CASHIER", "OWNER"] },
+        { href: "/admin/customers", label: "Customers", icon: Users, roles: ["ADMIN", "OWNER"] },
+        { href: "/admin/staff", label: "Staff", icon: Contact2, roles: ["ADMIN", "OWNER"] },
+        { href: "/admin/reports", label: "Reports", icon: FileText, roles: ["ADMIN", "OWNER"] },
+        { href: "/admin/logs", label: "Logs", icon: History, roles: ["ADMIN", "OWNER"] },
     ];
 
     const links = allLinks.filter(link => staff?.role && link.roles.includes(staff.role));

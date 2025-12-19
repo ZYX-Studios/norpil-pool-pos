@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 export async function promoteUserAction(prevState: any, formData: FormData) {
 	const email = String(formData.get("email"));
-	const role = String(formData.get("role")) as "CASHIER" | "WAITER" | "ADMIN";
+	const role = String(formData.get("role")) as "CASHIER" | "WAITER" | "ADMIN" | "OWNER";
 
 	const supabase = createSupabaseServerActionClient();
 
@@ -21,7 +21,7 @@ export async function promoteUserAction(prevState: any, formData: FormData) {
 		.eq("user_id", user.id)
 		.single();
 
-	if (currentUserStaff?.role !== "ADMIN") {
+	if (currentUserStaff?.role !== "ADMIN" && currentUserStaff?.role !== "OWNER") {
 		return { error: "Only admins can promote users.", message: "" };
 	}
 
@@ -76,7 +76,7 @@ export async function deleteStaffAction(formData: FormData) {
 		.eq("user_id", user.id)
 		.single();
 
-	if (currentUserStaff?.role !== "ADMIN") {
+	if (currentUserStaff?.role !== "ADMIN" && currentUserStaff?.role !== "OWNER") {
 		return;
 	}
 
@@ -112,7 +112,7 @@ export async function updateStaffAction(formData: FormData) {
 		.eq("user_id", user.id)
 		.single();
 
-	if (currentUserStaff?.role !== "ADMIN") {
+	if (currentUserStaff?.role !== "ADMIN" && currentUserStaff?.role !== "OWNER") {
 		return;
 	}
 

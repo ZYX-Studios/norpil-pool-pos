@@ -28,6 +28,8 @@ export async function loginAction(formData: FormData) {
 
 	if (staff?.role === "ADMIN") {
 		redirect("/admin");
+	} else if (staff?.role === "OWNER") {
+		redirect("/owner");
 	} else if (staff) {
 		redirect("/pos");
 	}

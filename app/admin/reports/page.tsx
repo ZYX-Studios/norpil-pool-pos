@@ -70,7 +70,7 @@ export default async function ReportsPage({
 	searchParams: Promise<Record<string, string | string[]>>;
 }) {
 	const { staff: currentStaff } = await getCurrentUserWithStaff();
-	if (currentStaff?.role !== "ADMIN") redirect("/admin");
+	if (currentStaff?.role !== "ADMIN" && currentStaff?.role !== "OWNER") redirect("/admin");
 
 	const { start: todayStart, end: todayEnd } = getTodayRange();
 	const { start: monthStart, end: monthEnd } = getMonthRange();

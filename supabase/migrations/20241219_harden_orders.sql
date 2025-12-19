@@ -1,6 +1,5 @@
 
--- 1. PRE-CLEANUP: Remove "Ghost" Duplicates that jeopardize the constraint
--- These are orders that have status SUBMITTED/OPEN, Total 0, and share a session with a PAID/SERVED order.
+-- 1. PRE-CLEANUP: Remove "Ghost" Duplicates
 DELETE FROM orders o
 WHERE o.total = 0
   AND o.status IN ('OPEN', 'SUBMITTED', 'PREPARING')
@@ -13,12 +12,10 @@ WHERE o.total = 0
   );
 
 -- 2. CONSTRAINT: Unique Active Order per Session
--- A session can have only ONE order that is NOT Paid/Cancelled.
--- This allows "Pay & Stay" (Status PAID is ignored, so new OPEN is allowed).
--- This BLOCKS "Glitch Duplicate" (Status SERVED + new OPEN -> Blocked).
+-- A session can have only ONE order that is NOT Paid/Voided.
 CREATE UNIQUE INDEX unique_active_order_per_session 
 ON orders (table_session_id) 
-WHERE status NOT IN ('PAID', 'CANCELLED');
+WHERE status NOT IN ('PAID', 'VOIDED');
 
 
 -- 3. LOCK: Prevent Modification of PAID Orders
@@ -27,18 +24,10 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_status text;
 BEGIN
-    -- Get parent order status
     SELECT status INTO v_status FROM orders WHERE id = COALESCE(NEW.order_id, OLD.order_id);
-    
-    -- If Paid or Served, BLOCK changes to Items
-    -- Note: We exclude SERVED from strict lock if we want to allow "Add Item" to Served order?
-    -- User said "Sent to Kitchen makes order undeletable".
-    -- But "Paid" logic is for Immutability.
-    -- Strict Lock for PAID only. SERVED orders might need adjustments (e.g. comp items).
     IF v_status = 'PAID' THEN
         RAISE EXCEPTION 'Cannot modify items of a PAID order. Void/Reopen the order first.';
     END IF;
-
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -55,18 +44,14 @@ RETURNS TRIGGER AS $$
 BEGIN
     -- Allow deletion only if OPEN
     IF OLD.status NOT IN ('OPEN') THEN
-         -- Check if it was "Active" status (Submitted/Served/Paid)
-         -- We allow deleting CANCELLED? Yes.
-         -- If Status is CANCELLED, allow delete? Usually yes.
-         -- So we Block: SUBMITTED, PREPARING, READY, SERVED, PAID.
+         -- Block: SUBMITTED, PREPARING, READY, SERVED, PAID.
+         -- Allow VOIDED? Usually yes, if we want to cleanup.
+         -- So if status IN ... Block.
          IF OLD.status IN ('SUBMITTED', 'PREPARING', 'READY', 'SERVED', 'PAID') THEN
-            RAISE EXCEPTION 'Cannot delete an order that has been Sent to Kitchen or Paid (%). Cancel it first.', OLD.status;
+            RAISE EXCEPTION 'Cannot delete an order that has been Sent to Kitchen or Paid (%). Void it first.', OLD.status;
          END IF;
     END IF;
 
-    -- Also check for Payments (Redundant if FK is restrictive, but good for clarity)
-    -- Actually, if Payments exist, FK ON DELETE CASCADE would delete them?
-    -- We want to BLOCK that.
     IF EXISTS (SELECT 1 FROM payments WHERE order_id = OLD.id) THEN
         RAISE EXCEPTION 'Cannot delete an order with attached payments. Void the payments first.';
     END IF;
@@ -79,4 +64,3 @@ CREATE TRIGGER trg_prevent_order_deletion
 BEFORE DELETE ON orders
 FOR EACH ROW
 EXECUTE FUNCTION prevent_committed_order_deletion();
-
