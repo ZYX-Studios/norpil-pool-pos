@@ -50,8 +50,6 @@ export default async function OwnerDashboard() {
         .eq("status", "OPEN")
         .order("opened_at", { ascending: false });
 
-    const activeTableCount = activeSessions?.length ?? 0;
-
     // 4. Fetch Active Staff (Open Cashier Shifts)
     const { data: activeShifts } = await supabase
         .from("cashier_shifts")
@@ -60,7 +58,6 @@ export default async function OwnerDashboard() {
 
     // Note: The relationship staff:created_by needs to exist. 
     // If it doesn't, we might need to fetch staff separately or assume `staff` table has a foreign key to `auth.users` via `user_id`.
-    // Let's assume there is a foreign key on created_by -> users, but maybe not directly to public.staff.
     // Actually, usually `created_by` is the auth.uid. `staff.user_id` is also auth.uid.
     // If there is no direct FK from cashier_shifts.created_by to staff, we can't join easily.
     // Let's try to fetch staff names manually for safety.
@@ -80,6 +77,79 @@ export default async function OwnerDashboard() {
     const activeStaffCount = staffNames.length > 0 ? staffNames.length : (activeShifts?.length ?? 0);
     const staffLabel = staffNames.length > 0 ? staffNames.join(", ") : "Currently clocked in";
 
+    // 5. Pre-process Sessions for KPIs and List
+    // We do this here so we can use the stats in the cards
+    const processedSessions = (activeSessions || []).map((session: any) => {
+        // Calculate Effective Duration (accounting for pauses)
+        const start = new Date(session.opened_at).getTime();
+        const nowMs = now.getTime();
+        const accumulatedPaused = (session.accumulated_paused_time || 0) * 1000;
+
+        let elapsedMs = 0;
+        if (session.paused_at) {
+            elapsedMs = new Date(session.paused_at).getTime() - start - accumulatedPaused;
+        } else {
+            elapsedMs = nowMs - start - accumulatedPaused;
+        }
+
+        const validElapsedMs = Math.max(0, elapsedMs);
+        const diffMins = Math.floor(validElapsedMs / 60000);
+        const hrs = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        const durationStr = `${hrs}h ${mins}m`;
+
+        // Calculate Product Total
+        let productBill = 0;
+        if (session.orders) {
+            session.orders.forEach((order: any) => {
+                if (['OPEN', 'PREPARING', 'READY', 'SERVED'].includes(order.status)) {
+                    if (order.order_items) {
+                        order.order_items.forEach((item: any) => {
+                            productBill += item.line_total || 0;
+                        });
+                    }
+                }
+            });
+        }
+
+        // Calculate Table Fee (Exact POS Logic)
+        let tableFee = 0;
+        if (session.pool_table_id) {
+            const rate = session.override_hourly_rate ?? (session.pool_tables as any)?.hourly_rate ?? 0;
+            const elapsedMinutes = Math.floor(validElapsedMs / 60000);
+
+            if (session.session_type === "FIXED" && session.target_duration_minutes) {
+                // Fixed Time Logic
+                const baseFee = (session.target_duration_minutes / 60) * rate;
+                const excessMinutes = Math.max(0, elapsedMinutes - session.target_duration_minutes);
+                const excessFee = excessMinutes * (rate / 60);
+                tableFee = baseFee + excessFee;
+            } else {
+                // Open Time Logic (Default): 30 min blocks
+                if (elapsedMinutes > 5) {
+                    const blocks = Math.ceil(elapsedMinutes / 30);
+                    tableFee = blocks * 0.5 * rate;
+                }
+            }
+
+            // Money Game Logic
+            if (session.is_money_game && session.bet_amount) {
+                const minimumFee = session.bet_amount * 0.10;
+                tableFee = Math.max(tableFee, minimumFee);
+            }
+        }
+
+        const totalEst = productBill + tableFee;
+        const tableName = (session.pool_tables as any)?.name || session.location_name || "Walk-in";
+        const isWalkIn = !session.pool_table_id;
+
+        return { ...session, durationStr, productBill, totalEst, tableName, isWalkIn };
+    });
+
+    const activeTablesList = processedSessions.filter(s => !s.isWalkIn);
+    const activeWalkInsList = processedSessions.filter(s => s.isWalkIn);
+    const walkInsUnsettledTotal = activeWalkInsList.reduce((acc, curr) => acc + curr.totalEst, 0);
+
     return (
         <div className="space-y-8">
             <div>
@@ -98,10 +168,17 @@ export default async function OwnerDashboard() {
                 />
                 <StatsCard
                     title="Active Tables"
-                    value={activeTableCount.toString()}
+                    value={activeTablesList.length.toString()}
                     icon={MonitorPlay}
                     color="blue"
                     description="Currently occupied"
+                />
+                <StatsCard
+                    title="Active Walk-ins"
+                    value={activeWalkInsList.length.toString()}
+                    icon={Activity}
+                    color="amber"
+                    description={`Unsettled: ${formatCurrency(walkInsUnsettledTotal)}`}
                 />
                 <StatsCard
                     title="Active Staff"
@@ -109,13 +186,6 @@ export default async function OwnerDashboard() {
                     icon={Users}
                     color="violet"
                     description={staffLabel}
-                />
-                <StatsCard
-                    title="Avg. Ticket"
-                    value={formatCurrency(transactionCount > 0 ? todayRevenue / transactionCount : 0)}
-                    icon={Activity}
-                    color="amber"
-                    description="Per transaction"
                 />
             </div>
 
@@ -158,82 +228,6 @@ export default async function OwnerDashboard() {
                     </div>
 
                     {(() => {
-                        // Pre-process sessions
-                        const processedSessions = (activeSessions || []).map((session: any) => {
-                            // Calculate Effective Duration (accounting for pauses)
-                            const start = new Date(session.opened_at).getTime();
-                            const nowMs = now.getTime();
-                            const accumulatedPaused = (session.accumulated_paused_time || 0) * 1000;
-
-                            let elapsedMs = 0;
-                            if (session.paused_at) {
-                                // Currently paused: time stopped at paused_at
-                                elapsedMs = new Date(session.paused_at).getTime() - start - accumulatedPaused;
-                            } else {
-                                // Currently running
-                                elapsedMs = nowMs - start - accumulatedPaused;
-                            }
-
-                            const validElapsedMs = Math.max(0, elapsedMs);
-                            const diffMins = Math.floor(validElapsedMs / 60000);
-                            const hrs = Math.floor(diffMins / 60);
-                            const mins = diffMins % 60;
-                            const durationStr = `${hrs}h ${mins}m`;
-
-                            // Calculate Product Total
-                            let productBill = 0;
-                            if (session.orders) {
-                                session.orders.forEach((order: any) => {
-                                    if (['OPEN', 'PREPARING', 'READY', 'SERVED'].includes(order.status)) {
-                                        if (order.order_items) {
-                                            order.order_items.forEach((item: any) => {
-                                                productBill += item.line_total || 0;
-                                            });
-                                        }
-                                    }
-                                });
-                            }
-
-                            // Calculate Table Fee (Exact POS Logic)
-                            let tableFee = 0;
-                            if (session.pool_table_id) {
-                                const rate = session.override_hourly_rate ?? (session.pool_tables as any)?.hourly_rate ?? 0;
-                                const elapsedMinutes = Math.floor(validElapsedMs / 60000);
-
-                                if (session.session_type === "FIXED" && session.target_duration_minutes) {
-                                    // Fixed Time Logic
-                                    const baseFee = (session.target_duration_minutes / 60) * rate;
-                                    const excessMinutes = Math.max(0, elapsedMinutes - session.target_duration_minutes);
-                                    const excessFee = excessMinutes * (rate / 60); // Excess is pro-rated? Check ClientTimer.
-                                    // ClientTimer says: excessFee = excessMinutes * (hourlyRate / 60);
-                                    // And tableFee = baseFee + excessFee;
-                                    tableFee = baseFee + excessFee;
-                                } else {
-                                    // Open Time Logic (Default): 30 min blocks
-                                    if (elapsedMinutes > 5) {
-                                        const blocks = Math.ceil(elapsedMinutes / 30);
-                                        tableFee = blocks * 0.5 * rate;
-                                    }
-                                }
-
-                                // Money Game Logic
-                                if (session.is_money_game && session.bet_amount) {
-                                    const minimumFee = session.bet_amount * 0.10;
-                                    tableFee = Math.max(tableFee, minimumFee);
-                                }
-                            }
-
-                            const totalEst = productBill + tableFee;
-
-                            const tableName = (session.pool_tables as any)?.name || session.location_name || "Walk-in";
-                            const isWalkIn = !session.pool_table_id;
-
-                            return { ...session, durationStr, productBill, totalEst, tableName, isWalkIn };
-                        });
-
-                        const tables = processedSessions.filter(s => !s.isWalkIn);
-                        const walkIns = processedSessions.filter(s => s.isWalkIn);
-
                         const SessionRow = ({ s }: { s: any }) => (
                             <div className="flex items-center justify-between py-3 border-b border-white/5 last:border-0 hover:bg-white/5 px-2 -mx-2 rounded transition-colors group">
                                 <div className="flex flex-col">
@@ -264,10 +258,10 @@ export default async function OwnerDashboard() {
                             <div className="space-y-8">
                                 {/* Active Tables Section */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Active Tables ({tables.length})</h4>
+                                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Active Tables ({activeTablesList.length})</h4>
                                     <div className="space-y-1">
-                                        {tables.length > 0 ? (
-                                            tables.map(s => <SessionRow key={s.id} s={s} />)
+                                        {activeTablesList.length > 0 ? (
+                                            activeTablesList.map(s => <SessionRow key={s.id} s={s} />)
                                         ) : (
                                             <div className="text-sm text-neutral-600 italic py-2">No active tables.</div>
                                         )}
@@ -276,10 +270,10 @@ export default async function OwnerDashboard() {
 
                                 {/* Walk-ins Section */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Walk-ins ({walkIns.length})</h4>
+                                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Walk-ins ({activeWalkInsList.length})</h4>
                                     <div className="space-y-1">
-                                        {walkIns.length > 0 ? (
-                                            walkIns.map(s => <SessionRow key={s.id} s={s} />)
+                                        {activeWalkInsList.length > 0 ? (
+                                            activeWalkInsList.map(s => <SessionRow key={s.id} s={s} />)
                                         ) : (
                                             <div className="text-sm text-neutral-600 italic py-2">No active walk-ins.</div>
                                         )}
