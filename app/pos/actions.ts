@@ -37,6 +37,13 @@ export async function openTableAction(data: OpenTableData) {
 			redirect(`/pos/${existing.id}`);
 		}
 
+		// Fetch table details for location_name
+		const { data: tableData } = await supabase
+			.from("pool_tables")
+			.select("name")
+			.eq("id", poolTableId)
+			.single();
+
 		// Create session
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
@@ -49,6 +56,7 @@ export async function openTableAction(data: OpenTableData) {
 				bet_amount: betAmount,
 				customer_name: customerName,
 				profile_id: profileId,
+				location_name: tableData?.name,
 			})
 			.select("id")
 			.single();
@@ -106,6 +114,7 @@ export async function createWalkInSession(customerName: string, profileId?: stri
 				customer_name: customerName,
 				status: "OPEN",
 				profile_id: profileId,
+				location_name: "Walk-in"
 			})
 			.select("id")
 			.single();
@@ -394,6 +403,39 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 		revalidatePath("/pos");
 		revalidatePath(`/pos/${sessionId}`);
 
+
+		// 5. Recalculate Totals
+		const { data: allItems, error: itemsErr } = await supabase
+			.from("order_items")
+			.select("quantity, line_total, products(tax_rate)")
+			.eq("order_id", orderId);
+
+		if (itemsErr) {
+			console.error("[releaseTable] Failed to fetch items for recalc:", itemsErr);
+		} else {
+			let subtotal = 0;
+			let taxTotal = 0;
+			for (const row of allItems ?? []) {
+				const line = Number(row.line_total ?? 0);
+				// @ts-ignore - Supabase types join inference
+				const products: any = row.products;
+				const taxRate = Number((Array.isArray(products) ? products[0]?.tax_rate : products?.tax_rate) ?? 0);
+				subtotal += line;
+				taxTotal += Number((line * taxRate).toFixed(2));
+			}
+			const finalTotal = Number((subtotal + taxTotal).toFixed(2));
+
+			// Update Order
+			const { error: updErr } = await supabase
+				.from("orders")
+				.update({ subtotal, tax_total: taxTotal, total: finalTotal })
+				.eq("id", orderId);
+
+			if (updErr) {
+				console.error("[releaseTable] Failed to update order totals:", updErr);
+			}
+		}
+
 		await logAction({
 			actionType: "RELEASE_TABLE",
 			entityType: "table_session",
@@ -416,7 +458,7 @@ export async function checkInReservation(reservationId: string, options?: { useC
 		// 1. Get Reservation
 		const { data: reservation, error: resErr } = await supabase
 			.from("reservations")
-			.select("*, profiles(full_name)")
+			.select("*, profiles(full_name), pool_tables(name)")
 			.eq("id", reservationId)
 			.single();
 
@@ -450,6 +492,7 @@ export async function checkInReservation(reservationId: string, options?: { useC
 				customer_name: customerName,
 				opened_at: openedAt,
 				reservation_id: reservation.id,
+				location_name: (reservation as any).pool_tables?.name,
 			})
 			.select("id")
 			.single();

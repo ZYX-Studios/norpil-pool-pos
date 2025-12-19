@@ -19,22 +19,40 @@ type View = "summary" | "daily" | "monthly" | "expenses";
 
 function getTodayRange() {
 	const now = new Date();
-	const yyyy = now.getFullYear();
-	const mm = String(now.getMonth() + 1).padStart(2, "0");
-	const dd = String(now.getDate()).padStart(2, "0");
-	const today = `${yyyy}-${mm}-${dd}`;
+	const options: Intl.DateTimeFormatOptions = { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" };
+	const formatter = new Intl.DateTimeFormat("en-CA", options); // en-CA gives YYYY-MM-DD
+	const today = formatter.format(now);
 	return { start: today, end: today };
 }
 
 function getMonthRange() {
 	const now = new Date();
-	const yyyy = now.getFullYear();
-	const mm = String(now.getMonth() + 1).padStart(2, "0");
-	const start = `${yyyy}-${mm}-01`;
+	const options: Intl.DateTimeFormatOptions = { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" };
+	const formatter = new Intl.DateTimeFormat("en-CA", options);
+
+	// Get first day of month in Manila
+	const startParts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "numeric", day: "numeric" }).formatToParts(now);
+	const year = startParts.find(p => p.type === "year")?.value;
+	const month = startParts.find(p => p.type === "month")?.value?.padStart(2, "0");
+	const start = `${year}-${month}-01`;
+
 	// Get last day of month
-	const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-	const end = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
-	return { start, end };
+	// We can cheat: take first day of *next* month minus 1 day, ensuring we do this in Manila time logic
+	// But simpler: just get the current date in Manila, get year/month, construct Date object, etc.
+	// Actually, careful with "new Date()" construction as it uses local environment.
+	// Let's stick effectively to string manipulation for the Start, and for End we can use the "Server" time 
+	// but mostly we want the current month context.
+
+	// Let's refine:
+	const manilaDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+	const yyyy = manilaDate.getFullYear();
+	const mm = String(manilaDate.getMonth() + 1).padStart(2, "0");
+	const startStr = `${yyyy}-${mm}-01`;
+
+	const lastDay = new Date(yyyy, manilaDate.getMonth() + 1, 0).getDate();
+	const endStr = `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`;
+
+	return { start: startStr, end: endStr };
 }
 
 function parseView(raw: unknown): View {

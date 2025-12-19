@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrency, formatPercent } from "../format";
+import { formatCurrency, formatPercent, formatDate } from "../format";
 import { Card } from "@/app/components/ui/Card";
 import {
 	Bar,
@@ -32,7 +32,7 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 		const expenses = Number(row.expenses ?? 0);
 		const net = Number(row.net ?? revenue - expenses);
 		return {
-			month: new Date(row.month_start).toLocaleDateString(undefined, {
+			month: formatDate(row.month_start, {
 				month: "short",
 				year: "2-digit",
 			}),
@@ -143,7 +143,7 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 										return (
 											<tr key={month} className="group hover:bg-white/5">
 												<td className="py-2 text-neutral-400 group-hover:text-neutral-200">
-													{new Date(month).toLocaleDateString(undefined, {
+													{formatDate(month, {
 														year: "2-digit",
 														month: "short",
 													})}

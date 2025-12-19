@@ -46,22 +46,33 @@ export interface ReportData {
 // ... getReportData function ...
 
 async function fetchTransactionsWithDetails(supabase: any, start: string, end: string) {
-	// Compute end-exclusive date for range filtering (end + 1 day).
-	const endDate = new Date(end);
-	endDate.setDate(endDate.getDate() + 1);
-	const endExclusive = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(
-		endDate.getDate(),
-	).padStart(2, "0")}`;
+	// Handle Date Range in Manila Time (UTC+8) to match RPCs used in other reports.
+	// We need to construct absolute UTC timestamps that represent the start (00:00) and end (23:59:59)
+	// of the Manila days passed in `start` and `end`.
+
+	// `start` and `end` are YYYY-MM-DD strings.
+	// Manila is UTC+8. 
+	// Start of Day: YYYY-MM-DD 00:00:00 Manila = YYYY-MM-DD -1 day 16:00:00 UTC
+	// End of Day:   YYYY-MM-DD 23:59:59 Manila = YYYY-MM-DD 15:59:59 UTC
+
+	const utcStart = new Date(start);
+	utcStart.setHours(utcStart.getHours() - 8); // 00:00 - 8h = 16:00 prev day
+	const startIso = utcStart.toISOString();
+
+	const utcEnd = new Date(end);
+	utcEnd.setDate(utcEnd.getDate() + 1); // Go to next day
+	utcEnd.setHours(utcEnd.getHours() - 8); // 00:00 - 8h = 16:00 requested day (which is end of requested day in Manila)
+	const endIso = utcEnd.toISOString();
 
 	const [{ data: txPayments }, { data: txDeposits }] = await Promise.all([
 		// 1. Fetch Sales (Payments)
 		supabase
 			.from("payments")
 			.select(
-				"id, amount, method, paid_at, orders:order_id(id, status, total, table_sessions:table_session_id(id, customer_name, pool_tables:pool_table_id(name)), reservations(pool_tables:pool_table_id(name)), profiles:profile_id(full_name))",
+				"id, amount, method, paid_at, orders:order_id(id, status, total, table_sessions:table_session_id(id, customer_name, location_name, pool_tables:pool_table_id(name)), reservations(pool_tables:pool_table_id(name)), profiles:profile_id(full_name))",
 			)
-			.gte("paid_at", start)
-			.lt("paid_at", endExclusive)
+			.gte("paid_at", startIso)
+			.lt("paid_at", endIso)
 			.order("paid_at", { ascending: false }),
 		// 2. Fetch Wallet Deposits
 		supabase
@@ -70,8 +81,9 @@ async function fetchTransactionsWithDetails(supabase: any, start: string, end: s
 				"id, amount, created_at, wallet:wallet_id(profiles(full_name))",
 			)
 			.eq("type", "DEPOSIT")
-			.gte("created_at", start)
-			.lt("created_at", endExclusive)
+			.eq("type", "DEPOSIT")
+			.gte("created_at", startIso)
+			.lt("created_at", endIso)
 			.order("created_at", { ascending: false }),
 	]);
 
@@ -88,7 +100,9 @@ async function fetchTransactionsWithDetails(supabase: any, start: string, end: s
 			...p,
 			// Cap the displayed amount at the Order Total to avoid showing "90,000" for a "300" sale.
 			// This matches the "Gross Sales" calculation.
-			formattedAmount: p.orders?.total ? Math.min(Number(p.amount), Number(p.orders.total)) : Number(p.amount)
+			formattedAmount: (p.orders?.total !== null && p.orders?.total !== undefined)
+				? Math.min(Number(p.amount), Number(p.orders.total))
+				: Number(p.amount)
 		}));
 
 	const combinedTx = [
@@ -186,15 +200,32 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 		supabase.rpc("get_wallet_liability"),
 	]);
 
-	// Derive byMethod from combinedTx to ensure consistency with the table 
-	// (and avoid RPC logic that strictly filters by order status)
-	// We replace the RPC result with client-side aggregation of the full transaction list we just fetched.
-
+	// Derive byMethod from combinedTx (Sales Only)
 	const byMethodMap = new Map<string, number>();
+	let walletDeposits = 0;
+
 	(combinedTx as any[] ?? []).forEach((tx: any) => {
-		const method = tx.method || 'UNKNOWN';
-		const amount = Number(tx.amount || 0);
-		byMethodMap.set(method, (byMethodMap.get(method) || 0) + amount);
+		// Normalize Method Name (Handle "Charge to Table " vs "Charge to Table")
+		let rawMethod = (tx.method || 'UNKNOWN').trim();
+
+		// Optional: Standardize casing if needed (e.g. all uppercase or Title Case)
+		// For now, just trim is usually enough, but let's be safe against case diffs
+		// If user wants specific display, we can map it.
+		// Let's coerce to Title Case for display consistency if it's "CHARGE_TO_TABLE"
+		if (rawMethod.replace(/_/g, ' ').toUpperCase() === 'CHARGE TO TABLE') {
+			rawMethod = 'Charge to Table';
+		}
+
+		// Use the calculated amount (safe zero-total handled below) using new logic
+		// We trust formattedAmount which now handles zero-total scenario
+		const amount = Number(tx.formattedAmount || 0);
+
+		if (rawMethod === 'WALLET_TOPUP') {
+			walletDeposits += amount;
+		} else {
+			const current = byMethodMap.get(rawMethod) ?? 0;
+			byMethodMap.set(rawMethod, current + amount);
+		}
 	});
 
 	const byMethod = Array.from(byMethodMap.entries()).map(([method, revenue]) => ({
@@ -227,11 +258,8 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 	// Yes, `fetchTransactionsWithDetails` seems to fetch all without limit (based on code reading previously).
 	// Let's optimize: checking `tx` array for DEPOSIT type.
 
-	// Optimization: Derive walletDeposits from byMethod RPC (which bypasses RLS) 
-	// rather than combinedTx (which might miss deposits due to RLS).
-	const walletDeposits = (byMethod as any[] ?? [])
-		.filter((m: any) => m.method === 'WALLET_TOPUP')
-		.reduce((sum: number, m: any) => sum + Number(m.revenue), 0);
+	// Optimization: Calculated above during iteration
+	// const walletDeposits = ...
 
 	// Calculate specific sums for breakdown
 	const cashSales = (byMethod as any[] ?? [])

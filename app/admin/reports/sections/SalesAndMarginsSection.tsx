@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCategoryLabel, formatCurrency, formatPercent } from "../format";
+import { formatCategoryLabel, formatCurrency, formatPercent, formatDate } from "../format";
 import { Card } from "@/app/components/ui/Card";
 import {
 	Area,
@@ -65,7 +65,7 @@ export function SalesAndMarginsSection({
 
 	// Prepare data for the area chart (Multi-day)
 	const dailyData = (daily ?? []).map((row: any) => ({
-		date: new Date(row.day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+		date: formatDate(row.day, { month: "short", day: "numeric" }),
 		revenue: Number(row.revenue ?? 0),
 	}));
 
@@ -84,7 +84,7 @@ export function SalesAndMarginsSection({
 	const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
 
 	return (
-		<div className="space-y-3">
+		<div className="space-y-3" >
 			<div>
 				<h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-300">
 					Sales &amp; margins
@@ -256,7 +256,7 @@ export function SalesAndMarginsSection({
 							<PieChart>
 								<Pie
 									data={(byMethod ?? []).map((row: any) => ({
-										name: row.method === 'WALLET' ? 'Wallet' : row.method === 'CHARGE_TO_TABLE' ? 'Charge to Table' : 'Other',
+										name: row.method === 'WALLET' ? 'Wallet' : row.method,
 										value: Number(row.revenue ?? 0)
 									}))}
 									cx="50%"
@@ -272,7 +272,7 @@ export function SalesAndMarginsSection({
 									{(byMethod ?? []).map((entry: any, index: number) => (
 										<Cell
 											key={`cell-method-${index}`}
-											fill={entry.method === 'WALLET' ? '#10b981' : '#f59e0b'}
+											fill={entry.name === 'Wallet' ? '#10b981' : COLORS[index % COLORS.length]}
 											stroke="none"
 										/>
 									))}
@@ -298,10 +298,10 @@ export function SalesAndMarginsSection({
 								<div className="flex items-center gap-2">
 									<div
 										className="h-2 w-2 rounded-full"
-										style={{ backgroundColor: row.method === 'WALLET' ? '#10b981' : '#f59e0b' }}
+										style={{ backgroundColor: row.method === 'WALLET' ? '#10b981' : COLORS[index % COLORS.length] }}
 									/>
 									<span className="text-neutral-300">
-										{row.method === 'WALLET' ? 'Wallet' : 'Charge to Table'}
+										{row.method === 'WALLET' ? 'Wallet' : row.method}
 									</span>
 								</div>
 								<span className="text-neutral-200">
@@ -312,7 +312,7 @@ export function SalesAndMarginsSection({
 					</div>
 				</Card>
 			</div>
-		</div>
+		</div >
 	);
 }
 

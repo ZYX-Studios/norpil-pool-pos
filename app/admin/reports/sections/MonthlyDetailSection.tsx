@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrency, formatPercent } from "../format";
+import { formatCurrency, formatPercent, formatDate } from "../format";
 import { Card } from "@/app/components/ui/Card";
 import {
     Bar,
@@ -54,7 +54,7 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
 
         return {
             date,
-            displayDate: new Date(date).toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+            displayDate: formatDate(date, { day: "numeric", month: "short" }),
             revenue,
             expenses: expense,
             net,

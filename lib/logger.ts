@@ -34,7 +34,8 @@ type ActionType =
     | "CHECK_IN_RESERVATION"
     | "START_SHIFT"
     | "END_SHIFT"
-    | "MEMBERSHIP_UPGRADE";
+    | "MEMBERSHIP_UPGRADE"
+    | "DELETE_ORDER";
 
 interface LogParams {
     actionType: ActionType;

@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { createExpense, deleteExpense } from "../actions";
-import { formatCurrency, formatPercent } from "../format";
+import { formatCurrency, formatPercent, formatDate } from "../format";
 import { Card } from "@/app/components/ui/Card";
 import {
 	Cell,
@@ -212,7 +212,7 @@ export function ExpensesSection({ startDate, expenses }: ExpensesSectionProps) {
 									>
 										<div className="flex items-center flex-1 min-w-0">
 											<span className="text-neutral-400 w-20 shrink-0">
-												{new Date(row.expense_date as string).toLocaleDateString()}
+												{formatDate(row.expense_date as string)}
 											</span>
 											<span className="truncate px-2">
 												{row.category as string}

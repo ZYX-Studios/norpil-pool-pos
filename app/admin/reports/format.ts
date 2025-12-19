@@ -26,6 +26,34 @@ export function formatCategoryLabel(category: string) {
 	}
 }
 
+export function formatDateTime(dateStr: string) {
+	return new Date(dateStr).toLocaleString("en-US", {
+		timeZone: "Asia/Manila",
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		hour: "numeric",
+		minute: "numeric",
+		hour12: true,
+	});
+}
+
+export function formatTime(dateStr: string) {
+	return new Date(dateStr).toLocaleTimeString("en-US", {
+		timeZone: "Asia/Manila",
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: true,
+	});
+}
+
+export function formatDate(dateStr: string | Date, options?: Intl.DateTimeFormatOptions) {
+	return new Date(dateStr).toLocaleDateString("en-US", {
+		timeZone: "Asia/Manila",
+		...options,
+	});
+}
+
 
 
 

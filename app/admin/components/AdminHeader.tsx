@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/app/components/ui/Logo";
 import { logoutAction } from "@/app/auth/actions";
-import { LayoutDashboard, Users, ShoppingBag, Package, FileText, CalendarRange, Contact2, History, CreditCard, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, ShoppingBag, Package, FileText, CalendarRange, Contact2, History, CreditCard, LogOut, ClipboardList } from "lucide-react";
 
 interface AdminHeaderProps {
     staff: {
@@ -19,10 +19,12 @@ export function AdminHeader({ staff }: AdminHeaderProps) {
     const pathname = usePathname();
 
     const allLinks = [
+
         { href: "/admin", label: "Overview", icon: LayoutDashboard, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/transactions", label: "Transactions", icon: ClipboardList, roles: ["ADMIN", "CASHIER"] },
         { href: "/admin/reservations", label: "Reservations", icon: CalendarRange, roles: ["ADMIN"] },
-        { href: "/admin/products", label: "Products", icon: ShoppingBag, roles: ["ADMIN", "CASHIER"] },
-        { href: "/admin/inventory", label: "Inventory", icon: Package, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/products", label: "Products", icon: Package, roles: ["ADMIN", "CASHIER"] },
+        { href: "/admin/inventory", label: "Inventory", icon: ClipboardList, roles: ["ADMIN", "CASHIER"] },
         { href: "/admin/customers", label: "Customers", icon: Users, roles: ["ADMIN"] },
         { href: "/admin/staff", label: "Staff", icon: Contact2, roles: ["ADMIN"] },
         { href: "/admin/reports", label: "Reports", icon: FileText, roles: ["ADMIN"] },

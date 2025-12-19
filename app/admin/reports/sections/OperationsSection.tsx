@@ -1,4 +1,4 @@
-import { formatCurrency } from "../format";
+import { formatCurrency, formatTime } from "../format";
 import { Card } from "@/app/components/ui/Card";
 
 interface OperationsSectionProps {
@@ -24,7 +24,7 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 		const tableSession = order?.table_sessions;
 		const poolTable = tableSession?.pool_tables;
 
-		let tableName = poolTable?.name;
+		let tableName = tableSession?.location_name || poolTable?.name;
 
 		if (!tableName) {
 			// Check for table session customer name (Walk-in name)
@@ -53,10 +53,7 @@ export function OperationsSection({ byTable, transactions }: OperationsSectionPr
 
 		return {
 			id: t.id,
-			time: new Date(t.paid_at).toLocaleTimeString(undefined, {
-				hour: "2-digit",
-				minute: "2-digit",
-			}),
+			time: formatTime(t.paid_at),
 			method: t.method,
 			amount: Number(t.amount ?? 0),
 			tableName,
