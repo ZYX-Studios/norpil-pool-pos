@@ -808,7 +808,11 @@ async function syncUpdateQuantity(
 		}
 
 		if (nextQty <= 0) {
-			await supabase.from("order_items").delete().eq("id", line.id);
+			const { error } = await supabase.from("order_items").delete().eq("id", line.id);
+			if (error) {
+				console.error("Failed to delete item:", error);
+				alert("Failed to remove item: " + error.message);
+			}
 			return;
 		}
 
