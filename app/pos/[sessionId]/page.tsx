@@ -46,7 +46,7 @@ export default async function SessionPage({
 			.from("orders")
 			.select("id, status, created_at, last_submitted_item_count, order_items(id)") // fetch items count to score
 			.eq("table_session_id", sessionId)
-			.in("status", ["OPEN", "PREPARING", "READY", "SERVED", "PAID"])
+			.in("status", ["OPEN", "SUBMITTED", "PREPARING", "READY", "SERVED", "PAID"])
 			.order("created_at", { ascending: false });
 
 		if (orderErr) {
