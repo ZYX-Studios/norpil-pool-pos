@@ -49,7 +49,7 @@ export function KitchenBoard() {
                 profiles(full_name),
                 table_session:table_sessions(
                     customer_name,
-                    pool_table:pool_tables(name)
+                    pool_table:pool_tables!table_sessions_pool_table_id_fkey(name)
                 ),
                 order_items(
                     id,
