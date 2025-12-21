@@ -263,7 +263,7 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 			.from("table_sessions")
 			.select(`
 				*,
-				pool_table:pool_tables(id, name, hourly_rate),
+				pool_table:pool_tables!table_sessions_pool_table_id_fkey(id, name, hourly_rate),
 				orders(id)
 			`)
 			.eq("id", sessionId)
