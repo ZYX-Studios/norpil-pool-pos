@@ -160,4 +160,159 @@ export async function payOrderFormAction(formData: FormData) {
 	await payOrderAction(sessionId, method, tenderedAmount);
 }
 
+// Void a committed item (full or partial).
+// It logs the action and deletes/updates the row (which triggers inventory reclaim).
+export async function voidOrderItemAction(orderItemId: string, reason: string, voidQuantity?: number) {
+	const supabase = createSupabaseServerClient();
 
+	// 1. Fetch item details
+	const { data: item, error: fetchErr } = await supabase
+		.from("order_items")
+		.select("id, order_id, quantity, unit_price, product:products(name)")
+		.eq("id", orderItemId)
+		.single();
+
+	if (fetchErr || !item) throw new Error("Item not found");
+
+	const qtyToVoid = voidQuantity ?? item.quantity;
+
+	// Validation
+	if (qtyToVoid <= 0) throw new Error("Invalid void quantity");
+	if (qtyToVoid > item.quantity) throw new Error("Cannot void more than current quantity");
+
+	// 2. Perform Delete or Update
+	// The DB trigger `trg_inventory_on_item_change` will handle stock reclaim if order is SUBMITTED.
+	if (qtyToVoid === item.quantity) {
+		// Full Void
+		const { error: delErr } = await supabase
+			.from("order_items")
+			.delete()
+			.eq("id", orderItemId);
+		if (delErr) throw delErr;
+	} else {
+		// Partial Void
+		const newQty = item.quantity - qtyToVoid;
+		const newTotal = Number((newQty * Number(item.unit_price)).toFixed(2));
+
+		const { error: updErr } = await supabase
+			.from("order_items")
+			.update({ quantity: newQty, line_total: newTotal })
+			.eq("id", orderItemId);
+		if (updErr) throw updErr;
+	}
+
+	// 3. Recalculate Totals
+	await recalcOrderTotals(item.order_id as string);
+
+	// 4. Log the Void Action
+	await logAction({
+		actionType: "VOID_ITEM",
+		entityType: "order_item",
+		entityId: orderItemId,
+		details: {
+			product: (item.product as any)?.name,
+			quantity: qtyToVoid, // Log the amount voided
+			reason
+		}
+	});
+
+	revalidatePath(`/pos/${item.order_id}`);
+
+
+}
+
+// Unified action to Set Quantity for a Product
+// Handles Add, Update, and Delete (if qty <= 0).
+// Simpler and safer than separate Add/Update actions for UI sync.
+export async function setProductQuantityAction(orderId: string, productId: string, quantity: number) {
+	const supabase = createSupabaseServerClient();
+
+	// 1. Get Product Details (Price, etc) safely
+	const { data: product, error: prodErr } = await supabase
+		.from("products")
+		.select("id, price, tax_rate, category, name")
+		.eq("id", productId)
+		.single();
+
+	if (prodErr || !product) {
+		console.error("setProductQuantityAction product lookup failed:", productId, prodErr);
+		throw new Error(`CRITICAL FAILURE: Product not found for ID: ${productId}`);
+	}
+
+	// 2. Find Existing Line
+	const { data: existing } = await supabase
+		.from("order_items")
+		.select("id, quantity, unit_price, served_quantity")
+		.eq("order_id", orderId)
+		.eq("product_id", productId)
+		.maybeSingle();
+
+	// 3. Handle Logic
+	if (quantity <= 0) {
+		// DELETE
+		if (existing) {
+			// Check if served (Validation) - though UI should block this, server must too?
+			// Actually, if we are in "Unsubmitted" phase, served_quantity is 0.
+			// The VOID logic handles the submitted items.
+			// If we try to "remove" a served item via this action, we should block or redirect to void?
+			// But for now, let's assume this action is for "Syncing Cart State".
+			// If served_quantity > 0, we can't just delete it.
+			if (existing.served_quantity > 0) {
+				throw new Error("Cannot remove served items via sync. Use Void.");
+			}
+
+			const { error: delErr } = await supabase.from("order_items").delete().eq("id", existing.id);
+			if (delErr) throw delErr;
+
+			await logAction({
+				actionType: "UPDATE_ITEM_QUANTITY", // Using UPDATE for generic "Change"
+				entityType: "order_item",
+				entityId: existing.id,
+				details: { productId, quantity: 0, type: "REMOVE" }
+			});
+		}
+	} else {
+		// UPSERT
+		const unitPrice = existing ? existing.unit_price : product.price;
+		const lineTotal = Number((quantity * Number(unitPrice)).toFixed(2));
+
+		if (existing) {
+			// UPDATE
+			const { error: updErr } = await supabase
+				.from("order_items")
+				.update({ quantity, line_total: lineTotal })
+				.eq("id", existing.id);
+			if (updErr) throw updErr;
+		} else {
+			// INSERT
+			const { error: insErr } = await supabase
+				.from("order_items")
+				.insert({
+					order_id: orderId,
+					product_id: productId,
+					quantity,
+					unit_price: unitPrice,
+					line_total: lineTotal
+				});
+			if (insErr) throw insErr;
+
+			await logAction({
+				actionType: "ADD_ITEM",
+				entityType: "order",
+				entityId: orderId,
+				details: { productId, quantity, name: product.name }
+			});
+		}
+	}
+
+	// 4. Recalculate Totals
+	await recalcOrderTotals(orderId);
+
+	// 5. Revalidate
+	// OPTIMIZATION: We do NOT revalidatePath here. 
+	// Revalidating the entire page takes ~1-4s and causes UI lag.
+	// Since the client uses Optimistic UI, we trust the local state for Cart items.
+	// We only revalidate on major actions (Send, Pay, Refresh).
+	// revalidatePath(`/pos/${orderId}`);
+	// revalidatePath(`/pos`);
+}

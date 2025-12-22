@@ -35,7 +35,8 @@ type ActionType =
     | "START_SHIFT"
     | "END_SHIFT"
     | "MEMBERSHIP_UPGRADE"
-    | "DELETE_ORDER";
+    | "DELETE_ORDER"
+    | "VOID_ITEM";
 
 interface LogParams {
     actionType: ActionType;

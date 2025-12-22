@@ -252,46 +252,9 @@ export async function closeSessionAndRecordPayment(
 		// --- FINAL CLOSE ---
 
 		// 1. Inventory Deduction
-		if (saleRows.length > 0) {
-			const productIds = Array.from(new Set(saleRows.map((row: any) => row.product_id).filter(Boolean)));
-			if (productIds.length > 0) {
-				const { data: recipes } = await supabase
-					.from("product_inventory_recipes")
-					.select("product_id, inventory_item_id, quantity")
-					.in("product_id", productIds);
+		// REMOVED: Moved to Database Trigger on Order Status Change (SUBMITTED/SERVED).
+		// This prevents double deduction and ensures stock is taken when order is committed, not just paid.
 
-				// ... existing inventory logic ...
-				// (Simplified to reduce complexity in this replacement block, but preserving core logic)
-				const recipeByProduct = new Map();
-				(recipes || []).forEach((r: any) => {
-					const list = recipeByProduct.get(r.product_id) || [];
-					list.push(r);
-					recipeByProduct.set(r.product_id, list);
-				});
-
-				const saleMovements = [];
-				for (const row of saleRows) {
-					const pid = (row as any).product_id;
-					const qty = (row as any).quantity;
-					const comps = recipeByProduct.get(pid);
-					if (comps) {
-						for (const c of comps) {
-							const totalOut = qty * c.quantity;
-							saleMovements.push({
-								inventory_item_id: c.inventory_item_id,
-								movement_type: "SALE",
-								quantity: -Math.abs(totalOut),
-								order_id: order.id,
-								order_item_id: (row as any).id
-							});
-						}
-					}
-				}
-				if (saleMovements.length > 0) {
-					await supabase.from("inventory_movements").insert(saleMovements);
-				}
-			}
-		}
 
 		// 2. Update Order Status
 		await supabase

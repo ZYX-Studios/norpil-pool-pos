@@ -7,6 +7,8 @@ import { ClientTimer } from "../ClientTimer";
 import { PayFormClient } from "./PayFormClient";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { updateSessionCustomerName, pauseSession, resumeSession, releaseTable } from "../actions";
+import { voidOrderItemAction, setProductQuantityAction } from "./actions";
+import { VoidDialog } from "./VoidDialog";
 import { CustomerSearchDialog } from "../components/CustomerSearchDialog";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
@@ -181,6 +183,11 @@ export function SessionClient(props: SessionClientProps & {
 		setSubmittedCount(lastSubmittedItemCount);
 	}, [lastSubmittedItemCount]);
 
+	// Sync local items with server props when revalidation happens
+	useEffect(() => {
+		setItems(initialItems);
+	}, [initialItems]);
+
 	// Derived total quantity (sum of all items) to handle fragmented rows or duplicates correctly
 	const totalQuantity = useMemo(() => items.reduce((sum, item) => sum + item.quantity, 0), [items]);
 
@@ -189,6 +196,9 @@ export function SessionClient(props: SessionClientProps & {
 
 	const [showReleaseModal, setShowReleaseModal] = useState(false);
 	const [releaseName, setReleaseName] = useState("");
+	const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+	const [itemToVoid, setItemToVoid] = useState<SessionItem | null>(null);
+	const [voidAmount, setVoidAmount] = useState(0);
 	const [isMounted, setIsMounted] = useState(false);
 
 	useEffect(() => {
@@ -290,8 +300,27 @@ export function SessionClient(props: SessionClientProps & {
 			];
 		});
 
-		startTransition(() => {
-			void syncAddItem(orderId, productId, targetQty, supabase);
+		startTransition(async () => {
+			try {
+				await setProductQuantityAction(orderId, productId, targetQty);
+			} catch (e: any) {
+				alert("Failed to add item: " + e.message);
+				// Revert optimistic update? For now, we rely on revalidatePath to fix it if it fails.
+				// But ideally we should revert.
+				// For simplicity/robustness, we'll let the user retry or refresh.
+			}
+		});
+	}
+
+	function handleVoidConfirm(reason: string) {
+		if (!itemToVoid) return;
+		setVoidDialogOpen(false);
+		startTransition(async () => {
+			try {
+				await voidOrderItemAction(itemToVoid.id, reason, voidAmount);
+			} catch (e: any) {
+				alert("Void failed: " + e.message);
+			}
 		});
 	}
 
@@ -303,8 +332,14 @@ export function SessionClient(props: SessionClientProps & {
 			const existing = prev.find((i) => i.productId === productId);
 			if (!existing) return prev;
 
-			// Protection: Cannot reduce below served quantity
+			// Check if we are reducing "served" quantity
 			if (nextQty < existing.servedQuantity) {
+				// Prevent immediate state change, trigger Void Dialog
+				// We do this inside the setState callback which is not ideal for side effects,
+				// but since we need 'existing' state, we'll strip the side effect out or use effect?
+				// Actually, we can just return prev here, and call the side effect outside.
+				// But we need 'existing' data.
+				// Let's find 'existing' outside setState to avoid side-effects in render/updater.
 				return prev;
 			}
 
@@ -327,20 +362,24 @@ export function SessionClient(props: SessionClientProps & {
 			);
 		});
 
-		// Only sync if we actually updated state (logic above checks inside setState, 
-		// but since we can't easily cancel startTransition from inside setState updater,
-		// we might fire a sync event even if rejected. Ideally we check outside.
-		// For simplicity/robustness, we'll check pre-conditions outside or accept a harmless sync
-		// but let's do safe check:
+		// Calculate logic for Void Trigger again outside to handle the side effect properly
+		const existingIdx = items.findIndex(i => i.productId === productId);
+		if (existingIdx !== -1) {
+			const existing = items[existingIdx];
+			if (nextQty < existing.servedQuantity) {
+				setItemToVoid(existing);
+				setVoidAmount(existing.quantity - nextQty);
+				setVoidDialogOpen(true);
+				return; // Stop sync
+			}
+		}
 
-		// Actually, since we rely on setState updater for atomic consistency, it's hard to
-		// conditionally call startTransition based on the result of the updater.
-		// However, simple pre-check works for the alert case.
-
-		startTransition(() => {
-			// We'll trust the UI state eventually matches or the server handles it. 
-			// But to be precise, let's just sync.
-			void syncUpdateQuantity(orderId, productId, nextQty, supabase);
+		startTransition(async () => {
+			try {
+				await setProductQuantityAction(orderId, productId, nextQty);
+			} catch (e: any) {
+				alert("Failed to update item: " + e.message);
+			}
 		});
 	}
 
@@ -536,6 +575,22 @@ export function SessionClient(props: SessionClientProps & {
 								<div className="w-20 text-right text-sm sm:text-base font-semibold">
 									{formatCurrency(i.lineTotal)}
 								</div>
+								{/* Explicit Void/Delete Button if Served */}
+								{i.servedQuantity > 0 && (
+									<button
+										title="Void Item"
+										onClick={() => {
+											setItemToVoid(i);
+											setVoidAmount(i.quantity);
+											setVoidDialogOpen(true);
+										}}
+										className="ml-2 rounded-full p-2 text-neutral-500 hover:bg-red-500/10 hover:text-red-400 transition"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+											<path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+										</svg>
+									</button>
+								)}
 							</div>
 						))}
 						{items.length === 0 && (
@@ -646,6 +701,7 @@ export function SessionClient(props: SessionClientProps & {
 					suggestedAmount={grandTotal}
 					totalPaid={totalPaid ?? 0}
 					errorCode={errorCode}
+					hasUnsavedItems={totalQuantity > submittedCount}
 				/>
 			</section >
 
@@ -659,6 +715,15 @@ export function SessionClient(props: SessionClientProps & {
 					});
 				}}
 			/>
+
+			{itemToVoid && (
+				<VoidDialog
+					isOpen={voidDialogOpen}
+					onClose={() => setVoidDialogOpen(false)}
+					onConfirm={handleVoidConfirm}
+					itemName={itemToVoid.name}
+				/>
+			)}
 
 
 			<section className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 text-sm text-neutral-100 shadow-sm shadow-black/40 backdrop-blur lg:col-span-8">
@@ -738,91 +803,4 @@ export function SessionClient(props: SessionClientProps & {
 	);
 }
 
-// Persist add-item change using Supabase from the browser.
-// On failure (e.g. offline), we enqueue an offline operation so the change
-// can be replayed when the device reconnects.
-async function syncAddItem(
-	orderId: string,
-	productId: string,
-	targetQty: number,
-	supabase: ReturnType<typeof createSupabaseBrowserClient>,
-) {
-	try {
-		// Find existing line for this order + product.
-		const { data: existing } = await supabase
-			.from("order_items")
-			.select("id, quantity, unit_price")
-			.eq("order_id", orderId)
-			.eq("product_id", productId)
-			.maybeSingle();
 
-		if (existing?.id) {
-			const nextQty = (existing.quantity as number) + 1;
-			const lineTotal = round2(nextQty * Number(existing.unit_price));
-			await supabase
-				.from("order_items")
-				.update({ quantity: nextQty, line_total: lineTotal })
-				.eq("id", existing.id);
-		} else {
-			// Load product price for a safe server-side write.
-			const { data: product } = await supabase
-				.from("products")
-				.select("price")
-				.eq("id", productId)
-				.maybeSingle();
-			const unitPrice = Number(product?.price ?? 0);
-			const lineTotal = round2(unitPrice * 1);
-			await supabase.from("order_items").insert({
-				order_id: orderId,
-				product_id: productId,
-				quantity: 1,
-				unit_price: unitPrice,
-				line_total: lineTotal,
-			});
-		}
-	} catch (error) {
-		console.error("Failed to sync add item", error);
-		alert("Failed to add item. Check connection.");
-	}
-}
-
-// Persist quantity change (or delete) using Supabase from the browser.
-// On failure (e.g. offline), we enqueue an offline operation so the change
-// can be replayed later.
-async function syncUpdateQuantity(
-	orderId: string,
-	productId: string,
-	nextQty: number,
-	supabase: ReturnType<typeof createSupabaseBrowserClient>,
-) {
-	try {
-		const { data: line } = await supabase
-			.from("order_items")
-			.select("id, unit_price")
-			.eq("order_id", orderId)
-			.eq("product_id", productId)
-			.maybeSingle();
-
-		if (!line?.id) {
-			return;
-		}
-
-		if (nextQty <= 0) {
-			const { error } = await supabase.from("order_items").delete().eq("id", line.id);
-			if (error) {
-				console.error("Failed to delete item:", error);
-				alert("Failed to remove item: " + error.message);
-			}
-			return;
-		}
-
-		const lineTotal = round2(nextQty * Number(line.unit_price));
-		await supabase
-			.from("order_items")
-			.update({ quantity: nextQty, line_total: lineTotal })
-			.eq("id", line.id);
-	} catch (error) {
-		console.error("Failed to sync quantity change", error);
-		alert("Failed to update quantity. Check connection.");
-	}
-}

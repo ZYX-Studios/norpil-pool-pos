@@ -11,6 +11,7 @@ type PayFormClientProps = {
 	suggestedAmount: number;
 	totalPaid: number;
 	errorCode?: string;
+	hasUnsavedItems?: boolean;
 };
 
 // Simple client-side payment form with a tablet-friendly keypad.
@@ -19,6 +20,7 @@ export function PayFormClient({
 	suggestedAmount,
 	totalPaid,
 	errorCode,
+	hasUnsavedItems = false,
 }: PayFormClientProps) {
 	const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -117,6 +119,15 @@ export function PayFormClient({
 				<input type="hidden" name="method" value={method} />
 				{/* Pass profileId if selected */}
 				{selectedProfile?.id && <input type="hidden" name="profileId" value={selectedProfile.id} />}
+
+				{hasUnsavedItems && (
+					<div className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-amber-500">
+							<path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+						</svg>
+						Warning: You have items not sent to kitchen.
+					</div>
+				)}
 
 				<div className="flex justify-between items-start mb-2">
 					<div>
@@ -307,6 +318,11 @@ export function PayFormClient({
 						<div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-4 text-sm text-neutral-50 shadow-lg shadow-black/70">
 							<h3 className="mb-2 text-base font-semibold">Confirm Payment</h3>
 							<p className="mb-3 text-xs text-neutral-300">Confirm payment details below.</p>
+							{hasUnsavedItems && (
+								<div className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 text-left">
+									⚠️ You have items in the cart that won't be sent to the kitchen automatically on payment. Please allow kitchen to prepare first if needed.
+								</div>
+							)}
 							<div className="space-y-1 text-xs">
 								<div className="flex justify-between"><span>Method</span><span className="font-medium">{method}</span></div>
 								{selectedProfile && <div className="flex justify-between"><span>Payer</span><span className="font-bold text-white">{selectedProfile.name}</span></div>}
