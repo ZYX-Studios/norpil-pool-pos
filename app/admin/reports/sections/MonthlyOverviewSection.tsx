@@ -28,11 +28,11 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 	const rows = monthly ?? [];
 
 	const chartData = rows.map((row: any) => {
-		const revenue = Number(row.revenue ?? 0);
-		const expenses = Number(row.expenses ?? 0);
-		const net = Number(row.net ?? revenue - expenses);
+		const revenue = Number(row.total_revenue ?? 0);
+		const expenses = Number(row.total_expenses ?? 0);
+		const net = Number(row.net_profit ?? revenue - expenses);
 		return {
-			month: formatDate(row.month_start, {
+			month: formatDate(row.month, {
 				month: "short",
 				year: "2-digit",
 			}),
@@ -78,7 +78,7 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 									fontSize={10}
 									tickLine={false}
 									axisLine={false}
-									tickFormatter={(value) => `$${value / 1000}k`}
+									tickFormatter={(value) => `₱${value / 1000}k`}
 								/>
 								<Tooltip
 									contentStyle={{
@@ -135,10 +135,10 @@ export function MonthlyOverviewSection({ monthly }: MonthlyOverviewSectionProps)
 							<tbody className="divide-y divide-white/5 text-neutral-300">
 								{rows.length > 0 ? (
 									rows.map((row: any) => {
-										const month = row.month_start as string;
-										const revenue = Number(row.revenue ?? 0);
-										const expenses = Number(row.expenses ?? 0);
-										const net = Number(row.net ?? revenue - expenses);
+										const month = row.month as string;
+										const revenue = Number(row.total_revenue ?? 0);
+										const expenses = Number(row.total_expenses ?? 0);
+										const net = Number(row.net_profit ?? revenue - expenses);
 										const marginPct = revenue > 0 ? (net / revenue) * 100 : 0;
 										return (
 											<tr key={month} className="group hover:bg-white/5">

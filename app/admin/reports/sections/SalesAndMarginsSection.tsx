@@ -65,7 +65,7 @@ export function SalesAndMarginsSection({
 
 	// Prepare data for the area chart (Multi-day)
 	const dailyData = (daily ?? []).map((row: any) => ({
-		date: formatDate(row.day, { month: "short", day: "numeric" }),
+		date: formatDate(row.date, { month: "short", day: "numeric" }),
 		revenue: Number(row.revenue ?? 0),
 	}));
 
@@ -116,7 +116,7 @@ export function SalesAndMarginsSection({
 										fontSize={10}
 										tickLine={false}
 										axisLine={false}
-										tickFormatter={(value) => `$${value}`}
+										tickFormatter={(value) => `₱${value}`}
 									/>
 									<Tooltip
 										contentStyle={{
@@ -152,7 +152,7 @@ export function SalesAndMarginsSection({
 										fontSize={10}
 										tickLine={false}
 										axisLine={false}
-										tickFormatter={(value) => `$${value}`}
+										tickFormatter={(value) => `₱${value}`}
 									/>
 									<Tooltip
 										contentStyle={{

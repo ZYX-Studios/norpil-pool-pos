@@ -9,6 +9,10 @@ interface PlayerCardProps {
         avatar_url: string | null;
         membership_number?: string | null;
         is_member?: boolean;
+        membership_tiers?: {
+            name: string;
+            color: string;
+        } | null;
     } | null;
     walletBalance: number;
 }
@@ -55,15 +59,36 @@ export function PlayerCard({ profile, walletBalance }: PlayerCardProps) {
                             <Logo className="h-5 w-5 text-white/70" />
                             <span className="text-[9px] font-bold tracking-[0.25em] text-white/50 uppercase">Norpil Billiards</span>
                         </div>
-                        {profile?.membership_number ? (
-                            <div className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10">
-                                <span className="text-[10px] font-mono font-bold text-white/80 tracking-[0.15em]">{profile.membership_number}</span>
-                            </div>
-                        ) : (
-                            <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10">
-                                <span className="text-[8px] font-bold text-white/60 tracking-widest uppercase">{profile?.is_member ? 'Member' : 'Guest'}</span>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {/* Membership Status/Tier Badge */}
+                            {(profile?.membership_tiers || profile?.is_member) ? (
+                                <div
+                                    className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10"
+                                    style={profile?.membership_tiers ? {
+                                        backgroundColor: `${profile.membership_tiers.color}10`,
+                                        borderColor: `${profile.membership_tiers.color}30`
+                                    } : {}}
+                                >
+                                    <span
+                                        className="text-[8px] font-bold text-white/60 tracking-widest uppercase"
+                                        style={profile?.membership_tiers ? { color: profile.membership_tiers.color } : {}}
+                                    >
+                                        {profile?.membership_tiers?.name || 'Member'}
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10">
+                                    <span className="text-[8px] font-bold text-white/60 tracking-widest uppercase">Guest</span>
+                                </div>
+                            )}
+
+                            {/* Membership Number */}
+                            {profile?.membership_number && (
+                                <div className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10">
+                                    <span className="text-[10px] font-mono font-bold text-white/80 tracking-[0.15em]">{profile.membership_number}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Main Player Section */}

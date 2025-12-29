@@ -11,6 +11,7 @@ interface Customer {
     is_member: boolean;
     membership_number?: string | null;
     wallets?: { balance: number } | { balance: number }[] | null;
+    membership_tiers?: { name: string; color: string; min_wallet_balance: number } | null;
 }
 
 interface CustomerTableProps {
@@ -133,7 +134,28 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                                         ₱{Number((Array.isArray(profile.wallets) ? profile.wallets[0]?.balance : profile.wallets?.balance) || 0).toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {profile.is_member ? (
+                                        {profile.membership_tiers ? (
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold border"
+                                                    style={{
+                                                        borderColor: `${profile.membership_tiers.color}40`,
+                                                        color: profile.membership_tiers.color,
+                                                        backgroundColor: `${profile.membership_tiers.color}10`
+                                                    }}
+                                                >
+                                                    {profile.membership_tiers.name}
+                                                </span>
+                                                {(Number(Array.isArray(profile.wallets) ? profile.wallets[0]?.balance : profile.wallets?.balance || 0)) < (profile.membership_tiers.min_wallet_balance || 0) && (
+                                                    <div className="group relative">
+                                                        <span className="text-amber-500 cursor-help">⚠️</span>
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-black/90 border border-white/10 rounded-lg text-xs text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-max max-w-[200px] shadow-xl">
+                                                            Min. Balance Required: ₱{Number(profile.membership_tiers.min_wallet_balance).toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : profile.is_member ? (
                                             <span className="inline-flex items-center rounded-full bg-indigo-500/20 px-2.5 py-1 text-xs font-medium text-indigo-300 border border-indigo-500/30">
                                                 Member
                                             </span>

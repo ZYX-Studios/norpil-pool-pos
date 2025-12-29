@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CustomerTierManager } from "./CustomerTierManager";
+
 export default async function CustomerDetailPage({
     params
 }: {
@@ -29,6 +31,12 @@ export default async function CustomerDetailPage({
         return notFound();
     }
 
+    // Fetch Membership Tiers
+    const { data: tiers } = await supabase
+        .from("membership_tiers")
+        .select("*")
+        .order("discount_percentage", { ascending: true });
+
     // Fetch Wallet Transactions
     const { data: transactions } = await supabase
         .from("wallet_transactions")
@@ -54,15 +62,6 @@ export default async function CustomerDetailPage({
         .order("opened_at", { ascending: false })
         .limit(10);
 
-    async function toggleMembership() {
-        "use server";
-        const supabase = createSupabaseServerClient();
-        await supabase.from("profiles")
-            .update({ is_member: !profile.is_member })
-            .eq("id", id);
-        revalidatePath(`/admin/customers/${id}`);
-    }
-
     async function updateRanking(formData: FormData) {
         "use server";
         const supabase = createSupabaseServerClient();
@@ -80,22 +79,17 @@ export default async function CustomerDetailPage({
                 <Link href="/admin/customers" className="mb-2 inline-block text-xs font-medium text-neutral-500 hover:text-white">
                     ← Back to Customers
                 </Link>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-neutral-50">{profile.full_name || "Guest Customer"}</h1>
                         <p className="text-neutral-400">Customer Details & History</p>
                     </div>
-                    <form action={toggleMembership}>
-                        <button
-                            type="submit"
-                            className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${profile.is_member
-                                ? "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                }`}
-                        >
-                            {profile.is_member ? "Revoke Membership" : "Upgrade to Member"}
-                        </button>
-                    </form>
+                    <CustomerTierManager
+                        customerId={id}
+                        currentTierId={profile.membership_tier_id}
+                        isMember={profile.is_member}
+                        tiers={tiers || []}
+                    />
                 </div>
             </div>
 

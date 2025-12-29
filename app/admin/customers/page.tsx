@@ -16,7 +16,7 @@ export default async function CustomersPage() {
     // Fetch ALL profiles (client-side filtering)
     const { data: profiles, error } = await supabase
         .from("profiles")
-        .select("id, full_name, phone_number, is_member, membership_number, created_at, ranking, wallets(balance)")
+        .select("id, full_name, phone_number, is_member, membership_number, created_at, ranking, wallets(balance), membership_tiers(name, color, min_wallet_balance)")
         .order("full_name", { ascending: true });
 
     // Fetch Settings
@@ -59,49 +59,77 @@ export default async function CustomersPage() {
         <div className="space-y-8">
             <PageHeader title="Customers & Membership" description="Manage customer profiles and membership settings." />
 
-            {/* Global Settings Card */}
-            <div className="rounded-3xl border border-white/5 bg-neutral-900/50 p-8 shadow-2xl overflow-hidden relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-50" />
-                <div className="relative z-10">
-                    <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                        <span className="h-6 w-1 bg-indigo-500 rounded-full" />
-                        Membership Configuration
-                    </h3>
-                    <form action={saveSettings} className="flex flex-col gap-6 lg:flex-row lg:items-end">
-                        <div className="flex-1">
-                            <label className="mb-2 block text-sm font-medium text-neutral-400 uppercase tracking-wider">
-                                Member Discount (% off)
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <input
-                                    type="number"
-                                    name="discount"
-                                    defaultValue={currentDiscount}
-                                    min="0"
-                                    max="100"
-                                    step="any"
-                                    className="w-full max-w-[120px] rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-bold text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all shadow-inner"
-                                />
-                                <button
-                                    type="submit"
-                                    className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:scale-95 transition-all"
-                                >
-                                    Save Changes
-                                </button>
+            <div className="grid gap-6 md:grid-cols-2">
+                {/* Global Settings Card (Legacy/Default) */}
+                <div className="rounded-3xl border border-white/5 bg-neutral-900/50 p-8 shadow-2xl overflow-hidden relative group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-50" />
+                    <div className="relative z-10">
+                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                            <span className="h-6 w-1 bg-indigo-500 rounded-full" />
+                            Default Configuration
+                        </h3>
+                        <form action={saveSettings} className="flex flex-col gap-4">
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-neutral-400 uppercase tracking-wider">
+                                    Default Member Discount (% off)
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="number"
+                                        name="discount"
+                                        defaultValue={currentDiscount}
+                                        min="0"
+                                        max="100"
+                                        step="any"
+                                        className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-bold text-white focus:border-indigo-500 focus:outline-none transition-all shadow-inner"
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:scale-95 transition-all"
+                                    >
+                                        Save
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <p className="max-w-md text-sm text-neutral-400 leading-relaxed bg-white/5 p-4 rounded-xl border border-white/5">
-                            This discount is automatically applied to pool table fees for any active member.
-                            Use the table below to manually upgrade or revoke membership status.
-                        </p>
-                    </form>
+                            <p className="text-xs text-neutral-500 mt-2">
+                                Applied to members with no specific tier assigned.
+                            </p>
+                        </form>
+                    </div>
                 </div>
+
+                {/* Tiers Management Link */}
+                <Link
+                    href="/admin/customers/tiers"
+                    className="rounded-3xl border border-white/5 bg-neutral-900/50 p-8 shadow-2xl relative group hover:bg-neutral-800/50 transition-all cursor-pointer"
+                >
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 opacity-50 group-hover:opacity-80 transition-opacity" />
+                    <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div>
+                            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                                <span className="h-6 w-1 bg-emerald-500 rounded-full" />
+                                Membership Tiers
+                            </h3>
+                            <p className="text-neutral-400 text-sm">
+                                Create and manage membership tiers (Gold, Silver, etc.) with custom discounts and requirements.
+                            </p>
+                        </div>
+                        <div className="mt-6 flex items-center text-emerald-400 font-bold text-sm">
+                            Manage Tiers →
+                        </div>
+                    </div>
+                </Link>
             </div>
 
+
+
             <CustomerTable
-                customers={profiles || []}
+                customers={profiles?.map(p => ({
+                    ...p,
+                    membership_tiers: Array.isArray(p.membership_tiers) ? p.membership_tiers[0] : p.membership_tiers
+                })) as any || []}
                 toggleMembership={toggleMembership}
             />
-        </div>
+        </div >
     );
 }

@@ -41,6 +41,7 @@ export default function ReservationBookingPage(props: PageProps) {
     const [showSuccess, setShowSuccess] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [memberDiscountPercent, setMemberDiscountPercent] = useState(0);
+    const [tierName, setTierName] = useState<string | null>(null);
 
     const supabase = createSupabaseBrowserClient();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -57,6 +58,9 @@ export default function ReservationBookingPage(props: PageProps) {
             const { data: { user } } = await supabase.auth.getUser();
             setCurrentUser(user);
 
+            let effectiveDiscount = 0;
+            let currentTierName = null;
+
             if (user) {
                 // Fetch Wallet (original trusted method)
                 const { data: walletData } = await supabase
@@ -69,23 +73,39 @@ export default function ReservationBookingPage(props: PageProps) {
                 // Fetch Profile (for membership)
                 const { data: profile } = await supabase
                     .from("profiles")
-                    .select("is_member")
+                    .select("is_member, membership_tiers(name, discount_percentage)")
                     .eq("id", user.id)
                     .single();
 
                 if (profile) {
                     setCurrentUser({ ...user, is_member: profile.is_member });
+
+                    // Handle potential array/object return
+                    const tierData = Array.isArray(profile.membership_tiers)
+                        ? profile.membership_tiers[0]
+                        : profile.membership_tiers;
+
+                    // Fetch Legacy Discount Setting
+                    const { data: discountSetting } = await supabase
+                        .from("app_settings")
+                        .select("value")
+                        .eq("key", "member_discount_percentage")
+                        .single();
+                    const legacyMemberDiscount = Number(discountSetting?.value ?? 0);
+
+                    // Determine Effective Discount
+                    if (tierData) {
+                        effectiveDiscount = Number(tierData.discount_percentage);
+                        currentTierName = tierData.name;
+                    } else if (profile.is_member) {
+                        effectiveDiscount = legacyMemberDiscount;
+                        currentTierName = "MEMBER";
+                    }
                 }
             }
 
-            // Fetch Member Discount Setting
-            const { data: discountSetting } = await supabase
-                .from("app_settings")
-                .select("value")
-                .eq("key", "member_discount_percentage")
-                .single();
-            const memberDiscount = Number(discountSetting?.value ?? 0);
-            setMemberDiscountPercent(memberDiscount);
+            setMemberDiscountPercent(effectiveDiscount);
+            setTierName(currentTierName);
 
             const tableId = (await params).id;
             if (tableId) {
@@ -221,7 +241,7 @@ export default function ReservationBookingPage(props: PageProps) {
         // @ts-ignore
         // Calculate amount
         let hourlyRate = Number(table.hourly_rate);
-        if (currentUser?.is_member && memberDiscountPercent > 0) {
+        if (memberDiscountPercent > 0) {
             hourlyRate = hourlyRate * ((100 - memberDiscountPercent) / 100);
         }
         const amount = hourlyRate * duration;
@@ -312,9 +332,9 @@ export default function ReservationBookingPage(props: PageProps) {
                             {/* @ts-ignore */}
                             <h2 className="text-3xl font-bold text-white font-serif tracking-tight">{table.name}</h2>
                             <p className="text-neutral-400 text-sm">Select a date and time to reserve</p>
-                            {currentUser?.is_member && memberDiscountPercent > 0 && (
+                            {memberDiscountPercent > 0 && (
                                 <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1">
-                                    <span className="text-xs font-bold text-emerald-400">STAR MEMBER</span>
+                                    <span className="text-xs font-bold text-emerald-400 uppercase">{tierName || "MEMBER"}</span>
                                     <span className="text-[10px] text-emerald-300">({memberDiscountPercent}% Off)</span>
                                 </div>
                             )}
@@ -437,14 +457,14 @@ export default function ReservationBookingPage(props: PageProps) {
                                     <div className="flex justify-between items-center pb-4 border-b border-white/5">
                                         <span className="text-neutral-400 font-medium">Total for {duration} hour{duration > 1 ? 's' : ''}</span>
                                         <div className="text-right">
-                                            {currentUser?.is_member && memberDiscountPercent > 0 && (
+                                            {memberDiscountPercent > 0 && (
                                                 <div className="text-xs text-neutral-500 line-through">
                                                     ₱{Number(table.hourly_rate) * duration}
                                                 </div>
                                             )}
                                             {/* @ts-ignore */}
                                             <span className="text-2xl font-bold text-white">
-                                                ₱{(currentUser?.is_member && memberDiscountPercent > 0
+                                                ₱{(memberDiscountPercent > 0
                                                     ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
                                                     : Number(table.hourly_rate)) * duration}
                                             </span>
@@ -461,7 +481,7 @@ export default function ReservationBookingPage(props: PageProps) {
                                                 <span className={cn(
                                                     "font-mono font-medium",
                                                     // @ts-ignore
-                                                    wallet.balance < ((currentUser?.is_member && memberDiscountPercent > 0
+                                                    wallet.balance < ((memberDiscountPercent > 0
                                                         ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
                                                         : Number(table.hourly_rate)) * duration) ? "text-red-400" : "text-emerald-400"
                                                 )}>
@@ -519,7 +539,7 @@ export default function ReservationBookingPage(props: PageProps) {
                             <div className="bg-white/5 rounded-xl p-4 mt-4">
                                 <span className="block text-xs uppercase tracking-wider text-neutral-500 mb-1">Total Payment</span>
                                 <span className="text-2xl font-bold text-white">
-                                    ₱{(currentUser?.is_member && memberDiscountPercent > 0
+                                    ₱{(memberDiscountPercent > 0
                                         ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
                                         : Number(table.hourly_rate)) * duration}
                                 </span>

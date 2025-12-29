@@ -51,17 +51,26 @@ async function fetchTransactionsWithDetails(supabase: any, start: string, end: s
 	// of the Manila days passed in `start` and `end`.
 
 	// `start` and `end` are YYYY-MM-DD strings.
-	// Manila is UTC+8. 
-	// Start of Day: YYYY-MM-DD 00:00:00 Manila = YYYY-MM-DD -1 day 16:00:00 UTC
-	// End of Day:   YYYY-MM-DD 23:59:59 Manila = YYYY-MM-DD 15:59:59 UTC
+	// Business Day starts at 10:00 AM Manila Time.
+	// Start: YYYY-MM-DD 10:00:00 Manila
+	// End:   YYYY-MM-DD (+1 Day) 10:00:00 Manila (Exclusive if we want "Next Business Day Start")
+	// Actually, `p_end` in database is usually inclusive for DATE types in the RPCs (`<= p_end`).
+	// But our RPCs use `get_business_date(ts) <= p_end`. 
+	// So if p_end is '2025-12-29', it includes transactions up to '2025-12-30 10:00:00 Manila' (exclusive).
+	// Let's implement strict timestamp range for the query.
 
+	// Manila Time (UTC+8) of Start Day 10:00 AM
+	// 10:00 AM Manila = 02:00 AM UTC (same day)
 	const utcStart = new Date(start);
-	utcStart.setHours(utcStart.getHours() - 8); // 00:00 - 8h = 16:00 prev day
+	utcStart.setUTCHours(2, 0, 0, 0); // 10am Manila (-8) = 2am UTC
 	const startIso = utcStart.toISOString();
 
+	// Manila Time (UTC+8) of End Day + 1 10:00 AM
+	// If Start=End (Single Day), we wan't [Start 10am, Start+1 10am).
+	// If Start!=End (Range), we want [Start 10am, End+1 10am).
 	const utcEnd = new Date(end);
-	utcEnd.setDate(utcEnd.getDate() + 1); // Go to next day
-	utcEnd.setHours(utcEnd.getHours() - 8); // 00:00 - 8h = 16:00 requested day (which is end of requested day in Manila)
+	utcEnd.setDate(utcEnd.getDate() + 1);
+	utcEnd.setUTCHours(2, 0, 0, 0); // 10am Manila next day
 	const endIso = utcEnd.toISOString();
 
 	const [{ data: txPayments }, { data: txDeposits }] = await Promise.all([
@@ -165,6 +174,10 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 	// Helper to format date as YYYY-MM-DD for RPC
 	const toProDate = (d: Date) => d.toISOString().split('T')[0];
 
+	// Calculate Year Start for Monthly Overview (Trend)
+	const startYear = new Date(startStr).getFullYear();
+	const yearStartStr = `${startYear}-01-01`;
+
 	// Run RPCs in parallel
 	const [
 		{ data: totalRevenue },
@@ -178,7 +191,7 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 		{ data: drinkMargins },
 		{ data: categoryMargins },
 		{ data: expenses },
-		{ data: monthly },
+		{ data: monthly }, // Monthly Trend (Year to Date)
 		{ data: byTable },
 		{ data: topCustomers },
 		{ data: walletLiability },
@@ -194,7 +207,7 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 		supabase.rpc("margin_by_drink_type", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("margin_by_category", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("get_expenses", { p_start: startStr, p_end: endStr }),
-		supabase.rpc("monthly_financial_summary", { p_start: startStr, p_end: endStr }),
+		supabase.rpc("monthly_financial_summary", { p_start: yearStartStr, p_end: endStr }), // Year-to-Date for Trend
 		supabase.rpc("revenue_by_table", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("get_top_customers", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("get_wallet_liability"),

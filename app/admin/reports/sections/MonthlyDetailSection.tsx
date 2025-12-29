@@ -36,15 +36,17 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
 
     // 2. Merge with daily revenue
     const allDates = new Set<string>();
-    (dailyRevenue ?? []).forEach((d) => allDates.add(d.day));
+    (dailyRevenue ?? []).forEach((d) => allDates.add(d.date));
     (expenses ?? []).forEach((e) => allDates.add(e.expense_date));
 
-    const sortedDates = Array.from(allDates).sort();
+    const sortedDates = Array.from(allDates)
+        .filter(d => !isNaN(new Date(d).getTime())) // Filter out invalid dates
+        .sort();
 
     // Create lookup for revenue
     const revenueByDay = new Map<string, number>();
     (dailyRevenue ?? []).forEach((d) => {
-        revenueByDay.set(d.day, Number(d.revenue ?? 0));
+        revenueByDay.set(d.date, Number(d.revenue ?? 0));
     });
 
     const chartData = sortedDates.map((date) => {
@@ -78,7 +80,7 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
                         Daily Performance
                     </div>
                     <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                             <ComposedChart data={chartData}>
                                 <CartesianGrid
                                     strokeDasharray="3 3"
@@ -97,7 +99,7 @@ export function MonthlyDetailSection({ dailyRevenue, expenses }: MonthlyDetailSe
                                     fontSize={10}
                                     tickLine={false}
                                     axisLine={false}
-                                    tickFormatter={(value) => `$${value}`}
+                                    tickFormatter={(value) => `₱${value}`}
                                 />
                                 <Tooltip
                                     contentStyle={{

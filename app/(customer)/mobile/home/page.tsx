@@ -21,12 +21,17 @@ export default async function HomePage() {
 
         const { data: p } = await supabase
             .from("profiles")
-            .select("full_name, ranking, created_at, avatar_url, membership_number, is_member")
+            .select("full_name, ranking, created_at, avatar_url, membership_number, is_member, membership_tiers(name, color)")
             .eq("id", user.id)
             .single();
 
         walletBalance = wallet?.balance ?? 0;
-        profile = p;
+        if (p) {
+            profile = {
+                ...p,
+                membership_tiers: Array.isArray(p.membership_tiers) ? p.membership_tiers[0] : p.membership_tiers
+            };
+        }
     }
 
     return (

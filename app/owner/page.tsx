@@ -16,10 +16,38 @@ export default async function OwnerDashboard() {
     const formatter = new Intl.DateTimeFormat("en-CA", options);
     const today = formatter.format(now);
 
+    // Determine Operational ID dates:
+    // If now < 10am, we are in "Yesterday's Business Day". 
+    // But to find "revenue for THIS shift context", we usually want the dashboard to slide.
+    // If 2 AM Dec 30 -> Operational Day is Dec 29. Range [Dec 29 10am, Dec 30 10am].
+    // If 2 PM Dec 30 -> Operational Day is Dec 30. Range [Dec 30 10am, Dec 31 10am].
+    // To support accurate filtering, we need to fetch enough data.
+    // Fetching [Today - 1, Today + 1] is safest? 
+    // Or just [OperationalDate, OperationalDate + 1].
+
+    // Let's compute Operational Date first (Server Side)
+    // Note: `now` is server time? We need Manila Time.
+    // We used `formatter` to get YYYY-MM-DD in Manila.
+    // But `now.getHours()` is UTC on server (usually). We need Manila Hour.
+    const manilaTimeStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
+    const manilaDate = new Date(manilaTimeStr);
+    const currentHourManila = manilaDate.getHours();
+
+    let opDate = new Date(manilaDate);
+    if (currentHourManila < 10) {
+        opDate.setDate(opDate.getDate() - 1);
+    }
+    const opDateStr = formatter.format(opDate); // YYYY-MM-DD
+
+    // Next Day for Range End
+    const nextDate = new Date(opDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+    const nextDateStr = formatter.format(nextDate);
+
     // 2. Fetch Financial Data (Reuse Admin Reports Logic)
-    // We pass today as both start and end to get today's data
-    const reportData = await getReportData(today, today, supabase);
-    const todayRevenue = reportData.total ?? 0;
+    // Fetch [OperationalDate, NextDate] to cover the 10am-10am crossover fully
+    const reportData = await getReportData(opDateStr, nextDateStr, supabase);
+    // Note: The `reportData.total` will be for TWO DAYS now. We must ignore it and use our calculated `businessDayRevenue`.
     const transactionCount = reportData.tx?.length ?? 0;
 
     // 3. Fetch Operational Data (Active Tables, etc.)
@@ -154,18 +182,12 @@ export default async function OwnerDashboard() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold text-white tracking-tight">Welcome Back, Owner.</h1>
-                <p className="text-neutral-400 mt-2">Here is your store's performance for today, <span className="text-emerald-400 font-medium">{today}</span>.</p>
+                <p className="text-neutral-400 mt-2">Here is your store's performance for <span className="text-emerald-400 font-medium">{formatter.format(opDate)}</span>.</p>
             </div>
 
             {/* KPI Grid */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <StatsCard
-                    title="Total Revenue"
-                    value={formatCurrency(todayRevenue)}
-                    icon={TrendingUp}
-                    color="emerald"
-                    description={`${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} today`}
-                />
+                {/* Replaced by dynamic cards below */}
                 <StatsCard
                     title="Active Tables"
                     value={activeTablesList.length.toString()}
@@ -180,11 +202,127 @@ export default async function OwnerDashboard() {
                     color="amber"
                     description={`Unsettled: ${formatCurrency(walkInsUnsettledTotal)}`}
                 />
+
+                {/* Current Shift Card */}
+                {(() => {
+                    // Logic to determine current and previous shift stats
+                    // Shift definition: Day 10am-6pm, Night 6pm-3am
+                    const currentHour = now.getHours();
+                    let currentShiftName = "Night Shift";
+                    let currentShiftStartHour = 18; // 6pm
+                    let previousShiftStartHour = 10; // 10am
+                    let previousShiftEndHour = 18;
+                    let previousShiftName = "Day Shift";
+
+                    // If between 10am and 6pm, it's Day Shift
+                    if (currentHour >= 10 && currentHour < 18) {
+                        currentShiftName = "Day Shift";
+                        currentShiftStartHour = 10;
+                        previousShiftStartHour = 18; // Yesterday 6pm
+                        previousShiftEndHour = 3;  // Yesterday 3am (technically ends today 3am)
+                        previousShiftName = "Night Shift (Prev)";
+                    }
+
+                    // Calculate Current Shift Sales
+                    const currentShiftStart = new Date(now);
+                    currentShiftStart.setHours(currentShiftStartHour, 0, 0, 0);
+                    // Special case: if it's Night Shift (after midnight 00:00 - 04:00), start is Yesterday 18:00
+                    if (currentShiftName === "Night Shift" && currentHour < 10) {
+                        currentShiftStart.setDate(currentShiftStart.getDate() - 1);
+                    }
+
+                    const currentShiftSales = (reportData.tx || [])
+                        .filter((tx: any) => {
+                            const txTime = new Date(tx.paid_at).getTime();
+                            return txTime >= currentShiftStart.getTime();
+                        })
+                        .reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
+
+                    // Calculate Previous Shift Sales (Approximate based on today's data or full fetch needs? 
+                    // ReportData `tx` only has *Today's* transactions (00:00 - 23:59).
+                    // If we are in Day Shift (10am-6pm), Previous Night Shift was Yesterday 6pm - Today 3am. 
+                    //    We only have Today 00:00 - Today 3am in `reportData.tx`. verify?
+                    //    `getReportData` fetches `today` as start/end. 
+                    //    So if we are in Day Shift, we are missing Yesterday 6pm-Midnight part of the prev shift.
+                    //    If we are in Night Shift (say 8pm), Previous Day Shift was Today 10am-6pm. All in `reportData.tx`!
+
+                    // Limitation: If current shift is Day Shift, 'Previous Shift' (Night) data is incomplete in `reportData`.
+                    // We will handle what we can:
+                    // If Night Shift (now): Previous = Today 10am-6pm. Fully available.
+                    // If Day Shift (now): Previous = Yesterday 18:00 - Today 03:00. Partial (Today 00:00-03:00) available.
+                    // For the "Day Shift" case, illustrating "Last Night (since midnight)" might be the safe fallback without extra fetch.
+
+                    // Let's implement robust filtering for what we HAVE.
+                    const isNightNow = currentShiftName === "Night Shift";
+
+                    let prevShiftSales = 0;
+                    if (isNightNow) {
+                        // Previous is Day Shift Today (10-18)
+                        prevShiftSales = (reportData.tx || [])
+                            .filter((tx: any) => {
+                                const h = new Date(tx.paid_at).getHours();
+                                return h >= 10 && h < 18;
+                            })
+                            .reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
+                    } else {
+                        // Current is Day Shift. Previous was Night Shift (Last night).
+                        // We only have Today's data (since 00:00).
+                        // So we can show "Night Shift (Since 12am)".
+                        previousShiftName = "Night Shift (12am-3am)";
+                        prevShiftSales = (reportData.tx || [])
+                            .filter((tx: any) => {
+                                const h = new Date(tx.paid_at).getHours();
+                                return h < 4; // 00:00 to 03:59
+                            })
+                            .reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
+                    }
+
+                    // 1. Define Business Day Window (10am - 10am)
+                    const opStart = new Date(opDate);
+                    opStart.setHours(10, 0, 0, 0);
+
+                    const opEnd = new Date(nextDate);
+                    opEnd.setHours(10, 0, 0, 0);
+
+                    // 2. Filter for Total Business Day Revenue
+                    const businessDayTx = (reportData.tx || []).filter((tx: any) => {
+                        const t = new Date(tx.paid_at).getTime();
+                        return t >= opStart.getTime() && t < opEnd.getTime();
+                    });
+                    const businessDayRevenue = businessDayTx.reduce((acc: number, tx: any) => acc + (tx.amount || 0), 0);
+
+                    return (
+                        <>
+                            <StatsCard
+                                title="Total Revenue (Biz Day)"
+                                value={formatCurrency(businessDayRevenue)}
+                                icon={TrendingUp}
+                                color="emerald"
+                                description={`${formatter.format(opDate)}`}
+                            />
+                            <StatsCard
+                                title={`Current: ${currentShiftName}`}
+                                value={formatCurrency(currentShiftSales)}
+                                icon={Activity}
+                                color="amber"
+                                description={`${isNightNow ? 'Since 6PM' : 'Since 10AM'}`}
+                            />
+                            <StatsCard
+                                title={`Prev: ${previousShiftName}`}
+                                value={formatCurrency(prevShiftSales)}
+                                icon={TrendingUp}
+                                color="violet"
+                                description={isNightNow ? "Today 10am-6pm" : "Today 12am-3am only"}
+                            />
+                        </>
+                    );
+                })()}
+
                 <StatsCard
                     title="Active Staff"
                     value={activeStaffCount.toString()}
                     icon={Users}
-                    color="violet"
+                    color="emerald"
                     description={staffLabel}
                 />
             </div>

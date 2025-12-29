@@ -22,7 +22,7 @@ export default async function SessionPage({
 		// Load session + table
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
-			.select("id, status, closed_at, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate), profile_id, profiles(is_member)")
+			.select("id, status, closed_at, opened_at, override_hourly_rate, customer_name, paused_at, accumulated_paused_time, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), pool_tables:pool_table_id(id, name, hourly_rate), profile_id, profiles(is_member, membership_tiers(discount_percentage))")
 			.eq("id", sessionId)
 			.maybeSingle();
 
@@ -140,8 +140,25 @@ export default async function SessionPage({
 			.eq("key", "member_discount_percentage")
 			.single();
 
-		const discountPercent = Number(memberSetting?.value ?? 0);
-		const isMember = (session as any).profiles?.is_member ?? false;
+		const globalDiscountPercent = Number(memberSetting?.value ?? 0);
+		const profile = (session as any).profiles;
+		const isMember = profile?.is_member ?? false;
+
+		// Determine effective discount
+		// 1. Tier discount has priority
+		// 2. Fallback to global discount if is_member is true
+		let effectiveDiscount = 0;
+
+		// Handle array or object return from Supabase relation
+		const tierData = Array.isArray(profile?.membership_tiers)
+			? profile.membership_tiers[0]
+			: profile?.membership_tiers;
+
+		if (tierData && tierData.discount_percentage != null) {
+			effectiveDiscount = Number(tierData.discount_percentage);
+		} else if (isMember) {
+			effectiveDiscount = globalDiscountPercent;
+		}
 
 		let hourlyRate = Number(
 			session.override_hourly_rate ?? (session as any).pool_tables?.hourly_rate ?? 0,
@@ -156,12 +173,9 @@ export default async function SessionPage({
 		const totalPaid = (existingPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
 
 
-		// Apply Member Discount (only if no override is set? Or always? Usually on base rate.)
-		// Assumption: Override implies manual control, so valid overrides might skip discount.
-		// However, simpler logic: If it's the base table rate, apply discount. If override is present, use override.
-		// Re-reading: "override_hourly_rate" is usually null unless set manually.
-		if (!session.override_hourly_rate && isMember && discountPercent > 0) {
-			hourlyRate = hourlyRate * ((100 - discountPercent) / 100);
+		// Apply Effective Discount
+		if (!session.override_hourly_rate && effectiveDiscount > 0) {
+			hourlyRate = hourlyRate * ((100 - effectiveDiscount) / 100);
 		}
 
 		return (
@@ -171,7 +185,7 @@ export default async function SessionPage({
 					tableName={(session as any).pool_tables?.name ?? (session as any).customer_name ?? "Walk-in"}
 					customerName={(session as any).customer_name}
 					isMember={isMember}
-					discountPercent={isMember ? discountPercent : 0}
+					discountPercent={isMember ? effectiveDiscount : 0}
 					openedAt={session.opened_at as string}
 					hourlyRate={hourlyRate}
 					orderId={order.id as string}
