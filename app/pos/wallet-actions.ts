@@ -109,25 +109,8 @@ export async function topUpWallet(walletId: string, amount: number, details?: st
         }
 
         // 4. Check for Membership Upgrade
-        // Rule: Load 500+ -> Become Member
-        if (amount >= 500) {
-            const { error: memberErr } = await supabase
-                .from("profiles")
-                .update({ is_member: true })
-                .eq("id", wallet.profile_id);
-
-            if (memberErr) {
-                console.error("Failed to upgrade membership:", memberErr);
-                // Don't block top-up success, but log it.
-            } else {
-                await logAction({
-                    actionType: "MEMBERSHIP_UPGRADE",
-                    entityType: "profile",
-                    entityId: wallet.profile_id,
-                    details: { reason: "Top-up >= 500", amount },
-                });
-            }
-        }
+        // Handled by Database Trigger `on_wallet_balance_change`
+        // Rule: Balance >= Tier Min -> Auto Assign Tier
 
         // 5. Log Action
         await logAction({
