@@ -7,7 +7,7 @@ export function PrintPageLayout({ children }: { children: React.ReactNode }) {
 		<div className="print-layout bg-white text-neutral-900 min-h-screen">
 			<style jsx global>{`
 				@page {
-					size: A4 portrait;
+					size: A4 landscape;
 					margin: 0;
 				}
 				@media print {
@@ -22,11 +22,11 @@ export function PrintPageLayout({ children }: { children: React.ReactNode }) {
 					}
 				}
 				.print-page {
-					width: 210mm;
-					height: 297mm;
+					width: 297mm;
+					height: 210mm;
 					padding: 15mm;
 					margin: 0 auto;
-					background: white;
+					/* background: white;  <-- Removed to allow overrides */
 					position: relative;
 					overflow: hidden;
 					page-break-after: always;

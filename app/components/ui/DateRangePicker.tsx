@@ -2,6 +2,17 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { format, subDays } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { DateRange } from "react-day-picker";
+
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/app/components/ui/calendar";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/app/components/ui/popover";
 
 interface DateRangePickerProps {
     defaultStart: string;
@@ -10,55 +21,74 @@ interface DateRangePickerProps {
 
 export function DateRangePicker({ defaultStart, defaultEnd }: DateRangePickerProps) {
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const [start, setStart] = useState(defaultStart);
-    const [end, setEnd] = useState(defaultEnd);
+    const [date, setDate] = useState<DateRange | undefined>({
+        from: defaultStart ? new Date(defaultStart) : new Date(),
+        to: defaultEnd ? new Date(defaultEnd) : new Date(),
+    });
 
-    // Sync state if URL params change externally
     useEffect(() => {
-        setStart(defaultStart);
-        setEnd(defaultEnd);
+        setDate({
+            from: defaultStart ? new Date(defaultStart) : new Date(),
+            to: defaultEnd ? new Date(defaultEnd) : new Date(),
+        });
     }, [defaultStart, defaultEnd]);
 
-    const handleApply = (e: React.FormEvent) => {
-        e.preventDefault();
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("start", start);
-        params.set("end", end);
-        router.push(`?${params.toString()}`);
+    const handleSelect = (selectedDate: DateRange | undefined) => {
+        setDate(selectedDate);
+
+        if (selectedDate?.from && selectedDate?.to) {
+            const startStr = format(selectedDate.from, "yyyy-MM-dd");
+            const endStr = format(selectedDate.to, "yyyy-MM-dd");
+
+            // Optional: Auto-apply or keep Apply button.
+            // Usually nice to auto-apply if range is complete, but let's keep it manual or auto?
+            // User asked for "update the calendar", usually auto-fetching is nice but might be heavy.
+            // Let's stick to auto-apply for better UX if range is complete.
+
+            const params = new URLSearchParams(window.location.search);
+            params.set("start", startStr);
+            params.set("end", endStr);
+            router.push(`?${params.toString()}`);
+        }
     };
 
     return (
-        <form
-            onSubmit={handleApply}
-            className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm shadow-black/40 backdrop-blur"
-        >
-            <div className="flex flex-wrap items-end gap-3">
-                <div>
-                    <label className="mb-1 block text-xs text-neutral-300">Start date</label>
-                    <input
-                        type="date"
-                        value={start}
-                        onChange={(e) => setStart(e.target.value)}
-                        className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
+        <div className={cn("grid gap-2")}>
+            <Popover>
+                <PopoverTrigger asChild>
+                    <button
+                        id="date"
+                        className={cn(
+                            "w-[300px] justify-start text-left font-normal flex items-center gap-2 rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-700 transition-colors",
+                            !date && "text-muted-foreground"
+                        )}
+                    >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {date?.from ? (
+                            date.to ? (
+                                <>
+                                    {format(date.from, "LLL dd, y")} -{" "}
+                                    {format(date.to, "LLL dd, y")}
+                                </>
+                            ) : (
+                                format(date.from, "LLL dd, y")
+                            )
+                        ) : (
+                            <span>Pick a date</span>
+                        )}
+                    </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={date?.from}
+                        selected={date}
+                        onSelect={handleSelect}
+                        numberOfMonths={2}
                     />
-                </div>
-                <div>
-                    <label className="mb-1 block text-xs text-neutral-300">End date</label>
-                    <input
-                        type="date"
-                        value={end}
-                        onChange={(e) => setEnd(e.target.value)}
-                        className="rounded border border-white/10 bg-black/40 px-3 py-2 text-xs text-neutral-50 focus:border-emerald-500/50 focus:outline-none"
-                    />
-                </div>
-                <button
-                    type="submit"
-                    className="rounded-full bg-neutral-50 px-4 py-2 text-xs font-medium text-neutral-900 hover:bg-neutral-200 transition-colors"
-                >
-                    Apply
-                </button>
-            </div>
-        </form>
+                </PopoverContent>
+            </Popover>
+        </div>
     );
 }

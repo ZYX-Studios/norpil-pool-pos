@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { logoutAction } from "@/app/auth/actions";
 import { EndShiftModal } from "@/app/components/shifts/EndShiftModal";
+import { AddExpenseDialog } from "@/app/pos/components/AddExpenseDialog";
 
 type HeaderActionsProps = {
     user: any;
@@ -19,6 +20,7 @@ type HeaderActionsProps = {
 export function HeaderActions({ user, staff, authError, activeShift }: HeaderActionsProps) {
     const [showEndModal, setShowEndModal] = useState(false);
     const [pendingSignOut, setPendingSignOut] = useState(false);
+    const [showExpenseDialog, setShowExpenseDialog] = useState(false);
 
     const handleSignOutClick = (e: React.FormEvent) => {
         if (activeShift) {
@@ -68,6 +70,21 @@ export function HeaderActions({ user, staff, authError, activeShift }: HeaderAct
                 {staff?.name ?? (authError === "supabase_unreachable" ? "Offline" : "Guest")} ·{" "}
                 {staff?.role ?? "STAFF"}
             </span>
+
+            {activeShift && (
+                <>
+                    <button
+                        onClick={() => setShowExpenseDialog(true)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs sm:text-sm font-medium hover:bg-white/10 hover:text-white"
+                    >
+                        Expenses
+                    </button>
+                    <AddExpenseDialog
+                        isOpen={showExpenseDialog}
+                        onClose={() => setShowExpenseDialog(false)}
+                    />
+                </>
+            )}
 
             <Link
                 href="/admin"

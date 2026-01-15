@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
             browser = await puppeteerCore.launch({
                 args: chromium.args,
-                defaultViewport: { width: 794, height: 1123 },
+                defaultViewport: { width: 1123, height: 794 },
                 executablePath: executablePath,
                 headless: true,
             });
@@ -56,8 +56,8 @@ export async function GET(req: NextRequest) {
 
         const page = await browser.newPage();
 
-        // Set viewport to A4 dimensions (approximate pixels at 96 DPI)
-        await page.setViewport({ width: 794, height: 1123 });
+        // Set viewport to A4 Landscape dimensions (approximate pixels at 96 DPI: 1123x794)
+        await page.setViewport({ width: 1123, height: 794 });
 
         // Navigate to the print page and wait for content to load
         // We use domcontentloaded + a small delay because networkidle0 can be too slow/flaky
@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
 
         const pdfBuffer = await page.pdf({
             format: "A4",
+            landscape: true, // Enable landscape mode
             printBackground: true,
             margin: { top: 0, right: 0, bottom: 0, left: 0 }, // We handle margins in CSS
         });
