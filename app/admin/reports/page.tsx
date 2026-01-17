@@ -14,8 +14,9 @@ import { DownloadReportButton } from "./pdf/DownloadReportButton";
 import { MonthlyMetrics } from "./components/MonthlyMetrics";
 import { MonthlyFinancials } from "./components/MonthlyFinancials";
 import { DailyTrendChart } from "./components/DailyTrendChart";
+import { LiabilitiesSection } from "./sections/LiabilitiesSection";
 
-type View = "summary" | "daily" | "monthly" | "expenses";
+type View = "summary" | "daily" | "monthly" | "expenses" | "liabilities";
 
 function getTodayRange() {
 	const now = new Date();
@@ -57,7 +58,7 @@ function getMonthRange() {
 
 function parseView(raw: unknown): View {
 	const v = typeof raw === "string" ? raw : "";
-	if (v === "daily" || v === "monthly" || v === "expenses") return v;
+	if (v === "daily" || v === "monthly" || v === "expenses" || v === "liabilities") return v;
 	return "summary";
 }
 
@@ -132,6 +133,7 @@ export default async function ReportsPage({
 		{ id: "daily", label: "Daily detail" },
 		{ id: "monthly", label: "Monthly" },
 		{ id: "expenses", label: "Expenses" },
+		{ id: "liabilities", label: "Liabilities" },
 	];
 
 	return (
@@ -211,6 +213,16 @@ export default async function ReportsPage({
 			{view === "expenses" && (
 				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
 					<ExpensesSection startDate={start} expenses={data.expenses ?? []} />
+				</div>
+			)}
+
+			{view === "liabilities" && (
+				<div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
+					<LiabilitiesSection
+						liabilities={data.liabilities ?? []}
+						walkInLiabilities={data.walkInLiabilities ?? []}
+						totalLiability={walletLiability}
+					/>
 				</div>
 			)}
 		</div>

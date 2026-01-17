@@ -75,6 +75,29 @@ export interface ReportData {
 	previousTotal?: number; // restore
 	trendPct?: number; // restore
 	hourly?: any[] | null; // restore
+	liabilities?: WalletLiability[] | null;
+	walkInLiabilities?: WalkInLiability[] | null;
+}
+
+export interface WalletLiability {
+	id: string;
+	profile_id: string;
+	balance: number;
+	profiles: {
+		full_name: string;
+		phone: string | null;
+	} | null;
+}
+
+export interface WalkInLiability {
+	session_id: string;
+	customer_name: string;
+	opened_at: string;
+	amount: number;
+	profile?: {
+		full_name: string;
+		phone: string | null;
+	} | null;
 }
 
 interface DailyShiftStats {
@@ -428,6 +451,8 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 		{ data: monthly },
 		{ data: topCustomers },
 		{ data: walletLiability },
+		{ data: liabilities },
+		{ data: walkInLiabilities },
 	] = await Promise.all([
 		supabase.rpc("total_revenue", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("total_revenue", { p_start: "2000-01-01", p_end: "2000-01-01" }), // Skip prev rev for now or calc simple
@@ -438,7 +463,40 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 		supabase.rpc("monthly_financial_summary", { p_start: yearStartStr, p_end: endStr }),
 		supabase.rpc("get_top_customers", { p_start: startStr, p_end: endStr }),
 		supabase.rpc("get_wallet_liability"),
+		supabase.rpc("get_wallet_liabilities_report"),
+		supabase
+			.from("table_sessions")
+			.select(`
+				id, 
+				customer_name, 
+				opened_at, 
+				orders!inner(total, profile_id),
+				pool_table_id,
+				status
+			`)
+			.eq("status", "OPEN")
+			.is("pool_table_id", null)
+			.order("opened_at", { ascending: false }),
 	]);
+
+	// Process Walk-in Liabilities
+	const processedWalkIns = (walkInLiabilities as any[] ?? []).map((s: any) => ({
+		session_id: s.id,
+		customer_name: s.customer_name || "Walk-in",
+		opened_at: s.opened_at,
+		amount: s.orders?.[0]?.total ?? 0,
+	}));
+
+	// Process RPC Wallet Liabilities
+	const processedLiabilities = (liabilities as any[] ?? []).map((l: any) => ({
+		id: l.wallet_id,
+		profile_id: l.profile_id,
+		balance: l.balance,
+		profiles: {
+			full_name: l.full_name,
+			phone: l.phone
+		}
+	}));
 
 	// Legacy Financials Construction (Quick and dirty from new data to ensure consistency)
 	const totalRev = combinedTx
@@ -493,7 +551,9 @@ export async function getReportData(startStr: string, endStr: string, supabaseCl
 			}
 		},
 		dailyStats,
-		overallStats
+		overallStats,
+		liabilities: processedLiabilities as WalletLiability[],
+		walkInLiabilities: processedWalkIns as WalkInLiability[],
 	};
 }
 

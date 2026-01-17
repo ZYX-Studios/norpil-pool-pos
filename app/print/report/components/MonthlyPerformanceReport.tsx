@@ -10,6 +10,7 @@ import { ProfitDistribution } from "./charts/ProfitDistribution";
 import { CoverPage } from "./CoverPage";
 import { ReportHeader } from "./ReportHeader";
 import { ReportFooter } from "./ReportFooter";
+import { LiabilitiesPage } from "./LiabilitiesPage";
 
 interface MonthlyPerformanceReportProps {
     data: ReportData;
@@ -213,6 +214,9 @@ export function MonthlyPerformanceReport({ data, start, end }: MonthlyPerformanc
                 </div>
                 <ReportFooter pageNumber={11} />
             </div>
+
+            {/* Page: Liabilities */}
+            <LiabilitiesPage data={data} periodStr={periodStr} pageNumber={12} />
         </div>
     );
 }
