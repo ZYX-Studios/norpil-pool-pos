@@ -296,7 +296,41 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 		}
 		const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
 
-		const hourlyRate = Number(session.override_hourly_rate ?? session.pool_table?.hourly_rate ?? 0);
+		let hourlyRate = Number(session.override_hourly_rate ?? session.pool_table?.hourly_rate ?? 0);
+
+		// DISCOUNT LOGIC (Mirrors closeSessionAndRecordPayment)
+		if (!session.override_hourly_rate && session.pool_table_id && session.profile_id) {
+			const { data: profileData } = await supabase
+				.from("profiles")
+				.select("is_member, membership_tiers(discount_percentage)")
+				.eq("id", session.profile_id)
+				.single();
+
+			if (profileData) {
+				const { data: memberSetting } = await supabase
+					.from("app_settings")
+					.select("value")
+					.eq("key", "member_discount_percentage")
+					.single();
+
+				const globalDiscount = Number(memberSetting?.value ?? 0);
+				let effectiveDiscount = 0;
+
+				const tierData = Array.isArray(profileData.membership_tiers)
+					? profileData.membership_tiers[0]
+					: profileData.membership_tiers;
+
+				if (tierData && tierData.discount_percentage != null) {
+					effectiveDiscount = Number(tierData.discount_percentage);
+				} else if (profileData.is_member) {
+					effectiveDiscount = globalDiscount;
+				}
+
+				if (effectiveDiscount > 0) {
+					hourlyRate = hourlyRate * ((100 - effectiveDiscount) / 100);
+				}
+			}
+		}
 		let tableFee = 0;
 
 		const sessionType = session.session_type || "OPEN";

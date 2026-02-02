@@ -32,7 +32,7 @@ export async function closeSessionAndRecordPayment(
 	const [{ data: session, error: sessionErr }, { data: order, error: orderErr }] = await Promise.all([
 		supabase
 			.from("table_sessions")
-			.select("id, opened_at, closed_at, status, override_hourly_rate, pool_table_id, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), paused_at, accumulated_paused_time")
+			.select("id, opened_at, closed_at, status, override_hourly_rate, pool_table_id, session_type, target_duration_minutes, is_money_game, bet_amount, reservation_id, reservations(payment_status), paused_at, accumulated_paused_time, profile_id")
 			.eq("id", sessionId)
 			.maybeSingle(),
 		supabase
@@ -133,7 +133,47 @@ export async function closeSessionAndRecordPayment(
 
 		const effectiveDurationMs = Math.max(0, durationMs - accumulated - currentPauseDeduction);
 		const elapsedMinutes = Math.floor(effectiveDurationMs / (1000 * 60));
-		const hourlyRate = Number(session.override_hourly_rate ?? tableHourlyRate);
+
+		// DISCOUNT LOGIC
+		let hourlyRate = Number(session.override_hourly_rate ?? tableHourlyRate);
+
+		// Only apply discount if NO override is set (override takes precedence)
+		if (!session.override_hourly_rate && session.pool_table_id && session.profile_id) {
+			// 1. Fetch Profile & Tier
+			// We need to fetch this separately because the initial session query didn't join deeply to avoid massive data invalidation risk
+			// or we can just do a quick lookup now.
+			const { data: profileData } = await supabase
+				.from("profiles")
+				.select("is_member, membership_tiers(discount_percentage)")
+				.eq("id", session.profile_id)
+				.single();
+
+			if (profileData) {
+				const { data: memberSetting } = await supabase
+					.from("app_settings")
+					.select("value")
+					.eq("key", "member_discount_percentage")
+					.single();
+
+				const globalDiscount = Number(memberSetting?.value ?? 0);
+				let effectiveDiscount = 0;
+
+				// Handle array or object return
+				const tierData = Array.isArray(profileData.membership_tiers)
+					? profileData.membership_tiers[0]
+					: profileData.membership_tiers;
+
+				if (tierData && tierData.discount_percentage != null) {
+					effectiveDiscount = Number(tierData.discount_percentage);
+				} else if (profileData.is_member) {
+					effectiveDiscount = globalDiscount;
+				}
+
+				if (effectiveDiscount > 0) {
+					hourlyRate = hourlyRate * ((100 - effectiveDiscount) / 100);
+				}
+			}
+		}
 
 		let isPrepaid = false;
 		if ((session as any).reservation_id) {

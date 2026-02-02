@@ -125,12 +125,76 @@ export default async function SessionPage({
 			throw stockErr;
 		}
 
+		// Load Inventory & Recipes to Calculate "Potential Stock"
+		const { data: recipeRows, error: recipeErr } = await supabase
+			.from("product_inventory_recipes")
+			.select("product_id, inventory_item_id, quantity");
+
+		if (recipeErr) throw recipeErr;
+
+		const { data: inventoryRows, error: inventoryErr } = await supabase
+			.from("inventory_item_stock")
+			.select("inventory_item_id, quantity_on_hand");
+
+		if (inventoryErr) throw inventoryErr;
+
+		// 1. Map Inventory Stock
+		const inventoryMap = new Map<string, number>();
+		for (const row of inventoryRows ?? []) {
+			inventoryMap.set(row.inventory_item_id, Number(row.quantity_on_hand ?? 0));
+		}
+
+		// 2. Map Recipes
+		type RecipeItem = { ingredientId: string; requiredQty: number };
+		const recipeMap = new Map<string, RecipeItem[]>();
+		for (const row of recipeRows ?? []) {
+			const pid = row.product_id;
+			if (!recipeMap.has(pid)) recipeMap.set(pid, []);
+			recipeMap.get(pid)?.push({
+				ingredientId: row.inventory_item_id,
+				requiredQty: Number(row.quantity)
+			});
+		}
+
+		// 3. Build Final Stock Map
 		const stockMap = new Map<string, number>();
+
+		// Start with Direct Stock
 		for (const row of stockRows ?? []) {
 			const pid = (row as any).product_id as string;
 			const qty = Number((row as any).quantity_on_hand ?? 0);
 			if (!pid) continue;
 			stockMap.set(pid, Number.isFinite(qty) ? qty : 0);
+		}
+
+		// Calculate Potential from Recipes and take MAX
+		for (const p of products ?? []) {
+			const pid = p.id;
+			const directStock = stockMap.get(pid) ?? 0;
+			const recipe = recipeMap.get(pid);
+
+			if (recipe && recipe.length > 0) {
+				let maxPotential = Infinity;
+
+				for (const ing of recipe) {
+					const available = inventoryMap.get(ing.ingredientId) ?? 0;
+					if (ing.requiredQty > 0) {
+						const canMake = Math.floor(available / ing.requiredQty);
+						if (canMake < maxPotential) {
+							maxPotential = canMake;
+						}
+					}
+				}
+
+				if (maxPotential === Infinity) maxPotential = 0; // Should not happen given check above, but safety
+
+				// LOGIC FIX: User has confirmed mixed usage.
+				// We use the MAX of Direct vs Potential. 
+				// Example: Cup Noodles (22 direct, 22 potential) -> 22.
+				// Example: Clubhouse (0 direct, 10 potential) -> 10.
+				const finalStock = Math.max(directStock, maxPotential);
+				stockMap.set(pid, finalStock);
+			}
 		}
 
 		// Load Global Settings for Member Discount
