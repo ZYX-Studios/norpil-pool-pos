@@ -8,11 +8,10 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
     const supabase = createSupabaseBrowserClient();
 
     useEffect(() => {
-        // Initial fetch
         const fetchCount = async () => {
-            // Match KDS Filter Logic: PREPARING, READY, PAID, or (OPEN + MOBILE)
-            // We must fetch data to filter out "Table Time" only orders or fully served orders, 
-            // just like the KitchenBoard does.
+            // Fetch the LATEST 50 orders that are relevant to the kitchen.
+            // Sorting by descending creation date ensures we see the new active orders
+            // instead of getting stuck scanning the oldest 1000 records.
             const { data } = await supabase
                 .from("orders")
                 .select(`
@@ -20,56 +19,46 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
                     status,
                     order_type,
                     order_items (
+                        id,
                         quantity,
                         served_quantity,
-                        product:products(category)
+                        product:products(name, category)
                     )
                 `)
-                .or("status.in.(SUBMITTED,PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)");
+                .or("status.in.(SUBMITTED,PREPARING,READY,PAID),and(status.eq.OPEN,order_type.eq.MOBILE)")
+                .order("created_at", { ascending: false })
+                .limit(50);
 
             if (!data) {
                 setCount(0);
                 return;
             }
 
-            // Client-side filtering to match KitchenBoard exactly
-            const activeOrders = data.filter((order: any) => {
-                const validItems = (order.order_items || []).filter((item: any) => {
-                    const isTableTime = item.product?.category === 'TABLE_TIME';
-                    if (isTableTime) return false;
-
-                    const remainingQty = (item.quantity || 0) - (item.served_quantity || 0);
-                    return remainingQty > 0;
-                });
-                return validItems.length > 0;
-            });
+            // Client-side filtering to calculate actual pending items
+            const activeOrders = data.map((order: any) => ({
+                ...order,
+                order_items: (order.order_items || [])
+                    .filter((item: any) => {
+                        const cat = Array.isArray(item.product) ? item.product[0]?.category : item.product?.category;
+                        return cat !== 'TABLE_TIME';
+                    })
+                    .map((item: any) => ({
+                        ...item,
+                        // Calculate display quantity: Total - Served
+                        quantity: (Number(item.quantity) || 0) - (Number(item.served_quantity) || 0)
+                    }))
+                    .filter((item: any) => item.quantity > 0) // Hide fully served items
+            })).filter((order: any) => order.order_items.length > 0);
 
             setCount(activeOrders.length);
         };
 
         fetchCount();
 
-        // Subscribe to changes
         const channel = supabase
             .channel("kitchen-badge-updates")
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "orders",
-                },
-                () => fetchCount()
-            )
-            .on(
-                "postgres_changes",
-                {
-                    event: "*",
-                    schema: "public",
-                    table: "order_items",
-                },
-                () => fetchCount()
-            )
+            .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchCount())
+            .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => fetchCount())
             .subscribe();
 
         return () => {

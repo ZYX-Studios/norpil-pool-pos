@@ -33,20 +33,24 @@ CREATE OR REPLACE FUNCTION public.reclaim_inventory_for_line_item(
 RETURNS void AS $$
 DECLARE
     v_recipe RECORD;
+    v_found boolean := false;
 BEGIN
     FOR v_recipe IN 
         SELECT inventory_item_id, quantity 
         FROM product_inventory_recipes 
         WHERE product_id = p_product_id
     LOOP
-        -- Positive quantity (adding back) with 'ADJUSTMENT' or 'SALE' cancellation?
-        -- 'SALE' with positive value is effectively a return.
-        -- Let's use 'ADJUSTMENT' to be safe, or 'SALE' with positive quantity?
-        -- View `product_stock` just sums quantity. So 'SALE' with positive works.
-        -- Used 'ADJUSTMENT' for explicit manual fixes. 'SALE' seems appropriate for order events.
+        v_found := true;
+        -- Insert debug log if needed, or just perform the action
+        -- RAISE WARNING 'Reclaiming: Item % (Qty %), Recipe Qty %', p_product_id, p_quantity, v_recipe.quantity;
+        
         INSERT INTO inventory_movements (inventory_item_id, movement_type, quantity, order_id, order_item_id)
         VALUES (v_recipe.inventory_item_id, 'SALE', (v_recipe.quantity * p_quantity), p_order_id, p_item_id);
     END LOOP;
+    
+    IF NOT v_found THEN
+        RAISE WARNING 'Stock Reclaim Failed: No recipe found for Product %', p_product_id;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -56,9 +60,11 @@ RETURNS TRIGGER AS $$
 DECLARE
     v_item RECORD;
 BEGIN
-    -- If status changes to SUBMITTED (from anything else, usually OPEN)
+    -- If status changes to SUBMITTED (from OPEN or other non-committed state)
     -- We deduct stock for ALL items in the order.
-    IF NEW.status = 'SUBMITTED' AND OLD.status <> 'SUBMITTED' THEN
+    -- FIX: Do not re-deduct if we are just transitioning back from PREPARING/SERVED/etc needed for "Send New Items" flow.
+    -- those items were already deducted when they were first submitted!
+    IF NEW.status = 'SUBMITTED' AND OLD.status NOT IN ('SUBMITTED', 'PREPARING', 'READY', 'SERVED', 'PAID') THEN
         FOR v_item IN SELECT id, product_id, quantity FROM order_items WHERE order_id = NEW.id LOOP
             PERFORM public.deduct_inventory_for_line_item(v_item.id, v_item.product_id, v_item.quantity, NEW.id);
         END LOOP;

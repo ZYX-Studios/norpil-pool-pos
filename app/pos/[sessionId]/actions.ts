@@ -225,94 +225,105 @@ export async function voidOrderItemAction(orderItemId: string, reason: string, v
 // Handles Add, Update, and Delete (if qty <= 0).
 // Simpler and safer than separate Add/Update actions for UI sync.
 export async function setProductQuantityAction(orderId: string, productId: string, quantity: number) {
-	const supabase = createSupabaseServerClient();
+	try {
+		const supabase = createSupabaseServerClient();
 
-	// 1. Get Product Details (Price, etc) safely
-	const { data: product, error: prodErr } = await supabase
-		.from("products")
-		.select("id, price, tax_rate, category, name")
-		.eq("id", productId)
-		.single();
+		// 1. Get Product Details (Price, etc) safely
+		const { data: product, error: prodErr } = await supabase
+			.from("products")
+			.select("id, price, tax_rate, category, name")
+			.eq("id", productId)
+			.single();
 
-	if (prodErr || !product) {
-		console.error("setProductQuantityAction product lookup failed:", productId, prodErr);
-		throw new Error(`CRITICAL FAILURE: Product not found for ID: ${productId}`);
-	}
-
-	// 2. Find Existing Line
-	const { data: existing } = await supabase
-		.from("order_items")
-		.select("id, quantity, unit_price, served_quantity")
-		.eq("order_id", orderId)
-		.eq("product_id", productId)
-		.maybeSingle();
-
-	// 3. Handle Logic
-	if (quantity <= 0) {
-		// DELETE
-		if (existing) {
-			// Check if served (Validation) - though UI should block this, server must too?
-			// Actually, if we are in "Unsubmitted" phase, served_quantity is 0.
-			// The VOID logic handles the submitted items.
-			// If we try to "remove" a served item via this action, we should block or redirect to void?
-			// But for now, let's assume this action is for "Syncing Cart State".
-			// If served_quantity > 0, we can't just delete it.
-			if (existing.served_quantity > 0) {
-				throw new Error("Cannot remove served items via sync. Use Void.");
-			}
-
-			const { error: delErr } = await supabase.from("order_items").delete().eq("id", existing.id);
-			if (delErr) throw delErr;
-
-			await logAction({
-				actionType: "UPDATE_ITEM_QUANTITY", // Using UPDATE for generic "Change"
-				entityType: "order_item",
-				entityId: existing.id,
-				details: { productId, quantity: 0, type: "REMOVE" }
-			});
+		if (prodErr || !product) {
+			console.error("setProductQuantityAction product lookup failed:", productId, prodErr);
+			throw new Error(`CRITICAL FAILURE: Product not found for ID: ${productId}`);
 		}
-	} else {
-		// UPSERT
-		const unitPrice = existing ? existing.unit_price : product.price;
-		const lineTotal = Number((quantity * Number(unitPrice)).toFixed(2));
 
-		if (existing) {
-			// UPDATE
-			const { error: updErr } = await supabase
-				.from("order_items")
-				.update({ quantity, line_total: lineTotal })
-				.eq("id", existing.id);
-			if (updErr) throw updErr;
-		} else {
-			// INSERT
-			const { error: insErr } = await supabase
-				.from("order_items")
-				.insert({
-					order_id: orderId,
-					product_id: productId,
-					quantity,
-					unit_price: unitPrice,
-					line_total: lineTotal
+		// 2. Find Existing Line
+		const { data: existing } = await supabase
+			.from("order_items")
+			.select("id, quantity, unit_price, served_quantity")
+			.eq("order_id", orderId)
+			.eq("product_id", productId)
+			.maybeSingle();
+
+		// 3. Handle Logic
+		if (quantity <= 0) {
+			// DELETE
+			if (existing) {
+				// Check if served (Validation) - though UI should block this, server must too?
+				// Actually, if we are in "Unsubmitted" phase, served_quantity is 0.
+				// The VOID logic handles the submitted items.
+				// If we try to "remove" a served item via this action, we should block or redirect to void?
+				// But for now, let's assume this action is for "Syncing Cart State".
+				// If served_quantity > 0, we can't just delete it.
+				if (existing.served_quantity > 0) {
+					throw new Error("Cannot remove served items via sync. Use Void.");
+				}
+
+				const { error: delErr } = await supabase.from("order_items").delete().eq("id", existing.id);
+				if (delErr) throw delErr;
+
+				await logAction({
+					actionType: "UPDATE_ITEM_QUANTITY", // Using UPDATE for generic "Change"
+					entityType: "order_item",
+					entityId: existing.id,
+					details: { productId, quantity: 0, type: "REMOVE" }
 				});
-			if (insErr) throw insErr;
+			}
+		} else {
+			// UPSERT
+			const unitPrice = existing ? existing.unit_price : product.price;
+			const lineTotal = Number((quantity * Number(unitPrice)).toFixed(2));
 
+			if (existing) {
+				// UPDATE
+				const { error: updErr } = await supabase
+					.from("order_items")
+					.update({ quantity, line_total: lineTotal })
+					.eq("id", existing.id);
+				if (updErr) throw updErr;
+			} else {
+				// INSERT
+				const { error: insErr } = await supabase
+					.from("order_items")
+					.insert({
+						order_id: orderId,
+						product_id: productId,
+						quantity,
+						unit_price: unitPrice,
+						line_total: lineTotal
+					});
+				if (insErr) throw insErr;
+
+				await logAction({
+					actionType: "ADD_ITEM",
+					entityType: "order",
+					entityId: orderId,
+					details: { productId, quantity, name: product.name }
+				});
+			}
+		}
+
+		// 4. Recalculate Totals
+		await recalcOrderTotals(orderId);
+
+		// 5. Revalidate
+		// Enable revalidate to ensure UI and Server stay in sync, preventing double-submissions
+		revalidatePath(`/pos/${orderId}`);
+		revalidatePath(`/pos`);
+	} catch (error) {
+		console.error("setProductQuantityAction Error:", error);
+		// Try to log the failure
+		try {
 			await logAction({
-				actionType: "ADD_ITEM",
+				actionType: "FIX_STOCK_ERROR", // Using a known type or generic
 				entityType: "order",
 				entityId: orderId,
-				details: { productId, quantity, name: product.name }
+				details: { error: error instanceof Error ? error.message : String(error), productId, quantity }
 			});
-		}
+		} catch (e) { console.error("Failed to log error", e); }
+		throw error;
 	}
-
-	// 4. Recalculate Totals
-	await recalcOrderTotals(orderId);
-
-	// 5. Revalidate
-	// OPTIMIZATION: We do NOT revalidatePath here. 
-	// Revalidating the entire page takes ~1-4s and causes UI lag.
-	// Since the client uses Optimistic UI, we trust the local state for Cart items.
-	// We only revalidate on major actions (Send, Pay, Refresh).
-	// revalidatePath(`/pos/${orderId}`);
-	// revalidatePath(`/pos`);
 }
