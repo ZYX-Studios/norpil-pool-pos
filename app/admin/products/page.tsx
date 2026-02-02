@@ -44,6 +44,15 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 		})) ?? [];
 
 	// Load recipes and group them per product for easy display.
+	// Load inventory stock to show availability per ingredient.
+	const { data: invStockRows } = await supabase.from("inventory_item_stock").select("inventory_item_id, quantity_on_hand");
+	const inventoryStockMap = new Map<string, number>();
+	for (const row of invStockRows ?? []) {
+		const id = (row as any).inventory_item_id as string;
+		const qty = Number((row as any).quantity_on_hand ?? 0);
+		if (id) inventoryStockMap.set(id, Number.isFinite(qty) ? qty : 0);
+	}
+
 	const { data: recipeRows } = await supabase
 		.from("product_inventory_recipes")
 		.select("id, product_id, inventory_item_id, quantity")
@@ -54,7 +63,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 	}
 	const recipeByProduct = new Map<
 		string,
-		Array<{ id: string; inventoryItemId: string; name: string; unit: string; quantity: number }>
+		Array<{ id: string; inventoryItemId: string; name: string; unit: string; quantity: number; stock: number }>
 	>();
 	for (const row of recipeRows ?? []) {
 		const pid = (row as any).product_id as string;
@@ -71,6 +80,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 			name: info.name,
 			unit: info.unit,
 			quantity: safeQty,
+			stock: inventoryStockMap.get(inventoryItemId) ?? 0,
 		});
 		recipeByProduct.set(pid, list);
 	}

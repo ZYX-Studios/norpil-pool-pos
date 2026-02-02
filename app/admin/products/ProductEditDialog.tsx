@@ -29,6 +29,7 @@ type RecipeComponent = {
     name: string;
     unit: string;
     quantity: number;
+    stock: number;
 };
 
 type ProductEditDialogProps = {
@@ -289,6 +290,9 @@ export function ProductEditDialog({ product, stock, inventoryItems, recipeCompon
                                                                 <div className="font-medium text-neutral-200">{comp.name}</div>
                                                                 <div className="text-sm text-neutral-500">
                                                                     {comp.quantity} {comp.unit} per unit
+                                                                    <span className="ml-2 text-xs text-neutral-400">
+                                                                        (Stock: {comp.stock} {comp.unit})
+                                                                    </span>
                                                                 </div>
                                                             </div>
                                                             <form action={removeRecipeComponent}>

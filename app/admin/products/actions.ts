@@ -215,52 +215,67 @@ export async function createManyProducts(formData: FormData) {
 // Adjust inventory for a single product by writing a movement row.
 // Under the hood we resolve the main inventory item via the 1:1 recipe mapping.
 export async function adjustInventory(formData: FormData) {
-	const supabase = createSupabaseServerClient();
-	const productId = String(formData.get("productId") || "").trim();
-	const delta = parseIntQuantity(formData.get("delta"));
-	const movementType = String(formData.get("movement_type") || "ADJUSTMENT").toUpperCase() as MovementType;
-	const noteRaw = String(formData.get("note") || "").trim();
-	const note = noteRaw.length > 0 ? noteRaw : null;
+	try {
+		const supabase = createSupabaseServerClient();
+		const productId = String(formData.get("productId") || "").trim();
+		const delta = parseIntQuantity(formData.get("delta"));
+		const movementType = String(formData.get("movement_type") || "ADJUSTMENT").toUpperCase() as MovementType;
+		const noteRaw = String(formData.get("note") || "").trim();
+		const note = noteRaw.length > 0 ? noteRaw : null;
 
-	if (!productId) {
-		throw new Error("Missing product id");
+		if (!productId) {
+			throw new Error("Missing product id");
+		}
+		if (delta === 0) {
+			throw new Error("Quantity change must be a non-zero whole number");
+		}
+		if (!["INITIAL", "PURCHASE", "SALE", "ADJUSTMENT"].includes(movementType)) {
+			throw new Error("Invalid movement type");
+		}
+
+		// For now we assume the common 1:1 case: a product is linked to a single inventory_item.
+		const { data: recipe, error: recipeErr } = await supabase
+			.from("product_inventory_recipes")
+			.select("inventory_item_id")
+			.eq("product_id", productId)
+			.limit(1)
+			.maybeSingle();
+		if (recipeErr) throw recipeErr;
+		if (!recipe?.inventory_item_id) {
+			throw new Error("No inventory item linked to this product yet.");
+		}
+
+		const { error } = await supabase.from("inventory_movements").insert({
+			inventory_item_id: recipe.inventory_item_id,
+			movement_type: movementType,
+			quantity: delta,
+			note,
+		});
+		if (error) throw error;
+
+		revalidatePath("/admin/products");
+
+		await logAction({
+			actionType: "ADJUST_INVENTORY",
+			entityType: "inventory_movement",
+			details: { productId, delta, movementType },
+		});
+
+		redirect("/admin/products?ok=1");
+	} catch (error) {
+		console.error("Adjust Inventory Error:", error);
+		// Attempt to log failure to DB action logs if possible
+		try {
+			await logAction({
+				actionType: "ADJUST_INVENTORY_ERROR",
+				entityType: "product",
+				details: { error: error instanceof Error ? error.message : String(error) }
+			});
+		} catch (e) {
+			console.error("Failed to log error to DB:", e);
+		}
+		throw error;
 	}
-	if (delta === 0) {
-		throw new Error("Quantity change must be a non-zero whole number");
-	}
-	if (!["INITIAL", "PURCHASE", "SALE", "ADJUSTMENT"].includes(movementType)) {
-		throw new Error("Invalid movement type");
-	}
-
-	// For now we assume the common 1:1 case: a product is linked to a single inventory_item.
-	const { data: recipe, error: recipeErr } = await supabase
-		.from("product_inventory_recipes")
-		.select("inventory_item_id")
-		.eq("product_id", productId)
-		.limit(1)
-		.maybeSingle();
-	if (recipeErr) throw recipeErr;
-	if (!recipe?.inventory_item_id) {
-		throw new Error("No inventory item linked to this product yet.");
-	}
-
-	const { error } = await supabase.from("inventory_movements").insert({
-		inventory_item_id: recipe.inventory_item_id,
-		movement_type: movementType,
-		quantity: delta,
-		note,
-	});
-	if (error) throw error;
-
-	revalidatePath("/admin/products");
-
-	await logAction({
-		actionType: "ADJUST_INVENTORY",
-		entityType: "inventory_movement",
-		details: { productId, delta, movementType },
-	});
-
-	redirect("/admin/products?ok=1");
 }
 
 // Add or update a single recipe component for a product.
