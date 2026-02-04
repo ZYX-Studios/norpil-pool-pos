@@ -36,7 +36,9 @@ type ActionType =
     | "END_SHIFT"
     | "MEMBERSHIP_UPGRADE"
     | "DELETE_ORDER"
-    | "VOID_ITEM";
+    | "VOID_ITEM"
+    | "ADJUST_INVENTORY_ERROR"
+    | "FIX_STOCK_ERROR";
 
 interface LogParams {
     actionType: ActionType;
