@@ -263,21 +263,18 @@ export async function closeSessionAndRecordPayment(
 	const finalTotal = Number((subtotal + taxTotal).toFixed(2));
 
 	// 6. Record the Payment
-	// We always record the tendered amount.
-	// We handle tracking "applied" amount implicitly by checking sums?
-	// Actually, `amount` field in `payments` is usually "Amount allocated to order".
-	// `tendered_amount` is what they gave.
-	// For partials, amount = tendered usually (or less if overpaid?).
-	// Simplification: amount = tendered.
+	// Calculate how much we actually apply to the debt (capped at remaining balance)
+	const remainingBalance = Math.max(0, finalTotal - previouslyPaid);
+	const amountToApply = Math.min(tenderedAmount, remainingBalance);
 
 	const { error: payErr } = await supabase
 		.from("payments")
 		.insert({
 			order_id: order.id,
-			amount: tenderedAmount,
-			tendered_amount: tenderedAmount,
+			amount: amountToApply, // Only record what was owed as revenue
+			tendered_amount: tenderedAmount, // Record actual cash given
 			method,
-			profile_id: profileId || null, // Tag member
+			profile_id: profileId || null,
 		});
 	if (payErr) throw payErr;
 
