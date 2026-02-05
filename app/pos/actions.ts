@@ -21,7 +21,7 @@ export async function openTableAction(data: OpenTableData) {
 	const { poolTableId, sessionType, targetDurationMinutes, isMoneyGame, betAmount, customerName, profileId } = data;
 
 	try {
-		// Find an existing OPEN session for this table (idempotency safeguard)
+		// Find a existing OPEN session for this table (idempotency safeguard)
 		const { data: existing, error: existingErr } = await supabase
 			.from("table_sessions")
 			.select("id, status")
