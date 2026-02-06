@@ -10,6 +10,16 @@ function getSupabaseEnv() {
 	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 	if (!supabaseUrl || !supabaseAnonKey) {
+		// Allow builds/CI to run without Supabase secrets.
+		// Pages that truly require Supabase should be marked dynamic (force-dynamic)
+		// so they aren't prerendered at build time.
+		if (process.env.NEXT_PHASE === "phase-production-build") {
+			console.warn(
+				"[supabase] Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY during build; using placeholder values.",
+			);
+			return { supabaseUrl: "http://localhost", supabaseAnonKey: "placeholder" };
+		}
+
 		throw new Error(
 			"Missing Supabase env vars. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
 		);

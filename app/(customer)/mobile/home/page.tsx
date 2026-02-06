@@ -4,6 +4,10 @@ import { GlassCard } from "../components/GlassCard";
 import { UtensilsCrossed, CalendarClock, Wallet, ArrowRight, User } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+// This page reads auth + data from Supabase. It must not be prerendered at build-time,
+// otherwise builds/CI fail when Supabase env vars are not present.
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
     const supabase = createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();

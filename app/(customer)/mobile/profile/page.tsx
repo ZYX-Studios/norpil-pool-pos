@@ -6,6 +6,10 @@ import { AvatarUpload } from "./components/AvatarUpload";
 import { revalidatePath } from "next/cache";
 import { ProfileNameEdit } from "./components/ProfileNameEdit";
 
+// This page depends on Supabase auth + data. Avoid build-time prerendering so CI/builds
+// do not require Supabase env vars.
+export const dynamic = "force-dynamic";
+
 export default async function ProfilePage() {
     const supabase = createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
