@@ -438,7 +438,7 @@ export function SessionClient(props: SessionClientProps & {
 						<div className="flex items-center gap-3">
 							<button
 								onClick={() => {
-									window.location.href = "/pos";
+									router.replace("/pos");
 								}}
 								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
 							>

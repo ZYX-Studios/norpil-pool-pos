@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // Legacy/one-off node scripts (not part of app bundle). Keep out of CI lint.
+    "scripts/**",
+    "reproduce-kds.js",
+    "verify-kds-fix.js",
   ]),
 ]);
 

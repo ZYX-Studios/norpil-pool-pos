@@ -3,8 +3,26 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { closeSessionAndRecordPayment } from "@/lib/payments/closeSession";
 import { logAction } from "@/lib/logger";
+
+async function getSessionIdForOrderId(supabase: SupabaseClient, orderId: string): Promise<string | null> {
+	const { data, error } = await supabase
+		.from("orders")
+		.select("table_session_id")
+		.eq("id", orderId)
+		.maybeSingle();
+	if (error) return null;
+	return (data?.table_session_id as string) ?? null;
+}
+
+async function revalidatePosForOrderId(supabase: SupabaseClient, orderId: string) {
+	// Always revalidate home list so it refreshes after mutations/pay/void.
+	revalidatePath("/pos");
+	const sessionId = await getSessionIdForOrderId(supabase, orderId);
+	if (sessionId) revalidatePath(`/pos/${sessionId}`);
+}
 
 export async function addItemAction(orderId: string, productId: string) {
 	const supabase = createSupabaseServerClient();
@@ -91,8 +109,8 @@ export async function updateItemQuantityAction(orderItemId: string, quantity: nu
 		details: { quantity },
 	});
 
-	// Revalidate session view; page will fetch fresh data
-	revalidatePath(`/pos/${line.order_id}`);
+	// Revalidate home + session view; page will fetch fresh data
+	await revalidatePosForOrderId(supabase, line.order_id as string);
 }
 
 async function recalcOrderTotals(orderId: string) {
@@ -216,7 +234,7 @@ export async function voidOrderItemAction(orderItemId: string, reason: string, v
 		}
 	});
 
-	revalidatePath(`/pos/${item.order_id}`);
+	await revalidatePosForOrderId(supabase, item.order_id as string);
 
 
 }
@@ -311,8 +329,7 @@ export async function setProductQuantityAction(orderId: string, productId: strin
 
 		// 5. Revalidate
 		// Enable revalidate to ensure UI and Server stay in sync, preventing double-submissions
-		revalidatePath(`/pos/${orderId}`);
-		revalidatePath(`/pos`);
+		await revalidatePosForOrderId(supabase, orderId);
 	} catch (error) {
 		console.error("setProductQuantityAction Error:", error);
 		// Try to log the failure
