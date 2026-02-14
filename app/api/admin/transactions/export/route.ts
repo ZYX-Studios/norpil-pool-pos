@@ -14,6 +14,22 @@ export async function GET(request: NextRequest) {
         return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    // Enforce admin/staff access for exports (prevents any logged-in user from exporting financial data)
+    const { data: staffRow, error: staffErr } = await supabase
+        .from("staff")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (staffErr) {
+        console.error("Staff auth check error:", staffErr);
+        return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    if (!staffRow || !["ADMIN", "OWNER"].includes(staffRow.role)) {
+        return new NextResponse("Forbidden", { status: 403 });
+    }
+
     // Build Query matches page logic, but NO pagination
     let tableQuery = supabase
         .from("admin_transactions")
