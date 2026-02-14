@@ -129,9 +129,16 @@ export async function payOrderAction(
 	sessionId: string,
 	method: "CASH" | "GCASH" | "CARD" | "OTHER",
 	tenderedAmount: number,
+	options?: { profileId?: string; idempotencyKey?: string },
 ) {
 	const supabase = createSupabaseServerClient();
-	await closeSessionAndRecordPayment(supabase, { sessionId, method, tenderedAmount });
+	await closeSessionAndRecordPayment(supabase, {
+		sessionId,
+		method,
+		tenderedAmount,
+		profileId: options?.profileId,
+		idempotencyKey: options?.idempotencyKey,
+	});
 
 	await logAction({
 		actionType: "PAY_ORDER",
@@ -157,7 +164,10 @@ export async function payOrderFormAction(formData: FormData) {
 		redirect(`/pos/${sessionId}?error=amount`);
 	}
 
-	await payOrderAction(sessionId, method, tenderedAmount);
+	const profileId = String(formData.get("profileId") || "") || undefined;
+	const idempotencyKey = String(formData.get("idempotencyKey") || "") || undefined;
+
+	await payOrderAction(sessionId, method, tenderedAmount, { profileId, idempotencyKey });
 }
 
 // Void a committed item (full or partial).
