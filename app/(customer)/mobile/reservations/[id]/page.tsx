@@ -244,7 +244,7 @@ export default function ReservationBookingPage(props: PageProps) {
             hourlyRate = hourlyRate * ((100 - memberDiscountPercent) / 100);
         }
         const amount = hourlyRate * duration;
-        if (wallet.balance < amount) {
+        if (!wallet || wallet.balance < amount) {
             alert("Insufficient wallet balance");
             setLoading(false);
             return;
