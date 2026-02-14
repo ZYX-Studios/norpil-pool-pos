@@ -49,7 +49,7 @@ export function TableDeleteButton({ id, name }: TableDeleteButtonProps) {
                         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-950/95 p-6 text-base text-neutral-50 shadow-xl shadow-black/80">
                             <h3 className="mb-2 text-lg font-semibold text-red-400">Delete Table</h3>
                             <p className="mb-6 text-neutral-400">
-                                Are you sure you want to delete <span className="font-medium text-neutral-200">"{name}"</span>?
+                                Are you sure you want to delete <span className="font-medium text-neutral-200">&quot;{name}&quot;</span>?
                                 This action cannot be undone.
                             </p>
                             <div className="flex justify-end gap-3">

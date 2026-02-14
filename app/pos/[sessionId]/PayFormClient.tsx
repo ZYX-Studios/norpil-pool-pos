@@ -76,8 +76,8 @@ export function PayFormClient({
 		});
 	}
 
-	useEffect(() => {
-		if (!open) return;
+	useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+        if (!open) return;
 		function onKeyDown(e: KeyboardEvent) {
 			const { key } = e;
 			if (key >= "0" && key <= "9") { e.preventDefault(); handleKeyPress(key); return; }

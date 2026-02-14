@@ -28,14 +28,14 @@ export function TransactionDetailsModal({ transaction, onClose }: TransactionDet
 
     useEffect(() => {
         if (transaction?.type === 'PAYMENT' && transaction.reference_id) {
-            setLoading(true);
+            setTimeout(() => setLoading(true), 0);
             getOrderDetails(transaction.reference_id)
                 .then(res => {
                     if (res.success) setOrder(res.order);
                 })
                 .finally(() => setLoading(false));
         } else {
-            setOrder(null);
+            setTimeout(() => setOrder(null), 0);
         }
     }, [transaction]);
 

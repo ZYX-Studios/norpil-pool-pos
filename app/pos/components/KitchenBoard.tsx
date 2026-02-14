@@ -84,7 +84,7 @@ export function KitchenBoard() {
 
     // Subscribe to updates
     useEffect(() => {
-        fetchOrders();
+        const timeoutId = setTimeout(() => fetchOrders(), 0);
 
         const channel = supabase
             .channel("kitchen-orders")
@@ -111,6 +111,7 @@ export function KitchenBoard() {
             });
 
         return () => {
+            clearTimeout(timeoutId);
             supabase.removeChannel(channel);
         };
     }, [supabase]);

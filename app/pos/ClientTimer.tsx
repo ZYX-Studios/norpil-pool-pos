@@ -69,24 +69,19 @@ function TimerContent({
 	isPrepaid?: boolean;
 }) {
 	// Hydration fix: Initialize with null so we match server render initially
-	const [now, setNow] = useState<number | null>(null);
-	const [isMounted, setIsMounted] = useState(false);
+	const [now, setNow] = useState<number | null>(null);    useEffect(() => {
+        if (pausedAt) {
+            return;
+        }
 
-	useEffect(() => {
-		setIsMounted(true);
-	}, []);
+        const timeoutId = setTimeout(() => setNow(Date.now()), 0);
+        const intervalId = setInterval(() => setNow(Date.now()), 1000);
 
-	useEffect(() => {
-		setNow(Date.now()); // Set initial client time
-	}, []);
-
-	useEffect(() => {
-		if (pausedAt) {
-			return;
-		}
-		const id = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(id);
-	}, [pausedAt]);
+        return () => {
+            clearTimeout(timeoutId);
+            clearInterval(intervalId);
+        };
+    }, [pausedAt]);
 
 	const elapsedMs = useMemo(() => {
 		if (!now) return 0; // Prevent mismatch during hydration

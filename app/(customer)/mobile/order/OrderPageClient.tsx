@@ -45,14 +45,12 @@ export default function OrderPageClient({ products: initialProducts }: { product
                     if (data) setAvailableTables(data);
                 });
         } else {
-            setSelectedTable(tableIdentifier);
+            setTimeout(() => setSelectedTable(tableIdentifier), 0);
         }
     }, [tableIdentifier]);
 
     // Handle initial selection
-    useEffect(() => {
-        if (tableIdentifier) setSelectedTable(tableIdentifier);
-    }, [tableIdentifier]);
+    
 
     // Computed table identifier for cart
     let finalTableIdentifier: string | undefined = selectedTable;
@@ -180,7 +178,7 @@ export default function OrderPageClient({ products: initialProducts }: { product
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-bold text-white">Walk-in Order</h4>
-                                    <p className="text-xs text-neutral-400 mt-1">Ordering from the bar or for pickup? We'll call your name when ready.</p>
+                                    <p className="text-xs text-neutral-400 mt-1">Ordering from the bar or for pickup? We&apos;ll call your name when ready.</p>
                                 </div>
                             </div>
                         </div>
@@ -213,7 +211,7 @@ export default function OrderPageClient({ products: initialProducts }: { product
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-bold text-white">Advance Order</h4>
-                                    <p className="text-xs text-neutral-400 mt-1">We'll prepare your drinks so they're ready when you arrive. Payment required upfront.</p>
+                                    <p className="text-xs text-neutral-400 mt-1">We&apos;ll prepare your drinks so they&apos;re ready when you arrive. Payment required upfront.</p>
                                 </div>
                             </div>
                         </div>

@@ -456,7 +456,7 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 			let taxTotal = 0;
 			for (const row of allItems ?? []) {
 				const line = Number(row.line_total ?? 0);
-				// @ts-ignore - Supabase types join inference
+				// @ts-expect-error Supabase join inference doesn't model `products` shape well here
 				const products: any = row.products;
 				const taxRate = Number((Array.isArray(products) ? products[0]?.tax_rate : products?.tax_rate) ?? 0);
 				subtotal += line;
@@ -601,7 +601,7 @@ export async function getDashboardSnapshot() {
 		if (orderItems) {
 			const map = new Map<string, number>();
 			orderItems.forEach(item => {
-				// @ts-ignore - Supabase types join handling can be tricky to type perfectly here
+				// @ts-expect-error Supabase join typing doesn't expose `orders.table_session_id` cleanly
 				const sId = item.orders.table_session_id;
 				const current = map.get(sId) || 0;
 				map.set(sId, current + (item.line_total || 0));
