@@ -71,7 +71,7 @@ export function CustomerSearchDialog({ isOpen, onClose, onSelectCustomer }: Cust
                                     +
                                 </div>
                                 <div className="text-left">
-                                    <p className="font-semibold text-neutral-200">Use "{query}" as Guest</p>
+                                    <p className="font-semibold text-neutral-200">Use &quot;{query}&quot; as Guest</p>
                                     <p className="text-xs text-neutral-500">No member profile linked</p>
                                 </div>
                             </button>

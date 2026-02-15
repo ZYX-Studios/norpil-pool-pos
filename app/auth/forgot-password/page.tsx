@@ -22,7 +22,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
                         Reset Password
                     </h1>
                     <p className="mt-4 text-[13px] font-medium leading-relaxed text-neutral-400/80">
-                        Enter your email address and we'll send you a link to reset your password.
+                        Enter your email address and we&apos;ll send you a link to reset your password.
                     </p>
                 </div>
 

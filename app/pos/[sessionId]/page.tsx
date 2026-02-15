@@ -42,7 +42,7 @@ export default async function SessionPage({
 
 		// Load open order (robust handling for duplicates)
 		// We fetch ALL candidates to pick the "real" one and ignore empty duplicates created by bugs.
-		let { data: candidates, error: orderErr } = await supabase
+		const { data: candidates, error: orderErr } = await supabase
 			.from("orders")
 			.select("id, status, created_at, last_submitted_item_count, order_items(id)") // fetch items count to score
 			.eq("table_session_id", sessionId)

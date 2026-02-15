@@ -38,10 +38,10 @@ const COLORS = {
 };
 
 export function FinancialCharts({ data }: FinancialChartsProps) {
-    if (!data) return null;
-
     // 1. Revenue Mix Data
     const revenueData = useMemo(() => {
+        if (!data) return [];
+
         const knownTotal =
             (data.categories.pool || 0) +
             (data.categories.food || 0) +
@@ -62,6 +62,8 @@ export function FinancialCharts({ data }: FinancialChartsProps) {
 
     // 2. Payment Mix Data (Cash Flow)
     const paymentData = useMemo(() => {
+        if (!data) return [];
+
         return [
             { name: 'Cash Sales', value: data.breakdown.cash, color: COLORS.cash },
             { name: 'Gcash Sales', value: data.breakdown.gcash, color: COLORS.gcash },
@@ -69,6 +71,8 @@ export function FinancialCharts({ data }: FinancialChartsProps) {
             { name: 'Other', value: data.breakdown.other, color: COLORS.card },
         ].filter(d => d.value > 0);
     }, [data]);
+
+    if (!data) return null;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

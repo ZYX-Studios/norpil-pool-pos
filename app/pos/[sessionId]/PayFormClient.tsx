@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { payOrderFormAction } from "./actions";
 import { processPaymentCode } from "../wallet-actions";
 import { CustomerSearchDialog } from "../components/CustomerSearchDialog";
@@ -22,6 +23,7 @@ export function PayFormClient({
 	errorCode,
 	hasUnsavedItems = false,
 }: PayFormClientProps) {
+	const router = useRouter();
 	const formRef = useRef<HTMLFormElement | null>(null);
 
 	const safeSuggested = Number(suggestedAmount) || 0;
@@ -74,8 +76,8 @@ export function PayFormClient({
 		});
 	}
 
-	useEffect(() => {
-		if (!open) return;
+	useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+        if (!open) return;
 		function onKeyDown(e: KeyboardEvent) {
 			const { key } = e;
 			if (key >= "0" && key <= "9") { e.preventDefault(); handleKeyPress(key); return; }
@@ -339,7 +341,7 @@ export function PayFormClient({
 										setConfirmOpen(false);
 										try {
 											const res = await processPaymentCode(sessionId, walletCode, parsedAmount, selectedProfile?.id);
-											if (res.success) window.location.href = "/pos";
+											if (res.success) router.replace("/pos");
 											else setValidationError(res.error || "Wallet payment failed");
 										} catch (err: any) { setValidationError(err.message || "Error"); }
 									} else {

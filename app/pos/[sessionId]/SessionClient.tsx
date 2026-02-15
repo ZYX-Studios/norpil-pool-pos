@@ -391,7 +391,7 @@ export function SessionClient(props: SessionClientProps & {
 					<div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl">
 						<h3 className="mb-2 text-lg font-semibold text-white">Release Table</h3>
 						<p className="mb-4 text-sm text-neutral-400">
-							This will free up the table for new customers. The current session will continue as a "Walk-in".
+							This will free up the table for new customers. The current session will continue as a &quot;Walk-in&quot;.
 						</p>
 
 						<div className="mb-6">
@@ -438,7 +438,7 @@ export function SessionClient(props: SessionClientProps & {
 						<div className="flex items-center gap-3">
 							<button
 								onClick={() => {
-									window.location.href = "/pos";
+									router.replace("/pos");
 								}}
 								className="rounded-full border border-white/15 bg-black/40 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/10 hover:text-white"
 							>

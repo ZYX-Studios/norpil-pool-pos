@@ -62,7 +62,7 @@ export function WalletTopUpDialog({ isOpen, onClose, customer }: WalletTopUpDial
                             </svg>
                         </div>
                         <h3 className="text-xl font-bold text-white">Top Up Successful!</h3>
-                        <p className="text-neutral-400">Added ₱{amount} to {customer.full_name}'s wallet.</p>
+                        <p className="text-neutral-400">Added ₱{amount} to {customer.full_name}&apos;s wallet.</p>
                     </div>
                 ) : (
                     <>

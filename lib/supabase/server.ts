@@ -6,8 +6,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Internal helper to read Supabase env vars with a clear error if missing.
  */
 function getSupabaseEnv() {
-	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+	// Fallback values for build time to prevent crashes during static generation
+	const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+	const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
 
 	if (!supabaseUrl || !supabaseAnonKey) {
 		throw new Error(

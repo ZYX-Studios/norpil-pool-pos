@@ -82,7 +82,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
 				<div className="mt-12 text-center">
 					<p className="text-xs text-neutral-600 font-medium">
-						Don't have an account?{" "}
+						Don&apos;t have an account?{" "}
 						<a
 							href="/auth/signup"
 							className="text-white hover:text-neutral-300 transition-colors"

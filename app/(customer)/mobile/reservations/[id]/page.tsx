@@ -174,7 +174,7 @@ export default function ReservationBookingPage(props: PageProps) {
         // Let's adjust the date parsing logic to handle "Operating Day".
 
         const slotStart = new Date(date);
-        let adjustedHours = startHours;
+        const adjustedHours = startHours;
 
         // If hour is 0, 1, 2 (and we are in the context of 10am start), treat as next day
         // This is a heuristic: If operating hours are 10am-3am, anything < 10 is "next day"
@@ -238,16 +238,13 @@ export default function ReservationBookingPage(props: PageProps) {
         const endTime = addHours(startTime, duration);
 
         // Calculate amount (ensure it's a number)
-        // @ts-ignore
         // Calculate amount
         let hourlyRate = Number(table.hourly_rate);
         if (memberDiscountPercent > 0) {
             hourlyRate = hourlyRate * ((100 - memberDiscountPercent) / 100);
         }
-        const amount = hourlyRate * duration;
-
-        // @ts-ignore
-        if (wallet.balance < amount) {
+        const amount = hourlyRate * duration;
+        if (!wallet || wallet.balance < amount) {
             alert("Insufficient wallet balance");
             setLoading(false);
             return;
@@ -268,8 +265,7 @@ export default function ReservationBookingPage(props: PageProps) {
 
         const rpcParams = {
             p_user_id: currentUser.id,
-            // @ts-ignore
-            p_pool_table_id: table.id,
+                        p_pool_table_id: table.id,
             p_start_time: startTime.toISOString(),
             p_end_time: endTime.toISOString(),
             p_guest_count: 1,
@@ -329,7 +325,7 @@ export default function ReservationBookingPage(props: PageProps) {
                     <div className="p-6 sm:p-8 space-y-8">
                         {/* Table Details */}
                         <div className="text-center space-y-2">
-                            {/* @ts-ignore */}
+                            
                             <h2 className="text-3xl font-bold text-white font-serif tracking-tight">{table.name}</h2>
                             <p className="text-neutral-400 text-sm">Select a date and time to reserve</p>
                             {memberDiscountPercent > 0 && (
@@ -462,7 +458,7 @@ export default function ReservationBookingPage(props: PageProps) {
                                                     ₱{Number(table.hourly_rate) * duration}
                                                 </div>
                                             )}
-                                            {/* @ts-ignore */}
+                                            
                                             <span className="text-2xl font-bold text-white">
                                                 ₱{(memberDiscountPercent > 0
                                                     ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
@@ -479,8 +475,7 @@ export default function ReservationBookingPage(props: PageProps) {
                                                     <span className="text-sm">Wallet Balance</span>
                                                 </div>
                                                 <span className={cn(
-                                                    "font-mono font-medium",
-                                                    // @ts-ignore
+                                                    "font-mono font-medium",
                                                     wallet.balance < ((memberDiscountPercent > 0
                                                         ? (Number(table.hourly_rate) * ((100 - memberDiscountPercent) / 100))
                                                         : Number(table.hourly_rate)) * duration) ? "text-red-400" : "text-emerald-400"
@@ -489,7 +484,7 @@ export default function ReservationBookingPage(props: PageProps) {
                                                 </span>
                                             </div>
 
-                                            {/* @ts-ignore */}
+                                            
                                             {wallet.balance < (table.hourly_rate * duration) && (
                                                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
                                                     <p className="text-red-400 text-sm font-medium">Insufficient Funds</p>
@@ -498,11 +493,10 @@ export default function ReservationBookingPage(props: PageProps) {
 
                                             <Button
                                                 className="w-full h-12 text-base font-bold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-900 shadow-lg shadow-amber-900/20 border-0"
-                                                onClick={handleBook}
-                                                // @ts-ignore
+                                                onClick={handleBook}
                                                 disabled={loading || wallet.balance < (table.hourly_rate * duration)}
                                             >
-                                                {/* @ts-ignore */}
+                                                
                                                 {loading ? "Processing..." : "Confirm & Pay"}
                                             </Button>
                                         </div>

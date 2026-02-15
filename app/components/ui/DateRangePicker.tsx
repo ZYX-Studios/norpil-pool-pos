@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
 
@@ -25,13 +25,6 @@ export function DateRangePicker({ defaultStart, defaultEnd }: DateRangePickerPro
         from: defaultStart ? new Date(defaultStart) : new Date(),
         to: defaultEnd ? new Date(defaultEnd) : new Date(),
     });
-
-    useEffect(() => {
-        setDate({
-            from: defaultStart ? new Date(defaultStart) : new Date(),
-            to: defaultEnd ? new Date(defaultEnd) : new Date(),
-        });
-    }, [defaultStart, defaultEnd]);
 
     const handleSelect = (selectedDate: DateRange | undefined) => {
         setDate(selectedDate);

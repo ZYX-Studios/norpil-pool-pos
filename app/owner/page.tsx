@@ -33,7 +33,7 @@ export default async function OwnerDashboard() {
     const manilaDate = new Date(manilaTimeStr);
     const currentHourManila = manilaDate.getHours();
 
-    let opDate = new Date(manilaDate);
+    const opDate = new Date(manilaDate);
     if (currentHourManila < 10) {
         opDate.setDate(opDate.getDate() - 1);
     }
@@ -182,7 +182,7 @@ export default async function OwnerDashboard() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-3xl font-bold text-white tracking-tight">Welcome Back, Owner.</h1>
-                <p className="text-neutral-400 mt-2">Here is your store's performance for <span className="text-emerald-400 font-medium">{formatter.format(opDate)}</span>.</p>
+                <p className="text-neutral-400 mt-2">Here is your store&apos;s performance for <span className="text-emerald-400 font-medium">{formatter.format(opDate)}</span>.</p>
             </div>
 
             {/* KPI Grid */}
