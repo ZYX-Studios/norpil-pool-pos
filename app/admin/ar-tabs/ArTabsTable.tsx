@@ -10,13 +10,12 @@ interface ArTabsTableProps {
 }
 
 export function ArTabsTable({ initialCustomers }: ArTabsTableProps) {
-  const [customers, setCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [sortField, setSortField] = useState<'name' | 'balance' | 'last_transaction'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const filteredCustomers = customers.filter(customer => {
+  const filteredCustomers = initialCustomers.filter(customer => {
     // Search filter
     const matchesSearch = customer.name.toLowerCase().includes(search.toLowerCase()) ||
                          customer.id.includes(search);
@@ -238,7 +237,7 @@ export function ArTabsTable({ initialCustomers }: ArTabsTableProps) {
       <div className="p-4 border-t bg-gray-50">
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-600">
-            Showing {sortedCustomers.length} of {customers.length} customer{sortedCustomers.length !== 1 ? 's' : ''}
+            Showing {sortedCustomers.length} of {initialCustomers.length} customer{sortedCustomers.length !== 1 ? 's' : ''}
           </div>
           <div className="text-sm font-medium">
             Total Balance:{" "}

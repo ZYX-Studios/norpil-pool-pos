@@ -1,6 +1,9 @@
 -- AR Tabs MVP Migration
 -- Creates customers and ar_ledger_entries tables for running tabs/accounts receivable
 
+-- Add TAB to payment_method enum
+ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'TAB';
+
 -- Create enum for customer status
 CREATE TYPE customer_status AS ENUM ('active', 'inactive');
 
@@ -19,7 +22,7 @@ CREATE TABLE IF NOT EXISTS customers (
 -- Create ar_ledger_entries table
 CREATE TABLE IF NOT EXISTS ar_ledger_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE RESTRICT, -- Changed from CASCADE to RESTRICT for safety
     amount_cents BIGINT NOT NULL,
     type ledger_entry_type NOT NULL,
     idempotency_key TEXT UNIQUE NOT NULL,
@@ -62,9 +65,13 @@ CREATE POLICY "Staff can update customers" ON customers
 CREATE POLICY "Staff can view ar_ledger_entries" ON ar_ledger_entries
     FOR SELECT USING (auth.uid() IN (SELECT id FROM staff));
 
--- Staff can insert ledger entries
+-- Staff can insert ledger entries (Restrict to own ID or via function?)
+-- Allowing INSERT if staff_id matches auth.uid()
 CREATE POLICY "Staff can insert ar_ledger_entries" ON ar_ledger_entries
-    FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM staff));
+    FOR INSERT WITH CHECK (
+        auth.uid() IN (SELECT id FROM staff) AND
+        staff_id = auth.uid()
+    );
 
 -- Staff can update ledger entries (limited use case, e.g., corrections)
 CREATE POLICY "Staff can update ar_ledger_entries" ON ar_ledger_entries
@@ -106,10 +113,16 @@ DECLARE
     v_current_balance BIGINT;
     v_new_entry_id UUID;
 BEGIN
-    -- Get customer status and credit limit
+    -- Ensure amount is positive
+    IF p_amount_cents <= 0 THEN
+        RAISE EXCEPTION 'Charge amount must be positive';
+    END IF;
+
+    -- Lock the customer record to prevent race conditions
     SELECT status, credit_limit_cents INTO v_customer_status, v_credit_limit_cents
     FROM customers 
-    WHERE id = p_customer_id;
+    WHERE id = p_customer_id
+    FOR UPDATE;
     
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Customer not found';
@@ -120,7 +133,7 @@ BEGIN
         RAISE EXCEPTION 'Customer is not active';
     END IF;
     
-    -- Get current balance
+    -- Get current balance (now safe due to lock)
     v_current_balance := get_customer_balance(p_customer_id);
     
     -- Check if charge would exceed credit limit
@@ -162,12 +175,17 @@ RETURNS UUID AS $$
 DECLARE
     v_new_entry_id UUID;
 BEGIN
+    -- Ensure amount is positive
+    IF p_amount_cents <= 0 THEN
+        RAISE EXCEPTION 'Payment amount must be positive';
+    END IF;
+
     -- Validate customer exists
     IF NOT EXISTS (SELECT 1 FROM customers WHERE id = p_customer_id) THEN
         RAISE EXCEPTION 'Customer not found';
     END IF;
     
-    -- Insert the payment ledger entry (negative amount for payment)
+    -- Insert the payment ledger entry (positive amount, type determines sign)
     INSERT INTO ar_ledger_entries (
         customer_id,
         amount_cents,

@@ -13,6 +13,7 @@ type PayFormClientProps = {
 	totalPaid: number;
 	errorCode?: string;
 	hasUnsavedItems?: boolean;
+	isTableSession?: boolean;
 };
 
 // Simple client-side payment form with a tablet-friendly keypad.
@@ -22,6 +23,7 @@ export function PayFormClient({
 	totalPaid,
 	errorCode,
 	hasUnsavedItems = false,
+	isTableSession = false,
 }: PayFormClientProps) {
 	const router = useRouter();
 	const formRef = useRef<HTMLFormElement | null>(null);
@@ -43,7 +45,7 @@ export function PayFormClient({
 	const [open, setOpen] = useState(false);
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const [hasTypedOnKeypad, setHasTypedOnKeypad] = useState(false);
-	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "WALLET" | "OTHER">("CASH");
+	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "WALLET" | "TAB" | "OTHER">("CASH");
 	const [walletCode, setWalletCode] = useState("");
 	const [validationError, setValidationError] = useState<string | null>(null);
 	const [isMounted] = useState(true);
@@ -55,6 +57,7 @@ export function PayFormClient({
 			return String(Date.now());
 		}
 	});
+	const [releaseIntent, setReleaseIntent] = useState<"release" | "keep">("release");
 
 	// Member Search for tagging
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -195,6 +198,7 @@ export function PayFormClient({
 								{ id: "GCASH" as const, label: "GCash" },
 								{ id: "CARD" as const, label: "Card" },
 								{ id: "WALLET" as const, label: "Wallet" },
+								{ id: "TAB" as const, label: "Charge to Tab" },
 								{ id: "OTHER" as const, label: "Other" },
 							].map((m) => {
 								const isActive = method === m.id;
@@ -262,6 +266,17 @@ export function PayFormClient({
 								setValidationError("Please enter a valid 6-digit payment code.");
 								return;
 							}
+						} else if (method === "TAB") {
+							if (!selectedProfile) {
+								setValidationError("Please tag a customer to charge to tab.");
+								// Optional: Auto-open search?
+								setSearchOpen(true);
+								return;
+							}
+							if (parsedAmount <= 0) {
+								setValidationError("Amount must be greater than zero.");
+								return;
+							}
 						} else if (parsedAmount <= 0) {
 							setValidationError("Amount must be greater than zero.");
 							return;
@@ -277,7 +292,7 @@ export function PayFormClient({
 						}
 						setConfirmOpen(true);
 					}}
-					className="w-full rounded-full bg-neutral-900 px-4 py-3 text-sm sm:text-base font-medium text-white hover:bg-neutral-800 active:scale-[0.99]"
+					className="w-full rounded-full bg-emerald-600 px-4 py-3 text-sm sm:text-base font-bold text-white hover:bg-emerald-500 active:scale-[0.99] shadow-lg shadow-emerald-600/30"
 				>
 					{isPartial ? `Split Bill: Pay ${formatCurrency(parsedAmount)}` : (totalPaid > 0 ? "Pay Remaining & Close" : "Pay & Close")}
 				</button>
@@ -348,6 +363,59 @@ export function PayFormClient({
 									<div className="mt-2 text-center text-amber-300 font-medium">⚠️ Partial Payment: Balance Remaining {formatCurrency(potentialRemaining)}</div>
 								) : (change > 0 && <div className="flex justify-between font-semibold text-emerald-200 mt-1"><span>Change</span><span className="font-mono">{formatCurrency(change)}</span></div>)}
 							</div>
+
+							{/* Release Intent for Table Sessions (non-partial payments) */}
+							{isTableSession && !isPartial && (
+								<div className="mt-4 pt-4 border-t border-white/10">
+									<p className="mb-3 text-xs text-neutral-300">What would you like to do with the table?</p>
+									<div className="space-y-2 mb-4">
+										<button
+											type="button"
+											onClick={() => setReleaseIntent("release")}
+											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "release" 
+												? "border-emerald-500/50 bg-emerald-500/10" 
+												: "border-white/10 bg-white/5 hover:bg-white/10"}`}
+										>
+											<div className="flex items-center gap-3">
+												<div className={`h-4 w-4 rounded-full border flex items-center justify-center ${releaseIntent === "release" ? "border-emerald-500 bg-emerald-500" : "border-white/30"}`}>
+													{releaseIntent === "release" && (
+														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-2.5 w-2.5 text-white">
+															<path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+														</svg>
+													)}
+												</div>
+												<div>
+													<div className="text-sm font-semibold text-neutral-50">Close & Release Table</div>
+													<div className="text-xs text-neutral-400 mt-0.5">Free up the table for new customers</div>
+												</div>
+											</div>
+										</button>
+										
+										<button
+											type="button"
+											onClick={() => setReleaseIntent("keep")}
+											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "keep" 
+												? "border-emerald-500/50 bg-emerald-500/10" 
+												: "border-white/10 bg-white/5 hover:bg-white/10"}`}
+										>
+											<div className="flex items-center gap-3">
+												<div className={`h-4 w-4 rounded-full border flex items-center justify-center ${releaseIntent === "keep" ? "border-emerald-500 bg-emerald-500" : "border-white/30"}`}>
+													{releaseIntent === "keep" && (
+														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-2.5 w-2.5 text-white">
+															<path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+														</svg>
+													)}
+												</div>
+												<div>
+													<div className="text-sm font-semibold text-neutral-50">Keep as Walk-in</div>
+													<div className="text-xs text-neutral-400 mt-0.5">Keep session active without table</div>
+												</div>
+											</div>
+										</button>
+									</div>
+								</div>
+							)}
+
 							<div className="mt-5 flex justify-end gap-2">
 								<button type="button" onClick={() => setConfirmOpen(false)} className="rounded-full border border-white/20 px-3 py-2 text-xs sm:text-sm hover:bg-white/10">Cancel</button>
 								<button type="button" onClick={async () => {
@@ -359,9 +427,19 @@ export function PayFormClient({
 											else setValidationError(res.error || "Wallet payment failed");
 										} catch (err: any) { setValidationError(err.message || "Error"); }
 									} else {
+										// Add release intent to form data if it's a table session
+										if (isTableSession && !isPartial) {
+											const intentInput = document.createElement("input");
+											intentInput.type = "hidden";
+											intentInput.name = "releaseIntent";
+											intentInput.value = releaseIntent;
+											formRef.current?.appendChild(intentInput);
+										}
 										formRef.current?.requestSubmit();
 									}
-								}} className="rounded-full bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-medium text-neutral-900 hover:bg-emerald-400 active:scale-[0.99]">{isPartial ? "Pay Partial" : "Pay & Close"}</button>
+								}} className="rounded-full bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-medium text-neutral-900 hover:bg-emerald-400 active:scale-[0.99]">
+									{isPartial ? "Pay Partial" : (isTableSession ? (releaseIntent === "release" ? "Release & Pay" : "Keep & Pay") : "Pay & Close")}
+								</button>
 							</div>
 						</div>
 					</div>, document.body

@@ -702,6 +702,7 @@ export function SessionClient(props: SessionClientProps & {
 					totalPaid={totalPaid ?? 0}
 					errorCode={errorCode}
 					hasUnsavedItems={totalQuantity > submittedCount}
+					isTableSession={isTableSession}
 				/>
 			</section >
 

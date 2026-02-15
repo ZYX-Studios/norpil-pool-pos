@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-type PaymentMethod = "CASH" | "GCASH" | "CARD" | "WALLET" | "OTHER";
+type PaymentMethod = "CASH" | "GCASH" | "CARD" | "WALLET" | "TAB" | "OTHER";
 
 export interface CloseSessionParams {
 	sessionId: string;
