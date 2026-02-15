@@ -46,7 +46,15 @@ export function PayFormClient({
 	const [method, setMethod] = useState<"CASH" | "GCASH" | "CARD" | "WALLET" | "OTHER">("CASH");
 	const [walletCode, setWalletCode] = useState("");
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const [isMounted, setIsMounted] = useState(false);
+	const [isMounted] = useState(true);
+	const [idempotencyKey, setIdempotencyKey] = useState<string>(() => {
+		// Used to prevent double-clicks / retries creating duplicate payments.
+		try {
+			return crypto.randomUUID();
+		} catch {
+			return String(Date.now());
+		}
+	});
 
 	// Member Search for tagging
 	const [searchOpen, setSearchOpen] = useState(false);
@@ -90,7 +98,6 @@ export function PayFormClient({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [open]);
 
-	useEffect(() => { setIsMounted(true); }, []);
 
 	const parsedAmount = useMemo(() => {
 		const cleaned = (amount || "").replace(/[^0-9.]/g, "");
@@ -119,6 +126,7 @@ export function PayFormClient({
 			>
 				<input type="hidden" name="sessionId" value={sessionId} />
 				<input type="hidden" name="method" value={method} />
+				<input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 				{/* Pass profileId if selected */}
 				{selectedProfile?.id && <input type="hidden" name="profileId" value={selectedProfile.id} />}
 
@@ -261,6 +269,12 @@ export function PayFormClient({
 						// For partials, allow any amount > 0.
 						setValidationError(null);
 						setOpen(false);
+						// New attempt id for this confirmation window.
+						try {
+							setIdempotencyKey(crypto.randomUUID());
+						} catch {
+							setIdempotencyKey(String(Date.now()));
+						}
 						setConfirmOpen(true);
 					}}
 					className="w-full rounded-full bg-neutral-900 px-4 py-3 text-sm sm:text-base font-medium text-white hover:bg-neutral-800 active:scale-[0.99]"
@@ -322,7 +336,7 @@ export function PayFormClient({
 							<p className="mb-3 text-xs text-neutral-300">Confirm payment details below.</p>
 							{hasUnsavedItems && (
 								<div className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 text-left">
-									⚠️ You have items in the cart that won't be sent to the kitchen automatically on payment. Please allow kitchen to prepare first if needed.
+									⚠️ You have items in the cart that won&apos;t be sent to the kitchen automatically on payment. Please allow kitchen to prepare first if needed.
 								</div>
 							)}
 							<div className="space-y-1 text-xs">
@@ -340,7 +354,7 @@ export function PayFormClient({
 									if (method === "WALLET") {
 										setConfirmOpen(false);
 										try {
-											const res = await processPaymentCode(sessionId, walletCode, parsedAmount, selectedProfile?.id);
+											const res = await processPaymentCode(sessionId, walletCode, parsedAmount, selectedProfile?.id, idempotencyKey);
 											if (res.success) router.replace("/pos");
 											else setValidationError(res.error || "Wallet payment failed");
 										} catch (err: any) { setValidationError(err.message || "Error"); }
