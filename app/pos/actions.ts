@@ -456,7 +456,7 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 			let taxTotal = 0;
 			for (const row of allItems ?? []) {
 				const line = Number(row.line_total ?? 0);
-				// @ts-expect-error Supabase join inference doesn't model `products` shape well here
+				// Supabase join inference doesn't model `products` shape well here
 				const products: any = row.products;
 				const taxRate = Number((Array.isArray(products) ? products[0]?.tax_rate : products?.tax_rate) ?? 0);
 				subtotal += line;
