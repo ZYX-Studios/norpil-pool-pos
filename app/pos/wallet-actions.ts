@@ -137,7 +137,13 @@ export type PaymentCodeResult = {
     new_balance?: number;
 };
 
-export async function processPaymentCode(sessionId: string, code: string, amount: number, profileId?: string) {
+export async function processPaymentCode(
+    sessionId: string,
+    code: string,
+    amount: number,
+    profileId?: string,
+    idempotencyKey?: string,
+) {
     const supabase = createSupabaseServerClient();
 
     try {
@@ -185,7 +191,8 @@ export async function processPaymentCode(sessionId: string, code: string, amount
             sessionId,
             method: "WALLET",
             tenderedAmount: amount,
-            profileId: res.user_id // Use the profile returned by the secure code check
+            profileId: res.user_id, // Use the profile returned by the secure code check
+            idempotencyKey,
         });
 
         // 4. Log Action

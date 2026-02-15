@@ -7,6 +7,11 @@ export interface CloseSessionParams {
 	method: PaymentMethod;
 	tenderedAmount: number;
 	profileId?: string; // Optional member tagging
+	/**
+	 * Used to make payment recording safe on retries/double-clicks.
+	 * Must be unique per *intended* payment attempt.
+	 */
+	idempotencyKey?: string;
 }
 
 /**
@@ -26,7 +31,7 @@ export interface CloseSessionParams {
  */
 export async function closeSessionAndRecordPayment(
 	supabase: SupabaseClient,
-	{ sessionId, method, tenderedAmount, profileId }: CloseSessionParams,
+	{ sessionId, method, tenderedAmount, profileId, idempotencyKey }: CloseSessionParams,
 ) {
 	// Load session, table rate, and open order.
 	const [{ data: session, error: sessionErr }, { data: order, error: orderErr }] = await Promise.all([
@@ -58,7 +63,21 @@ export async function closeSessionAndRecordPayment(
 		if (order.status === 'PAID') return;
 	}
 
-	// 2. Fetch Existing Payments to Check if Fully Paid
+	// 2. Idempotency Key (best-effort)
+	// If the exact same payment attempt was already recorded, we skip inserting again.
+	let isDuplicateAttempt = false;
+	if (idempotencyKey) {
+		const { data: existingAttempt, error: attemptErr } = await supabase
+			.from("payments")
+			.select("id")
+			.eq("idempotency_key", idempotencyKey)
+			.limit(1)
+			.maybeSingle();
+		if (attemptErr) throw attemptErr;
+		if (existingAttempt?.id) isDuplicateAttempt = true;
+	}
+
+	// 3. Fetch Existing Payments to Check if Fully Paid
 	const { data: existingPayments, error: paymentsErr } = await supabase
 		.from("payments")
 		.select("amount")
@@ -100,7 +119,7 @@ export async function closeSessionAndRecordPayment(
 		.maybeSingle();
 
 	let tableFee = 0;
-	let isTimeFixed = !!existingTimeItem;
+	const isTimeFixed = !!existingTimeItem;
 
 	if (isTimeFixed) {
 		// If we already have a table time item, we use its value.
@@ -267,20 +286,47 @@ export async function closeSessionAndRecordPayment(
 	const remainingBalance = Math.max(0, finalTotal - previouslyPaid);
 	const amountToApply = Math.min(tenderedAmount, remainingBalance);
 
-	const { error: payErr } = await supabase
-		.from("payments")
-		.insert({
-			order_id: order.id,
-			amount: amountToApply, // Only record what was owed as revenue
-			tendered_amount: tenderedAmount, // Record actual cash given
-			method,
-			profile_id: profileId || null,
-		});
-	if (payErr) throw payErr;
-
+	if (!isDuplicateAttempt) {
+		// If we have an idempotency key, use UPSERT + ignoreDuplicates so a concurrent duplicate
+		// won't throw and will be treated as a no-op.
+		if (idempotencyKey) {
+			const { error: payErr } = await supabase
+				.from("payments")
+				.upsert(
+					{
+						order_id: order.id,
+						amount: amountToApply, // Only record what was owed as revenue
+						tendered_amount: tenderedAmount, // Record actual tendered amount
+						method,
+						profile_id: profileId || null,
+						idempotency_key: idempotencyKey,
+					},
+					{ onConflict: "idempotency_key", ignoreDuplicates: true },
+				);
+			if (payErr) throw payErr;
+		} else {
+			const { error: payErr } = await supabase
+				.from("payments")
+				.insert({
+					order_id: order.id,
+					amount: amountToApply, // Only record what was owed as revenue
+					tendered_amount: tenderedAmount, // Record actual tendered amount
+					method,
+					profile_id: profileId || null,
+				});
+			if (payErr) throw payErr;
+		}
+	}
 
 	// 7. Check if Fully Paid
-	const totalPaidNow = previouslyPaid + tenderedAmount;
+	// IMPORTANT: Re-fetch payments after insert/upsert so retries/concurrency don't use stale totals.
+	const { data: paymentsAfter, error: payAfterErr } = await supabase
+		.from("payments")
+		.select("amount")
+		.eq("order_id", order.id);
+	if (payAfterErr) throw payAfterErr;
+
+	const totalPaidNow = (paymentsAfter ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
 
 	// EPSILON check for float precision
 	const isFullyPaid = (totalPaidNow + 0.01) >= finalTotal;
