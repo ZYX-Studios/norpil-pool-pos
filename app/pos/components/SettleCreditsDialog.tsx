@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from "react";
-import { chargeToTab } from "@/app/ar-tabs/actions";
+import { makePaymentToTab } from "@/app/ar-tabs/actions";
 import { CustomerSearchDialog } from "./CustomerSearchDialog";
 
-interface ChargeToTabDialogProps {
+interface SettleCreditsDialogProps {
   sessionId?: string;
   staffId: string;
   onSuccess?: (result: any) => void;
@@ -12,18 +12,19 @@ interface ChargeToTabDialogProps {
   children?: React.ReactNode;
 }
 
-export function ChargeToTabDialog({
+export function SettleCreditsDialog({
   sessionId,
   staffId,
   onSuccess,
   onError,
   children
-}: ChargeToTabDialogProps) {
+}: SettleCreditsDialogProps) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerBalance, setCustomerBalance] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,11 +42,17 @@ export function ChargeToTabDialog({
       return;
     }
     
+    // Check if payment exceeds balance
+    if (customerBalance !== null && amountCents > customerBalance) {
+      setError(`Payment cannot exceed current balance of ₱${(customerBalance / 100).toFixed(2)}`);
+      return;
+    }
+    
     setIsSubmitting(true);
     setError(null);
     
     try {
-      const result = await chargeToTab(
+      const result = await makePaymentToTab(
         customerId,
         amountCents,
         staffId,
@@ -57,14 +64,15 @@ export function ChargeToTabDialog({
         setAmount("");
         setCustomerId(null);
         setCustomerName("");
+        setCustomerBalance(null);
         
         if (onSuccess) {
           onSuccess(result);
         }
       } else {
-        setError(result.error || "Failed to charge to tab");
+        setError(result.error || "Failed to process payment");
         if (onError) {
-          onError(result.error || "Failed to charge to tab");
+          onError(result.error || "Failed to process payment");
         }
       }
     } catch (err: any) {
@@ -82,7 +90,15 @@ export function ChargeToTabDialog({
     const customer = result.fullCustomer || result;
     setCustomerId(customer.id);
     setCustomerName(customer.name);
+    setCustomerBalance(customer.balance_cents || 0);
     setError(null);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP'
+    }).format(amount / 100);
   };
 
   return (
@@ -94,16 +110,16 @@ export function ChargeToTabDialog({
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
         >
-          Charge to Tab
+          Settle Credits
         </button>
       )}
       
       {open && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">Charge to Customer Tab</h2>
+            <h2 className="text-xl font-semibold mb-4">Settle Customer Credits</h2>
             
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
@@ -113,18 +129,33 @@ export function ChargeToTabDialog({
                     Customer
                   </label>
                   {customerId ? (
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <span>{customerName}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustomerId(null);
-                          setCustomerName("");
-                        }}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Clear
-                      </button>
+                    <div className="p-3 border rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{customerName}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerId(null);
+                            setCustomerName("");
+                            setCustomerBalance(null);
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Change
+                        </button>
+                      </div>
+                      {customerBalance !== null && (
+                        <div className="text-sm">
+                          <span className="text-gray-600">Current Balance: </span>
+                          <span className={`font-semibold ${
+                            customerBalance > 0 ? 'text-red-600' : 
+                            customerBalance < 0 ? 'text-green-600' : 
+                            'text-gray-600'
+                          }`}>
+                            {formatCurrency(customerBalance)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>
@@ -142,18 +173,44 @@ export function ChargeToTabDialog({
                 {/* Amount Input */}
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Amount (PHP)
+                    Payment Amount (PHP)
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full p-3 border rounded-lg"
-                    placeholder="0.00"
-                    required
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-3 text-gray-500">₱</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full p-3 pl-8 border rounded-lg"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  {customerBalance !== null && customerBalance > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="text-sm text-gray-600">
+                        Quick payment options:
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAmount((customerBalance / 100).toFixed(2))}
+                          className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          Pay Full Balance
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAmount((customerBalance / 2 / 100).toFixed(2))}
+                          className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        >
+                          Pay Half
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Error Display */}
@@ -175,10 +232,10 @@ export function ChargeToTabDialog({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="flex-1 p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                     disabled={isSubmitting || !customerId || !amount}
                   >
-                    {isSubmitting ? "Processing..." : "Charge to Tab"}
+                    {isSubmitting ? "Processing..." : "Apply Payment"}
                   </button>
                 </div>
               </div>
@@ -195,9 +252,7 @@ export function ChargeToTabDialog({
             handleCustomerSelect(res.fullCustomer || { id: res.id, name: res.name });
             setCustomerSearchOpen(false);
           } else {
-            // AR Tabs require a registered customer (ID).
-            // We could auto-create, but let's just warn for now.
-            alert("Please select a registered customer for AR Tabs. Guest (no profile) is not supported.");
+            alert("Please select a registered customer/member for AR Tabs.");
           }
         }}
       />

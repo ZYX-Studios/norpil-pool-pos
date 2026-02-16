@@ -11,6 +11,8 @@ import { WalletTopUpDialog } from "./components/WalletTopUpDialog";
 import { KitchenDialog } from "./components/KitchenDialog";
 import { KitchenBadge } from "./components/KitchenBadge";
 import { WalkInDialog } from "./components/WalkInDialog";
+import { SettleCreditsDialog } from "./components/SettleCreditsDialog";
+import { ChargeToTabDialog } from "./components/ChargeToTabDialog";
 import type { CustomerResult } from "./wallet-actions";
 import { isBefore, parseISO, addMinutes } from "date-fns";
 
@@ -51,6 +53,7 @@ type PosHomeClientProps = {
 	initialReservations: Reservation[];
 	initialSessionTotals: Array<{ sessionId: string; itemsTotal: number }>;
 	initialErrorCode: string | null;
+	staffId: string;
 };
 
 /**
@@ -66,6 +69,7 @@ export function PosHomeClient({
 	initialReservations,
 	initialSessionTotals,
 	initialErrorCode,
+	staffId,
 }: PosHomeClientProps) {
 	const router = useRouter();
 	const [tables, setTables] = useState<PoolTable[]>(initialTables);
@@ -263,6 +267,42 @@ export function PosHomeClient({
 						</svg>
 						Wallet Top-up
 					</button>
+					<ChargeToTabDialog
+						staffId={staffId}
+						onSuccess={(result) => {
+							// Refresh the page or show success message
+							window.location.reload();
+						}}
+						onError={(error) => {
+							// Show error message
+							console.error('Charge to tab error:', error);
+						}}
+					>
+						<button className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 active:scale-95">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+								<path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v2.25H9a.75.75 0 000 1.5h2.25V15a.75.75 0 001.5 0v-2.25H15a.75.75 0 000-1.5h-2.25V9z" clipRule="evenodd" />
+							</svg>
+							Charge to Tab
+						</button>
+					</ChargeToTabDialog>
+					<SettleCreditsDialog
+						staffId={staffId}
+						onSuccess={(result) => {
+							// Refresh the page or show success message
+							window.location.reload();
+						}}
+						onError={(error) => {
+							// Show error message
+							console.error('Settle credits error:', error);
+						}}
+					>
+						<button className="flex items-center gap-2 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 active:scale-95">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+								<path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v2.25H9a.75.75 0 000 1.5h2.25V15a.75.75 0 001.5 0v-2.25H15a.75.75 0 000-1.5h-2.25V9z" clipRule="evenodd" />
+							</svg>
+							Settle Credits
+						</button>
+					</SettleCreditsDialog>
 				</div>
 			</div>
 			{errorCode && (
@@ -547,6 +587,16 @@ export function PosHomeClient({
 				onSelectCustomer={(res) => {
 					if (res.fullCustomer) {
 						setSelectedCustomer(res.fullCustomer);
+						setCustomerSearchOpen(false);
+						setTopUpOpen(true);
+					} else if (res.name) {
+						// Handle Guest/New Customer
+						setSelectedCustomer({
+							id: "guest",
+							name: res.name,
+							full_name: res.name,
+							wallet: { id: "guest", balance: 0 } // Dummy wallet for guest
+						} as any);
 						setCustomerSearchOpen(false);
 						setTopUpOpen(true);
 					}
