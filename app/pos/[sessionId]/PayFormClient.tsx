@@ -88,7 +88,7 @@ export function PayFormClient({
 	}
 
 	useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
-        if (!open) return;
+		if (!open) return;
 		function onKeyDown(e: KeyboardEvent) {
 			const { key } = e;
 			if (key >= "0" && key <= "9") { e.preventDefault(); handleKeyPress(key); return; }
@@ -267,8 +267,8 @@ export function PayFormClient({
 								return;
 							}
 						} else if (method === "TAB") {
-							if (!selectedProfile) {
-								setValidationError("Please tag a customer to charge to tab.");
+							if (!selectedProfile?.id) {
+								setValidationError("Please tag a registered member to charge to tab (Guests cannot start a tab).");
 								// Optional: Auto-open search?
 								setSearchOpen(true);
 								return;
@@ -372,8 +372,8 @@ export function PayFormClient({
 										<button
 											type="button"
 											onClick={() => setReleaseIntent("release")}
-											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "release" 
-												? "border-emerald-500/50 bg-emerald-500/10" 
+											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "release"
+												? "border-emerald-500/50 bg-emerald-500/10"
 												: "border-white/10 bg-white/5 hover:bg-white/10"}`}
 										>
 											<div className="flex items-center gap-3">
@@ -390,12 +390,12 @@ export function PayFormClient({
 												</div>
 											</div>
 										</button>
-										
+
 										<button
 											type="button"
 											onClick={() => setReleaseIntent("keep")}
-											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "keep" 
-												? "border-emerald-500/50 bg-emerald-500/10" 
+											className={`w-full text-left rounded-xl border p-3 transition ${releaseIntent === "keep"
+												? "border-emerald-500/50 bg-emerald-500/10"
 												: "border-white/10 bg-white/5 hover:bg-white/10"}`}
 										>
 											<div className="flex items-center gap-3">
