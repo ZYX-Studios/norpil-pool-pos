@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS ar_ledger_entries (
     amount_cents BIGINT NOT NULL,
     type ledger_entry_type NOT NULL,
     idempotency_key TEXT UNIQUE NOT NULL,
-    pos_session_id UUID REFERENCES pos_sessions(id) ON DELETE SET NULL,
+    pos_session_id UUID, -- Will be set by fix migration to reference correct sessions table
     staff_id UUID NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_created_at ON customers(created_at);
 CREATE INDEX IF NOT EXISTS idx_ar_ledger_entries_customer_id ON ar_ledger_entries(customer_id);
 CREATE INDEX IF NOT EXISTS idx_ar_ledger_entries_created_at ON ar_ledger_entries(created_at);
 CREATE INDEX IF NOT EXISTS idx_ar_ledger_entries_staff_id ON ar_ledger_entries(staff_id);
-CREATE INDEX IF NOT EXISTS idx_ar_ledger_entries_pos_session_id ON ar_ledger_entries(pos_session_id);
+-- Note: pos_session_id index will be created by fix migration after FK is established
 CREATE INDEX IF NOT EXISTS idx_ar_ledger_entries_idempotency_key ON ar_ledger_entries(idempotency_key);
 
 -- Enable Row Level Security
