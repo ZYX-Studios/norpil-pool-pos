@@ -10,6 +10,7 @@ import { updateSessionCustomerName, pauseSession, resumeSession, releaseTable } 
 import { voidOrderItemAction, setProductQuantityAction } from "./actions";
 import { VoidDialog } from "./VoidDialog";
 import { CustomerSearchDialog } from "../components/CustomerSearchDialog";
+import { Modal } from "@/app/components/ui/Modal";
 
 type ItemCategory = "FOOD" | "DRINK" | "OTHER" | "TABLE_TIME";
 
@@ -196,7 +197,20 @@ export function SessionClient(props: SessionClientProps & {
 
 	const [showReleaseModal, setShowReleaseModal] = useState(false);
 	const [releaseName, setReleaseName] = useState("");
+	const [showSuccessModal, setShowSuccessModal] = useState(false);
+	const [releaseError, setReleaseError] = useState<string | null>(null);
 	const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+
+	// Auto-redirect after successful release
+	useEffect(() => {
+		if (showSuccessModal) {
+			const timer = setTimeout(() => {
+				setShowSuccessModal(false);
+				router.push("/pos");
+			}, 3000);
+			return () => clearTimeout(timer);
+		}
+	}, [showSuccessModal, router]);
 	const [itemToVoid, setItemToVoid] = useState<SessionItem | null>(null);
 	const [voidAmount, setVoidAmount] = useState(0);
 	const [isMounted, setIsMounted] = useState(false);
@@ -386,50 +400,106 @@ export function SessionClient(props: SessionClientProps & {
 	return (
 		<div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 sm:p-6 lg:grid-cols-12">
 			{/* Release Table Modal */}
-			{showReleaseModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-					<div className="w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl">
-						<h3 className="mb-2 text-lg font-semibold text-white">Release Table</h3>
-						<p className="mb-4 text-sm text-neutral-400">
-							This will free up the table for new customers. The current session will continue as a &quot;Walk-in&quot;.
-						</p>
-
-						<div className="mb-6">
-							<label className="mb-2 block text-xs font-medium uppercase tracking-wider text-neutral-500">
-								Customer Name (Optional)
-							</label>
-							<input
-								type="text"
-								value={releaseName}
-								onChange={(e) => setReleaseName(e.target.value)}
-								placeholder="e.g. John Doe"
-								className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-								autoFocus
-							/>
-						</div>
-
-						<div className="flex gap-3">
-							<button
-								onClick={() => setShowReleaseModal(false)}
-								className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-neutral-300 hover:bg-white/10"
-							>
-								Cancel
-							</button>
-							<button
-								onClick={() => {
-									startTransition(async () => {
-										await releaseTable(sessionId, releaseName || undefined);
+			<Modal
+				isOpen={showReleaseModal}
+				onClose={() => {
+					setShowReleaseModal(false);
+					setReleaseError(null);
+				}}
+				title="Release Table"
+				description="This will free up the table for new customers. The current session will continue as a 'Walk-in'."
+				footer={
+					<>
+						<button
+							onClick={() => {
+								setShowReleaseModal(false);
+								setReleaseError(null);
+							}}
+							className="inline-flex h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 hover:bg-white/10"
+						>
+							Cancel
+						</button>
+						<button
+							onClick={() => {
+								startTransition(async () => {
+									try {
+										// Generate idempotency key using session ID and timestamp
+										const idempotencyKey = `release_${sessionId}_${Date.now()}`;
+										console.log("Releasing table with idempotency key:", idempotencyKey);
+										
+										await releaseTable(sessionId, releaseName || undefined, idempotencyKey);
 										setShowReleaseModal(false);
-									});
-								}}
-								className="flex-1 rounded-xl bg-emerald-500 py-3 text-sm font-medium text-white hover:bg-emerald-400"
-							>
-								Confirm Release
-							</button>
-						</div>
-					</div>
+										setShowSuccessModal(true);
+										setReleaseError(null);
+									} catch (error) {
+										console.error("Failed to release table:", error);
+										setReleaseError(error instanceof Error ? error.message : 'Unknown error');
+										// Don't close modal on error
+									}
+								});
+							}}
+							className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-400"
+						>
+							Confirm Release
+						</button>
+					</>
+				}
+			>
+				<div className="mb-6">
+					<label className="mb-2 block text-xs font-medium uppercase tracking-wider text-neutral-500">
+						Customer Name (Optional)
+					</label>
+					<input
+						type="text"
+						value={releaseName}
+						onChange={(e) => setReleaseName(e.target.value)}
+						placeholder="e.g. John Doe"
+						className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-neutral-600 focus:border-emerald-500/50 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+						autoFocus
+					/>
 				</div>
-			)}
+				{releaseError && (
+					<div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+						<p className="text-sm text-red-300">Error: {releaseError}</p>
+					</div>
+				)}
+			</Modal>
+
+			{/* Success Modal */}
+			<Modal
+				isOpen={showSuccessModal}
+				onClose={() => {
+					setShowSuccessModal(false);
+					router.push("/pos");
+				}}
+				title="Table Released Successfully!"
+				description="The table has been freed up for new customers. You will be redirected to the main POS screen."
+				footer={
+					<button
+						onClick={() => {
+							setShowSuccessModal(false);
+							router.push("/pos");
+						}}
+						className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-400"
+					>
+						Return to POS
+					</button>
+				}
+			>
+				<div className="text-center py-4">
+					<div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20">
+						<svg className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+						</svg>
+					</div>
+					<p className="text-neutral-300">
+						The session has been converted to a walk-in. You can now seat new customers at this table.
+					</p>
+					<p className="mt-2 text-sm text-neutral-400">
+						Redirecting to main POS screen in 3 seconds...
+					</p>
+				</div>
+			</Modal>
 
 			<section className="space-y-4 lg:col-span-4">
 				<div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5 shadow-sm shadow-black/40 backdrop-blur">
