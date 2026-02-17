@@ -12,6 +12,7 @@ export type CustomerResult = {
     avatar_url: string | null;
     email?: string | null; // From auth.users if possible
     membership_number?: string | null; // Unique membership number (NP-XXXXX)
+    balance_cents?: number; // AR tab balance in cents (from customer_balances view)
     wallet: {
         id: string;
         balance: number;
@@ -42,6 +43,7 @@ export async function searchCustomers(query: string): Promise<CustomerResult[]> 
         avatar_url: r.avatar_url,
         email: r.email,
         membership_number: r.membership_number,
+        balance_cents: r.balance_cents ?? 0,
         wallet: r.wallet_id ? {
             id: r.wallet_id,
             balance: Number(r.balance)

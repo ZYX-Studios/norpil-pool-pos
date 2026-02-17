@@ -286,6 +286,19 @@ export async function closeSessionAndRecordPayment(
 	const remainingBalance = Math.max(0, finalTotal - previouslyPaid);
 	const amountToApply = Math.min(tenderedAmount, remainingBalance);
 
+	// Verify profileId exists in profiles table to avoid FK violations (e.g. if it's a guest customer ID)
+	let finalProfileId: string | null = null;
+	if (profileId) {
+		const { data: profileCheck } = await supabase
+			.from("profiles")
+			.select("id")
+			.eq("id", profileId)
+			.maybeSingle();
+		if (profileCheck) {
+			finalProfileId = profileId;
+		}
+	}
+
 	if (!isDuplicateAttempt) {
 		// If we have an idempotency key, use UPSERT + ignoreDuplicates so a concurrent duplicate
 		// won't throw and will be treated as a no-op.
@@ -298,7 +311,7 @@ export async function closeSessionAndRecordPayment(
 						amount: amountToApply, // Only record what was owed as revenue
 						tendered_amount: tenderedAmount, // Record actual tendered amount
 						method,
-						profile_id: profileId || null,
+						profile_id: finalProfileId || null,
 						idempotency_key: idempotencyKey,
 					},
 					{ onConflict: "idempotency_key", ignoreDuplicates: true },
@@ -312,7 +325,7 @@ export async function closeSessionAndRecordPayment(
 					amount: amountToApply, // Only record what was owed as revenue
 					tendered_amount: tenderedAmount, // Record actual tendered amount
 					method,
-					profile_id: profileId || null,
+					profile_id: finalProfileId || null,
 				});
 			if (payErr) throw payErr;
 		}

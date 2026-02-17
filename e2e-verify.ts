@@ -52,18 +52,18 @@ async function run() {
   log("SETUP", "Fetching a valid pool table and product...");
   const { data: table } = await supabase.from('pool_tables').select('id, name').limit(1).single();
   if (!table) fail("SETUP", "No pool tables found.");
-  const poolTableId = table.id;
-  log("SETUP", `Using Pool Table: ${table.name} (${poolTableId})`);
+  const poolTableId = table!.id;
+  log("SETUP", `Using Pool Table: ${table!.name} (${poolTableId})`);
 
   const { data: product } = await supabase.from('products').select('id, name, price').limit(1).single();
   if (!product) fail("SETUP", "No products found.");
-  const productId = product.id;
-  log("SETUP", `Using Product: ${product.name} (${productId}) - ${product.price}`);
+  const productId = product!.id;
+  log("SETUP", `Using Product: ${product!.name} (${productId}) - ${product!.price}`);
   
   // Get a staff user for AR actions
   const { data: staff } = await supabase.from('staff').select('id, user_id').limit(1).single();
   if (!staff) fail("SETUP", "No staff found.");
-  testStaffId = staff.id;
+  testStaffId = staff!.id;
   log("SETUP", `Using Staff: ${testStaffId}`);
 
   // ---------------------------------------------------------
@@ -78,7 +78,7 @@ async function run() {
       status: "OPEN",
       session_type: "OPEN",
       customer_name: "E2E Test Guest",
-      location_name: table.name,
+      location_name: table!.name,
     })
     .select("id")
     .single();
@@ -127,15 +127,15 @@ async function run() {
     order_id: orderId,
     product_id: productId,
     quantity: 2,
-    unit_price: product.price,
-    line_total: product.price * 2
+    unit_price: product!.price,
+    line_total: product!.price * 2
   });
   if (itemErr) fail("STEP 2", `Failed to add item: ${itemErr.message}`);
 
   // Recalc Totals (Simulating recalcOrderTotals)
   await supabase.from("orders").update({
-    subtotal: product.price * 2,
-    total: product.price * 2
+    subtotal: product!.price * 2,
+    total: product!.price * 2
   }).eq("id", orderId);
 
   // Send to Kitchen (Simulating sendOrderToKitchen)
@@ -246,7 +246,7 @@ async function run() {
   
   // Close the session (Simulating closeSessionAndRecordPayment & releaseTable)
   // Pay remaining.
-  const remainingTotal = (product.price * 2) - partialAmount; // Assuming rough math
+  const remainingTotal = (product!.price * 2) - partialAmount; // Assuming rough math
   
   await supabase.from("payments").insert({
     order_id: orderId,

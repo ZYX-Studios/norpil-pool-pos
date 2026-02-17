@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { payOrderFormAction } from "./actions";
 import { processPaymentCode } from "../wallet-actions";
 import { CustomerSearchDialog } from "../components/CustomerSearchDialog";
+import { GuestTabDialog } from "../components/GuestTabDialog";
+import { ensureGuestCustomer } from "@/app/ar-tabs/actions";
 
 type PayFormClientProps = {
 	sessionId: string;
@@ -62,6 +64,12 @@ export function PayFormClient({
 	// Member Search for tagging
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [selectedProfile, setSelectedProfile] = useState<{ name: string; id?: string } | null>(null);
+
+	// Guest dialog for TAB
+	const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+	const [guestName, setGuestName] = useState('');
+	const [guestPhone, setGuestPhone] = useState('');
+	const [isSubmittingGuest, setIsSubmittingGuest] = useState(false);
 
 	function handleKeyPress(key: string) {
 		if (key === "C") {
@@ -268,9 +276,8 @@ export function PayFormClient({
 							}
 						} else if (method === "TAB") {
 							if (!selectedProfile?.id) {
-								setValidationError("Please tag a registered member to charge to tab (Guests cannot start a tab).");
-								// Optional: Auto-open search?
-								setSearchOpen(true);
+								// Open guest dialog instead of error
+								setGuestDialogOpen(true);
 								return;
 							}
 							if (parsedAmount <= 0) {
@@ -452,6 +459,29 @@ export function PayFormClient({
 				onSelectCustomer={(res) => {
 					setSelectedProfile({ name: res.name, id: res.id });
 					setSearchOpen(false);
+				}}
+			/>
+
+			<GuestTabDialog
+				isOpen={guestDialogOpen}
+				onClose={() => setGuestDialogOpen(false)}
+				onSubmit={async (name, phone) => {
+					const result = await ensureGuestCustomer(name, phone);
+					if (result.success && result.customerId) {
+						setSelectedProfile({ name, id: result.customerId });
+						setGuestDialogOpen(false);
+						// Now proceed to confirm dialog since we have a customer
+						setValidationError(null);
+						setOpen(false);
+						try {
+							setIdempotencyKey(crypto.randomUUID());
+						} catch {
+							setIdempotencyKey(String(Date.now()));
+						}
+						setConfirmOpen(true);
+					} else {
+						throw new Error(result.error || 'Failed to create guest customer');
+					}
 				}}
 			/>
 		</>
