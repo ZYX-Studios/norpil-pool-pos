@@ -38,7 +38,9 @@ type ActionType =
     | "DELETE_ORDER"
     | "VOID_ITEM"
     | "ADJUST_INVENTORY_ERROR"
-    | "FIX_STOCK_ERROR";
+    | "FIX_STOCK_ERROR"
+    | "CHARGE_TO_TAB"
+    | "PAYMENT_TO_TAB";
 
 interface LogParams {
     actionType: ActionType;

@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { closeSessionAndRecordPayment } from "@/lib/payments/closeSession";
 import { logAction } from "@/lib/logger";
+import { releaseTable } from "../actions";
 
 async function getSessionIdForOrderId(supabase: SupabaseClient, orderId: string): Promise<string | null> {
 	const { data, error } = await supabase
@@ -145,24 +146,77 @@ async function recalcOrderTotals(orderId: string) {
 // (what we apply as revenue for this order). This keeps reports correct.
 export async function payOrderAction(
 	sessionId: string,
-	method: "CASH" | "GCASH" | "CARD" | "OTHER",
+	method: "CASH" | "GCASH" | "CARD" | "TAB" | "OTHER",
 	tenderedAmount: number,
-	options?: { profileId?: string; idempotencyKey?: string },
+	options?: { profileId?: string; idempotencyKey?: string; releaseIntent?: "release" | "keep" },
 ) {
 	const supabase = createSupabaseServerClient();
+
+    // If paying by TAB, we must charge the AR ledger first.
+    if (method === "TAB") {
+        if (!options?.profileId) {
+            throw new Error("Customer profile is required for Tab payments");
+        }
+
+        // Get staff ID (current user)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Unauthorized");
+        
+        // We need to fetch the staff profile ID for the ledger
+        const { data: staff } = await supabase
+            .from("staff")
+            .select("id")
+            .eq("user_id", user.id)
+            .single();
+            
+        if (!staff) throw new Error("Staff profile not found");
+
+        // Charge to tab using the RPC
+        // The RPC handles credit limit checks and idempotency
+        const { error: chargeErr } = await supabase.rpc("charge_to_tab", {
+            p_customer_id: options.profileId,
+            p_amount_cents: Math.round(tenderedAmount * 100), // Convert to cents
+            p_staff_id: staff.id,
+            p_idempotency_key: options.idempotencyKey || crypto.randomUUID(),
+            p_pos_session_id: sessionId
+        });
+
+        if (chargeErr) {
+            console.error("Charge to Tab failed:", chargeErr);
+            throw new Error(chargeErr.message || "Failed to charge to tab");
+        }
+    }
+
 	await closeSessionAndRecordPayment(supabase, {
 		sessionId,
-		method,
+		method, // This will now be "TAB" which needs to be added to DB enum
 		tenderedAmount,
 		profileId: options?.profileId,
 		idempotencyKey: options?.idempotencyKey,
 	});
 
+
+	// Handle table release if requested
+	if (options?.releaseIntent === "release") {
+		// Get customer name from session for release
+		const { data: session } = await supabase
+			.from("table_sessions")
+			.select("customer_name")
+			.eq("id", sessionId)
+			.single();
+		
+		if (session?.customer_name) {
+			await releaseTable(sessionId, session.customer_name);
+		} else {
+			await releaseTable(sessionId);
+		}
+	}
+
 	await logAction({
 		actionType: "PAY_ORDER",
 		entityType: "table_session",
 		entityId: sessionId,
-		details: { method, tenderedAmount },
+		details: { method, tenderedAmount, releaseIntent: options?.releaseIntent },
 	});
 
 	revalidatePath("/pos");
@@ -171,7 +225,7 @@ export async function payOrderAction(
 
 export async function payOrderFormAction(formData: FormData) {
 	const sessionId = String(formData.get("sessionId") || "");
-	const method = (String(formData.get("method") || "CASH") as "CASH" | "GCASH" | "CARD" | "OTHER");
+	const method = (String(formData.get("method") || "CASH") as "CASH" | "GCASH" | "CARD" | "TAB" | "OTHER");
 	// We treat this as the tendered amount (what the guest handed over).
 	// For backwards compatibility we also accept "amount" if the new field is missing.
 	const tenderedRaw = formData.get("tenderedAmount") ?? formData.get("amount");
@@ -184,8 +238,9 @@ export async function payOrderFormAction(formData: FormData) {
 
 	const profileId = String(formData.get("profileId") || "") || undefined;
 	const idempotencyKey = String(formData.get("idempotencyKey") || "") || undefined;
+	const releaseIntent = String(formData.get("releaseIntent") || "keep") as "release" | "keep";
 
-	await payOrderAction(sessionId, method, tenderedAmount, { profileId, idempotencyKey });
+	await payOrderAction(sessionId, method, tenderedAmount, { profileId, idempotencyKey, releaseIntent });
 }
 
 // Void a committed item (full or partial).

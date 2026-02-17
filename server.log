@@ -1,0 +1,24 @@
+
+> pos-app@0.1.0 dev
+> next dev
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://192.168.0.222:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+ ✓ Ready in 5.8s
+ ○ Compiling /pos ...
+ HEAD / 200 in 14.4s (compile: 13.0s, proxy.ts: 48ms, render: 1359ms)
+ GET /pos 200 in 20.0s (compile: 16.1s, proxy.ts: 903ms, render: 3.0s)
+ POST /pos 200 in 1051ms (compile: 21ms, proxy.ts: 251ms, render: 779ms)
+ GET /auth/login 200 in 2.1s (compile: 1769ms, proxy.ts: 28ms, render: 313ms)
+ GET /admin/ar-tabs 404 in 1001ms (compile: 865ms, proxy.ts: 12ms, render: 124ms)
+ GET /auth/login 200 in 180ms (compile: 7ms, proxy.ts: 6ms, render: 167ms)
+ GET /pos 307 in 1153ms (compile: 13ms, proxy.ts: 15ms, render: 1124ms)
+ POST /pos 200 in 7.4s (compile: 9ms, proxy.ts: 5.9s, render: 1510ms)
+ POST /pos 200 in 1166ms (compile: 8ms, proxy.ts: 240ms, render: 918ms)
+ POST /pos 200 in 962ms (compile: 10ms, proxy.ts: 219ms, render: 732ms)

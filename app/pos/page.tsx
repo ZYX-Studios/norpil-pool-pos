@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUserWithStaff } from "@/lib/auth/serverUser";
 import { openTableAction } from "./actions";
 import { ClientTimer } from "./ClientTimer";
 import { PosHomeClient } from "./PosHomeClient";
@@ -121,6 +122,10 @@ export default async function PosHome({
 	const sp = await searchParams;
 	const queryError = (sp?.error as string | undefined) ?? null;
 	const { tables, openSessions, reservations, sessionIdToOrderTotal, errorCode } = await getData();
+	
+	// Get current staff ID for AR tabs actions
+	const { staff } = await getCurrentUserWithStaff();
+	const staffId = staff?.id || '';
 
 	// Prepare a serialisable representation of session totals for the client.
 	const sessionTotalsArray = Array.from(sessionIdToOrderTotal.entries()).map(
@@ -140,6 +145,7 @@ export default async function PosHome({
 			initialReservations={reservations}
 			initialSessionTotals={sessionTotalsArray}
 			initialErrorCode={errorCode ?? queryError}
+			staffId={staffId}
 		/>
 	);
 }
