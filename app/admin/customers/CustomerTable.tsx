@@ -166,7 +166,7 @@ export function CustomerTable({ customers, toggleMembership }: CustomerTableProp
                                     <td className="px-6 py-4 text-right">
                                         <form action={toggleMembership}>
                                             <input type="hidden" name="id" value={profile.id} />
-                                            <input type="hidden" name="currentState" value={profile.is_member.toString()} />
+                                            <input type="hidden" name="currentState" value={String(profile.is_member || false)} />
                                             <button
                                                 type="submit"
                                                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${profile.is_member

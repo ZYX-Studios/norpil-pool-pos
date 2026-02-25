@@ -1,0 +1,2 @@
+-- Consolidated into 20260215120000_payments_idempotency_hotfix.sql
+-- This file is intentionally left empty.

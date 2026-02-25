@@ -11,6 +11,7 @@ import { WalletTopUpDialog } from "./components/WalletTopUpDialog";
 import { KitchenDialog } from "./components/KitchenDialog";
 import { KitchenBadge } from "./components/KitchenBadge";
 import { WalkInDialog } from "./components/WalkInDialog";
+import { SettleCreditsDialog } from "./components/SettleCreditsDialog";
 import type { CustomerResult } from "./wallet-actions";
 import { isBefore, parseISO, addMinutes } from "date-fns";
 
@@ -51,6 +52,7 @@ type PosHomeClientProps = {
 	initialReservations: Reservation[];
 	initialSessionTotals: Array<{ sessionId: string; itemsTotal: number }>;
 	initialErrorCode: string | null;
+	staffId: string;
 };
 
 /**
@@ -66,6 +68,7 @@ export function PosHomeClient({
 	initialReservations,
 	initialSessionTotals,
 	initialErrorCode,
+	staffId,
 }: PosHomeClientProps) {
 	const router = useRouter();
 	const [tables, setTables] = useState<PoolTable[]>(initialTables);
@@ -241,13 +244,15 @@ export function PosHomeClient({
 		return () => window.removeEventListener("focus", refresh);
 	}, []);
 
+	const [activeTab, setActiveTab] = useState<"tables" | "walkins">("tables");
+
 	return (
 		<div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 				<div>
-					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">Tables</h1>
+					<h1 className="text-xl font-semibold text-neutral-50 sm:text-2xl">POS Dashboard</h1>
 					<p className="text-sm text-neutral-400">
-						Open and manage live pool sessions with large, touch-friendly tiles.
+						Manage pool tables and walk-in sessions with touch-friendly interface.
 					</p>
 				</div>
 				<div className="flex items-center gap-3">
@@ -261,6 +266,24 @@ export function PosHomeClient({
 						</svg>
 						Wallet Top-up
 					</button>
+					<SettleCreditsDialog
+						staffId={staffId}
+						onSuccess={(result) => {
+							// Refresh the page or show success message
+							window.location.reload();
+						}}
+						onError={(error) => {
+							// Show error message
+							console.error('Settle credits error:', error);
+						}}
+					>
+						<button className="flex items-center gap-2 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 active:scale-95">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+								<path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v2.25H9a.75.75 0 000 1.5h2.25V15a.75.75 0 001.5 0v-2.25H15a.75.75 0 000-1.5h-2.25V9z" clipRule="evenodd" />
+							</svg>
+							Settle Credits
+						</button>
+					</SettleCreditsDialog>
 				</div>
 			</div>
 			{errorCode && (
@@ -270,46 +293,34 @@ export function PosHomeClient({
 						: "The POS could not reach the server. Some information may be out of date."}
 				</div>
 			)}
-			{/* 
-			{/*
-				Grid tuned for tablets:
-				- 1 column on phones.
-				- 2 columns on tablets (gives big tap targets).
-				- 3 columns only on larger desktop screens.
-			*/}
-			{/* Active Walk-in Sessions */}
-			{openSessions.filter((s) => !s.pool_table_id).length > 0 && (
-				<div className="mb-8">
-					<h2 className="mb-4 text-lg font-semibold text-neutral-200">Active Walk-ins</h2>
-					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-						{openSessions
-							.filter((s) => !s.pool_table_id)
-							.map((session) => (
-								<button
-									key={session.id}
-									onClick={() => router.push(`/pos/${session.id}`)}
-									className="flex flex-col items-start justify-between rounded-xl border border-white/10 bg-white/5 p-4 text-left shadow-sm transition hover:bg-white/10 active:scale-95"
-								>
-									<div className="mb-2">
-										<div className="text-xs font-medium uppercase tracking-wider text-neutral-400">
-											Customer
-										</div>
-										<div className="font-semibold text-neutral-50">
-											{session.customer_name ?? "Walk-in"}
-										</div>
-									</div>
-									<div className="text-xs text-neutral-400">
-										Opened {new Date(session.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-									</div>
-								</button>
-							))}
-					</div>
-				</div>
-			)}
 
-			{/* Pool Tables Grid */}
-			<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-				{tables.map((table) => {
+			{/* Tabs */}
+			<div className="flex border-b border-white/10">
+				<button
+					onClick={() => setActiveTab("tables")}
+					className={`flex-1 px-4 py-3 text-sm font-medium transition ${activeTab === "tables"
+						? "border-b-2 border-emerald-500 text-emerald-400"
+						: "text-neutral-400 hover:text-neutral-200"
+						}`}
+				>
+					Tables ({tables.length})
+				</button>
+				<button
+					onClick={() => setActiveTab("walkins")}
+					className={`flex-1 px-4 py-3 text-sm font-medium transition ${activeTab === "walkins"
+						? "border-b-2 border-emerald-500 text-emerald-400"
+						: "text-neutral-400 hover:text-neutral-200"
+						}`}
+				>
+					Walk-ins ({openSessions.filter((s) => !s.pool_table_id).length})
+				</button>
+			</div>
+
+			{activeTab === "tables" ? (
+				<>
+					{/* Pool Tables Grid */}
+					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+						{tables.map((table) => {
 					const session = tableIdToSession.get(table.id);
 					const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
 
@@ -469,6 +480,53 @@ export function PosHomeClient({
 					);
 				})}
 			</div>
+				</>
+			) : (
+				<>
+					{/* Walk-ins List - Dense layout */}
+					<div className="space-y-3">
+						{openSessions.filter((s) => !s.pool_table_id).length > 0 ? (
+							openSessions
+								.filter((s) => !s.pool_table_id)
+								.map((session) => (
+									<button
+										key={session.id}
+										onClick={() => router.push(`/pos/${session.id}`)}
+										className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4 text-left shadow-sm transition hover:bg-white/10 active:scale-95"
+									>
+										<div className="flex flex-col items-start">
+											<div className="text-sm font-semibold text-neutral-50">
+												{session.customer_name ?? "Walk-in"}
+											</div>
+											<div className="text-xs text-neutral-400">
+												Opened {new Date(session.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+											</div>
+										</div>
+										<div className="flex items-center gap-4">
+											<div className="text-right">
+												<div className="text-xs text-neutral-400">Items</div>
+												<div className="text-sm font-semibold text-neutral-50">
+													{sessionTotals.get(session.id) ? `₱${sessionTotals.get(session.id)!.toFixed(2)}` : "₱0.00"}
+												</div>
+											</div>
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-neutral-400">
+												<path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+											</svg>
+										</div>
+									</button>
+								))
+						) : (
+							<div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="mx-auto h-12 w-12 text-neutral-600">
+									<path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+								</svg>
+								<h3 className="mt-4 text-sm font-semibold text-neutral-300">No active walk-in sessions</h3>
+								<p className="mt-1 text-xs text-neutral-500">Create a walk-in session to get started.</p>
+							</div>
+						)}
+					</div>
+				</>
+			)}
 
 			{/* Walk-in / Quick Order Button */}
 			<div className="fixed bottom-6 right-6 z-10">
@@ -510,6 +568,16 @@ export function PosHomeClient({
 				onSelectCustomer={(res) => {
 					if (res.fullCustomer) {
 						setSelectedCustomer(res.fullCustomer);
+						setCustomerSearchOpen(false);
+						setTopUpOpen(true);
+					} else if (res.name) {
+						// Handle Guest/New Customer
+						setSelectedCustomer({
+							id: "guest",
+							name: res.name,
+							full_name: res.name,
+							wallet: { id: "guest", balance: 0 } // Dummy wallet for guest
+						} as any);
 						setCustomerSearchOpen(false);
 						setTopUpOpen(true);
 					}

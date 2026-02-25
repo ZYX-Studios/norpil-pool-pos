@@ -254,11 +254,30 @@ export async function resumeSession(sessionId: string) {
 	}
 }
 
-export async function releaseTable(sessionId: string, customerName?: string) {
+export async function releaseTable(sessionId: string, customerName?: string, idempotencyKey?: string) {
 	const supabase = createSupabaseServerClient();
 
+	// Generate idempotency key if not provided (using sessionId + timestamp)
+	const idempotencyKeyFinal = idempotencyKey || `release_${sessionId}_${Date.now()}`;
+	
+	console.log("[releaseTable] Starting release with idempotency key:", idempotencyKeyFinal);
+
 	try {
-		// 1. Fetch session details to calculate final table time
+		// 1. Check idempotency using dedicated idempotency_keys table (if it exists)
+		// First check if the table exists
+		const { data: tableExists } = await supabase
+			.from("idempotency_keys")
+			.select("id")
+			.eq("key", idempotencyKeyFinal)
+			.limit(1)
+			.maybeSingle();
+
+		if (tableExists) {
+			console.log("[releaseTable] Idempotency key already processed:", idempotencyKeyFinal);
+			// Still need to check actual session state
+		}
+
+		// 2. Fetch session details to calculate final table time
 		const { data: session, error: sessionErr } = await supabase
 			.from("table_sessions")
 			.select(`
@@ -272,8 +291,24 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 
 
 		if (sessionErr || !session) {
+			console.error("[releaseTable] Session not found:", sessionErr);
 			throw sessionErr ?? new Error("Session not found");
 		}
+
+		// IDEMPOTENCY CHECK: If table is already released, return early
+		if (session.pool_table_id === null) {
+			console.log("[releaseTable] Table already released, skipping duplicate operation. Idempotency key:", idempotencyKeyFinal);
+			revalidatePath("/pos");
+			revalidatePath(`/pos/${sessionId}`);
+			return { success: true, alreadyReleased: true, idempotencyKey: idempotencyKeyFinal };
+		}
+
+		console.log("[releaseTable] Processing release for session:", {
+			sessionId,
+			currentTableId: session.pool_table_id,
+			customerName,
+			idempotencyKey: idempotencyKeyFinal
+		});
 
 		const orderId = session.orders?.[0]?.id;
 		if (!orderId) {
@@ -430,15 +465,28 @@ export async function releaseTable(sessionId: string, customerName?: string) {
 			updates.customer_name = customerName;
 		}
 
-		const { error } = await supabase
+		console.log("[releaseTable] Updating session with:", updates);
+
+		const { error: updateError, count } = await supabase
 			.from("table_sessions")
 			.update(updates)
-			.eq("id", sessionId);
+			.eq("id", sessionId)
+			.eq("pool_table_id", currentTableId); // Optimistic concurrency check
 
-		if (error) {
-			throw error;
+		if (updateError) {
+			console.error("[releaseTable] Failed to update session:", updateError);
+			throw new Error(`Failed to update session: ${updateError.message}`);
 		}
 
+		if (count === 0) {
+			// Race condition: someone else released the table concurrently
+			console.warn("[releaseTable] Concurrent modification detected - table already released");
+			revalidatePath("/pos");
+			revalidatePath(`/pos/${sessionId}`);
+			return { success: true, alreadyReleased: true, idempotencyKey: idempotencyKeyFinal };
+		}
+
+		console.log("[releaseTable] Session updated successfully, rows affected:", count);
 		revalidatePath("/pos");
 		revalidatePath(`/pos/${sessionId}`);
 
