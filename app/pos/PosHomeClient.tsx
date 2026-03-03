@@ -321,165 +321,165 @@ export function PosHomeClient({
 					{/* Pool Tables Grid */}
 					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 						{tables.map((table) => {
-					const session = tableIdToSession.get(table.id);
-					const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
+							const session = tableIdToSession.get(table.id);
+							const orderItemsTotal = session ? sessionTotals.get(session.id) ?? 0 : 0;
 
-					return (
-						<div key={table.id}>
-							<div
-								role="button"
-								tabIndex={0}
-								onClick={() => {
-									if (session) {
-										router.push(`/pos/${session.id}`);
-									} else {
-										if (isOnline) {
-											setStartSessionDialog({
-												isOpen: true,
-												tableId: table.id,
-												tableName: table.name,
-												hourlyRate: table.hourly_rate,
-											});
-										} else {
-											alert("You are currently offline. Cannot open new sessions.");
-										}
-									}
-								}}
-								onKeyDown={(e) => {
-									if (e.key === 'Enter' || e.key === ' ') {
-										e.currentTarget.click();
-									}
-								}}
-								className={`cursor-pointer relative flex h-full w-full flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.98] ${session
-									? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20"
-									: "border-white/10 bg-white/5 hover:bg-white/10"
-									}`}
-							>
-								<div className="flex w-full items-start justify-between">
-									<div className="flex flex-col">
-										<span
-											className={`text-sm font-bold uppercase tracking-wider ${session ? "text-emerald-400" : "text-neutral-400"
-												}`}
-										>
-											{table.name}
-										</span>
-										{session && (
-											<span className="mt-1 text-xs font-medium text-emerald-300/80">
-												Occupied
-											</span>
-										)}
-									</div>
+							return (
+								<div key={table.id}>
 									<div
-										className={`flex h-8 w-8 items-center justify-center rounded-full ${session ? "bg-emerald-500 text-white" : "bg-white/10 text-neutral-400"
+										role="button"
+										tabIndex={0}
+										onClick={() => {
+											if (session) {
+												router.push(`/pos/${session.id}`);
+											} else {
+												if (isOnline) {
+													setStartSessionDialog({
+														isOpen: true,
+														tableId: table.id,
+														tableName: table.name,
+														hourlyRate: table.hourly_rate,
+													});
+												} else {
+													alert("You are currently offline. Cannot open new sessions.");
+												}
+											}
+										}}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.currentTarget.click();
+											}
+										}}
+										className={`cursor-pointer relative flex h-full w-full flex-col justify-between rounded-2xl border p-4 text-left shadow-sm transition active:scale-[0.98] ${session
+											? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20"
+											: "border-white/10 bg-white/5 hover:bg-white/10"
 											}`}
 									>
-										{session ? (
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-												className="h-5 w-5"
+										<div className="flex w-full items-start justify-between">
+											<div className="flex flex-col">
+												<span
+													className={`text-sm font-bold uppercase tracking-wider ${session ? "text-emerald-400" : "text-neutral-400"
+														}`}
+												>
+													{table.name}
+												</span>
+												{session && (
+													<span className="mt-1 text-xs font-medium text-emerald-300/80">
+														Occupied
+													</span>
+												)}
+											</div>
+											<div
+												className={`flex h-8 w-8 items-center justify-center rounded-full ${session ? "bg-emerald-500 text-white" : "bg-white/10 text-neutral-400"
+													}`}
 											>
-												<path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
-											</svg>
-										) : (
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												fill="none"
-												viewBox="0 0 24 24"
-												strokeWidth={1.5}
-												stroke="currentColor"
-												className="h-5 w-5"
-											>
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													d="M12 4.5v15m7.5-7.5h-15"
-												/>
-											</svg>
-										)}
+												{session ? (
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+														className="h-5 w-5"
+													>
+														<path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+													</svg>
+												) : (
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														fill="none"
+														viewBox="0 0 24 24"
+														strokeWidth={1.5}
+														stroke="currentColor"
+														className="h-5 w-5"
+													>
+														<path
+															strokeLinecap="round"
+															strokeLinejoin="round"
+															d="M12 4.5v15m7.5-7.5h-15"
+														/>
+													</svg>
+												)}
+											</div>
+										</div>
+
+										<div className="mt-4">
+											{session ? (
+												<div className="flex flex-col gap-1">
+													<ClientTimer
+														openedAt={session.opened_at}
+														hourlyRate={Number(session.override_hourly_rate ?? table.hourly_rate)}
+														itemTotal={orderItemsTotal}
+														pausedAt={session.paused_at}
+														accumulatedPausedTime={session.accumulated_paused_time}
+														sessionType={session.session_type}
+														targetDurationMinutes={session.target_duration_minutes ?? undefined}
+														isMoneyGame={session.is_money_game}
+														betAmount={session.bet_amount ?? undefined}
+													/>
+												</div>
+											) : (
+												<div className="text-sm font-medium text-neutral-500">Available</div>
+											)}
+
+											{/* Reservation Logic: Auto-Start & Waiting Indicator */}
+											{(() => {
+												if (!now) return null;
+
+												// Find confirmed reservation intersecting now
+												const activeRes = (reservations || []).find(r => r.pool_table_id === table.id &&
+													r.status === 'CONFIRMED' &&
+													isBefore(parseISO(r.start_time), now) &&
+													isBefore(now, parseISO(r.end_time))
+												);
+
+												// Find upcoming reservation (next 2 hours)
+												const upcomingRes = (reservations || []).find(r => r.pool_table_id === table.id &&
+													r.status === 'CONFIRMED' &&
+													!activeRes &&
+													isBefore(now, parseISO(r.start_time)) &&
+													isBefore(parseISO(r.start_time), addMinutes(now, 120))
+												);
+
+												// 1. Auto-Start Logic (Effect-like via immediate invocation check? No, bad pattern in render)
+												// We handle Auto-Start in a dedicated useEffect below. Here we just show UI.
+
+												if (activeRes) {
+													if (session) {
+														// CONFLICT: Table is busy but should be reserved.
+														// Is it the SAME person? Unlikely unless we track user IDs.
+														// If busy, show "Waiting" state.
+														return (
+															<div className="mt-2 text-xs font-semibold text-red-400 bg-red-950/30 px-2 py-1 rounded animate-pulse">
+																Reservation Waiting ({activeRes.profiles?.full_name})
+															</div>
+														);
+													} else {
+														// Table is FREE and Reservation is ACTIVE.
+														// The Auto-Start effect should pick this up momentarily.
+														// We show "Starting..." or similar.
+														return (
+															<div className="mt-2 text-xs font-semibold text-emerald-400">
+																Starting Reservation...
+															</div>
+														);
+													}
+												}
+
+												if (upcomingRes) {
+													const start = parseISO(upcomingRes.start_time);
+													return (
+														<div className="mt-2 text-xs font-semibold text-amber-500 bg-amber-950/30 px-2 py-1 rounded">
+															Next: {upcomingRes.profiles?.full_name} @ {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+														</div>
+													);
+												}
+												return null;
+											})()}
+										</div>
 									</div>
 								</div>
-
-								<div className="mt-4">
-									{session ? (
-										<div className="flex flex-col gap-1">
-											<ClientTimer
-												openedAt={session.opened_at}
-												hourlyRate={Number(session.override_hourly_rate ?? table.hourly_rate)}
-												itemTotal={orderItemsTotal}
-												pausedAt={session.paused_at}
-												accumulatedPausedTime={session.accumulated_paused_time}
-												sessionType={session.session_type}
-												targetDurationMinutes={session.target_duration_minutes ?? undefined}
-												isMoneyGame={session.is_money_game}
-												betAmount={session.bet_amount ?? undefined}
-											/>
-										</div>
-									) : (
-										<div className="text-sm font-medium text-neutral-500">Available</div>
-									)}
-
-									{/* Reservation Logic: Auto-Start & Waiting Indicator */}
-									{(() => {
-										if (!now) return null;
-
-										// Find confirmed reservation intersecting now
-										const activeRes = (reservations || []).find(r => r.pool_table_id === table.id &&
-											r.status === 'CONFIRMED' &&
-											isBefore(parseISO(r.start_time), now) &&
-											isBefore(now, parseISO(r.end_time))
-										);
-
-										// Find upcoming reservation (next 2 hours)
-										const upcomingRes = (reservations || []).find(r => r.pool_table_id === table.id &&
-											r.status === 'CONFIRMED' &&
-											!activeRes &&
-											isBefore(now, parseISO(r.start_time)) &&
-											isBefore(parseISO(r.start_time), addMinutes(now, 120))
-										);
-
-										// 1. Auto-Start Logic (Effect-like via immediate invocation check? No, bad pattern in render)
-										// We handle Auto-Start in a dedicated useEffect below. Here we just show UI.
-
-										if (activeRes) {
-											if (session) {
-												// CONFLICT: Table is busy but should be reserved.
-												// Is it the SAME person? Unlikely unless we track user IDs.
-												// If busy, show "Waiting" state.
-												return (
-													<div className="mt-2 text-xs font-semibold text-red-400 bg-red-950/30 px-2 py-1 rounded animate-pulse">
-														Reservation Waiting ({activeRes.profiles?.full_name})
-													</div>
-												);
-											} else {
-												// Table is FREE and Reservation is ACTIVE.
-												// The Auto-Start effect should pick this up momentarily.
-												// We show "Starting..." or similar.
-												return (
-													<div className="mt-2 text-xs font-semibold text-emerald-400">
-														Starting Reservation...
-													</div>
-												);
-											}
-										}
-
-										if (upcomingRes) {
-											const start = parseISO(upcomingRes.start_time);
-											return (
-												<div className="mt-2 text-xs font-semibold text-amber-500 bg-amber-950/30 px-2 py-1 rounded">
-													Next: {upcomingRes.profiles?.full_name} @ {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-												</div>
-											);
-										}
-										return null;
-									})()}
-								</div>
-							</div>
-						</div>
-					);
-				})}
-			</div>
+							);
+						})}
+					</div>
 				</>
 			) : (
 				<>
