@@ -48,7 +48,12 @@ export function KitchenBadge({ onClick }: { onClick: () => void }) {
                         quantity: (Number(item.quantity) || 0) - (Number(item.served_quantity) || 0)
                     }))
                     .filter((item: any) => item.quantity > 0) // Hide fully served items
-            })).filter((order: any) => order.order_items.length > 0);
+            }))
+                .filter((order: any) => order.order_items.length > 0)
+                .filter((o: any) => {
+                    // Filter out PAID and SERVED to match KitchenBoard's active tabs
+                    return o.status === "SUBMITTED" || o.status === "OPEN" || o.status === "NEW" || o.status === "PREPARING" || o.status === "READY";
+                });
 
             setCount(activeOrders.length);
         };
